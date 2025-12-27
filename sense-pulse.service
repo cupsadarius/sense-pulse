@@ -1,24 +1,20 @@
 [Unit]
 Description=Sense Pulse - Pi-hole and Tailscale Status Display
-Documentation=https://github.com/yourusername/sense-pulse
 After=network.target pihole-FTL.service tailscaled.service
 Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/root/.local/bin/uv run --project /root/sense-pulse sense-pulse
-WorkingDirectory=/root/sense-pulse
+ExecStart=/home/pi/.local/bin/uv run --project /home/pi/Personal/sense-pulse sense-pulse
+WorkingDirectory=/home/pi/Personal/sense-pulse
 Restart=on-failure
 RestartSec=10
 
-# Run as root for hardware access
-User=root
-Group=root
+User=pi
+Group=pi
 
-# Environment
-Environment="PATH=/usr/local/bin:/usr/bin:/bin:/root/.local/bin"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/pi/.local/bin"
 
-# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=sense-pulse
