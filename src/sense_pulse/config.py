@@ -19,7 +19,8 @@ CONFIG_PATHS = [
 
 @dataclass
 class PiholeConfig:
-    api_url: str = "http://localhost/admin/api.php"
+    host: str = "http://localhost"
+    password: str = ""  # App password from Pi-hole settings
 
 
 @dataclass
@@ -31,7 +32,7 @@ class TailscaleConfig:
 class DisplayConfig:
     rotation: int = 0
     show_icons: bool = True
-    scroll_speed: float = 0.05
+    scroll_speed: float = 0.08
     icon_duration: float = 1.5
 
 
