@@ -60,6 +60,8 @@ sudo apt-get update
 sudo apt-get install -y python3-sense-hat i2c-tools
 ```
 
+> **Note:** The `python3-sense-hat` package includes RTIMU which cannot be installed via pip. The project is configured to use system packages.
+
 ### 3. Enable I2C (if not already enabled)
 
 ```bash

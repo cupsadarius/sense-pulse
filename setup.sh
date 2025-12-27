@@ -32,8 +32,9 @@ else
     echo "Step 2/6: uv already installed"
 fi
 
-# Sync dependencies
+# Sync dependencies (recreate venv to ensure system packages are accessible)
 echo "Step 3/6: Installing Python dependencies..."
+rm -rf .venv
 uv sync
 
 # Create config file if it doesn't exist
