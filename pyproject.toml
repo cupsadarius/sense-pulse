@@ -10,7 +10,7 @@ keywords = ["raspberry-pi", "sense-hat", "pi-hole", "tailscale", "led-display"]
 dependencies = [
     "requests>=2.28.0",
     "pyyaml>=6.0",
-    "sense-hat>=2.6.0",
+    # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
 
 [project.scripts]
@@ -27,3 +27,7 @@ packages = ["src/sense_pulse"]
 dev = [
     "pytest>=7.0.0",
 ]
+
+[tool.uv]
+# Allow access to system-installed packages (sense-hat, RTIMU)
+system-packages = true
