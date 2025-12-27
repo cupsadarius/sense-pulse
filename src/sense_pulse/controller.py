@@ -28,7 +28,7 @@ class StatsDisplay:
         self.config = config
         self.show_icons = config.display.show_icons
 
-        self.pihole = PiHoleStats(config.pihole.api_url)
+        self.pihole = PiHoleStats(config.pihole.host, config.pihole.password)
         self.tailscale = TailscaleStatus(config.tailscale.cache_duration)
         self.display = SenseHatDisplay(
             rotation=config.display.rotation,

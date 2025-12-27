@@ -1,4 +1,4 @@
-"""Pi-hole statistics fetching"""
+"""Pi-hole v6 API statistics fetching"""
 
 import logging
 from typing import Dict, Optional
@@ -9,27 +9,83 @@ logger = logging.getLogger(__name__)
 
 
 class PiHoleStats:
-    """Handles fetching Pi-hole statistics"""
+    """Handles fetching Pi-hole v6 statistics"""
 
-    def __init__(self, api_url: str):
+    def __init__(self, host: str, password: str = ""):
         """
         Initialize Pi-hole stats fetcher.
 
         Args:
-            api_url: Pi-hole API endpoint URL
+            host: Pi-hole host URL (e.g., http://localhost)
+            password: App password from Pi-hole settings
         """
-        self.api_url = api_url
-        logger.info(f"Initialized Pi-hole stats fetcher with URL: {api_url}")
+        self.host = host.rstrip("/")
+        self.password = password
+        self._session_id: Optional[str] = None
+        logger.info(f"Initialized Pi-hole stats fetcher for: {self.host}")
+
+    def _authenticate(self) -> bool:
+        """Authenticate with Pi-hole and get session ID"""
+        if not self.password:
+            logger.debug("No password configured, trying unauthenticated access")
+            return True
+
+        try:
+            response = requests.post(
+                f"{self.host}/api/auth",
+                json={"password": self.password},
+                timeout=5,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("session", {}).get("valid"):
+                self._session_id = data["session"].get("sid")
+                logger.debug("Successfully authenticated with Pi-hole")
+                return True
+            else:
+                logger.error("Pi-hole authentication failed: invalid credentials")
+                return False
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Pi-hole authentication failed: {e}")
+            return False
+
+    def _get_headers(self) -> Dict[str, str]:
+        """Get request headers with session ID if authenticated"""
+        headers = {}
+        if self._session_id:
+            headers["sid"] = self._session_id
+        return headers
 
     def fetch_stats(self) -> Optional[Dict]:
         """Fetch current Pi-hole stats from API"""
+        # Try to authenticate if we have a password and no session
+        if self.password and not self._session_id:
+            if not self._authenticate():
+                return None
+
         try:
             logger.debug("Fetching Pi-hole stats...")
-            response = requests.get(self.api_url, timeout=5)
+            response = requests.get(
+                f"{self.host}/api/stats/summary",
+                headers=self._get_headers(),
+                timeout=5,
+            )
             response.raise_for_status()
             data = response.json()
-            logger.debug(f"Successfully fetched Pi-hole stats: {list(data.keys())}")
+            logger.debug(f"Successfully fetched Pi-hole stats")
             return data
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                # Session expired, try to re-authenticate
+                logger.debug("Session expired, re-authenticating...")
+                self._session_id = None
+                if self._authenticate():
+                    return self.fetch_stats()
+            logger.error(f"Failed to fetch Pi-hole stats: {e}")
+            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch Pi-hole stats: {e}")
             return None
@@ -48,8 +104,10 @@ class PiHoleStats:
                 "ads_percentage_today": 0.0,
             }
 
+        # Pi-hole v6 API response structure
+        queries = stats.get("queries", {})
         return {
-            "queries_today": stats.get("dns_queries_today", 0),
-            "ads_blocked_today": stats.get("ads_blocked_today", 0),
-            "ads_percentage_today": stats.get("ads_percentage_today", 0.0),
+            "queries_today": queries.get("total", 0),
+            "ads_blocked_today": queries.get("blocked", 0),
+            "ads_percentage_today": queries.get("percent_blocked", 0.0),
         }

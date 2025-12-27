@@ -102,9 +102,10 @@ uv run sense-pulse
 Edit `config.yaml` to customize:
 
 ```yaml
-# Pi-hole settings
+# Pi-hole v6 settings
 pihole:
-  api_url: "http://localhost/admin/api.php"
+  host: "http://localhost"
+  password: ""  # Get from Pi-hole Settings > API > App password
 
 # Tailscale settings
 tailscale:
@@ -218,11 +219,16 @@ which tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
 ```
 
-### Pi-hole API Not Accessible
+### Pi-hole API Not Accessible (v6)
 
 ```bash
-# Test API
-curl http://localhost/admin/api.php
+# Test Pi-hole v6 API
+curl http://localhost/api/stats/summary
+
+# If you get 401, you need to set up authentication:
+# 1. Go to Pi-hole Settings > API
+# 2. Create an App password
+# 3. Add it to config.yaml under pihole.password
 
 # Check Pi-hole is running
 sudo systemctl status pihole-FTL

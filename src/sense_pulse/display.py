@@ -17,7 +17,7 @@ class SenseHatDisplay:
     def __init__(
         self,
         rotation: int = 0,
-        scroll_speed: float = 0.05,
+        scroll_speed: float = 0.08,
         icon_duration: float = 1.5,
     ):
         """
