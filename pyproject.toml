@@ -27,7 +27,3 @@ packages = ["src/sense_pulse"]
 dev = [
     "pytest>=7.0.0",
 ]
-
-[tool.uv]
-# Allow access to system-installed packages (sense-hat, RTIMU)
-system-packages = true

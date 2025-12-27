@@ -32,9 +32,10 @@ else
     echo "Step 2/6: uv already installed"
 fi
 
-# Sync dependencies (recreate venv to ensure system packages are accessible)
+# Sync dependencies with system site packages (for sense-hat/RTIMU)
 echo "Step 3/6: Installing Python dependencies..."
 rm -rf .venv
+uv venv --system-site-packages
 uv sync
 
 # Create config file if it doesn't exist
