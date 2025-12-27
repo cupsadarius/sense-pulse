@@ -1,0 +1,31 @@
+# sense-pulse configuration
+# Copy this file to config.yaml and customize as needed
+
+# Pi-hole settings
+pihole:
+  api_url: "http://localhost/admin/api.php"
+
+# Tailscale settings
+tailscale:
+  cache_duration: 30  # seconds to cache status
+
+# Display settings
+display:
+  rotation: 0          # 0, 90, 180, or 270 degrees
+  show_icons: true     # Show 8x8 pixel icons before text
+  scroll_speed: 0.05   # Text scroll speed (lower = faster)
+  icon_duration: 1.5   # How long to show icons (seconds)
+
+# Sleep schedule (display turns off during these hours)
+sleep:
+  start_hour: 22       # 10 PM
+  end_hour: 7          # 7 AM
+
+# Update settings
+update:
+  interval: 60         # Seconds between display cycles
+
+# Logging
+logging:
+  level: "INFO"        # DEBUG, INFO, WARNING, ERROR
+  file: "/var/log/sense-pulse.log"
