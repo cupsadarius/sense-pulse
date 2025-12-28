@@ -136,7 +136,22 @@ def set_rotation(rotation: int) -> Dict[str, str]:
 
 
 def get_matrix_state() -> Dict[str, Any]:
-    """Get current LED matrix state for web preview"""
+    """Get current LED matrix state for web preview (reads directly from hardware)"""
+    _init_sense_hat()
+
+    if _sense_hat_available and _sense_hat is not None:
+        try:
+            # Read actual pixel state from hardware for real-time updates
+            pixels = _sense_hat.get_pixels()
+            return {
+                "pixels": pixels,
+                "mode": _current_display_mode,
+                "available": True,
+            }
+        except Exception:
+            pass
+
+    # Fallback to tracked state if hardware unavailable
     return {
         "pixels": _current_matrix,
         "mode": _current_display_mode,
