@@ -15,6 +15,7 @@ from sense_pulse.pihole import PiHoleStats
 from sense_pulse.tailscale import TailscaleStatus
 from sense_pulse.system import SystemStats
 from sense_pulse import hardware
+from sense_pulse.cache import get_cache
 
 router = APIRouter()
 
@@ -80,6 +81,15 @@ def get_services():
             timeout=_config.aranet4.timeout,
             cache_duration=_config.aranet4.cache_duration,
         )
+
+        # Register data sources with cache for background polling
+        cache = get_cache()
+        cache.register_source("tailscale", _tailscale.get_status_summary)
+        cache.register_source("pihole", _pihole.get_summary)
+        cache.register_source("system", _system.get_stats)
+        cache.register_source("sensors", hardware.get_sensor_data)
+        cache.register_source("co2", hardware.get_aranet4_data)
+
     return _pihole, _tailscale, _system, _config
 
 
@@ -104,15 +114,16 @@ async def index(request: Request):
 
 @router.get("/api/status")
 async def get_status() -> Dict[str, Any]:
-    """Get all status data as JSON"""
-    pihole, tailscale, system, config = get_services()
+    """Get all status data as JSON (from cache)"""
+    _, _, _, config = get_services()
+    cache = get_cache()
 
     return {
-        "tailscale": tailscale.get_status_summary(),
-        "pihole": pihole.get_summary(),
-        "system": system.get_stats(),
-        "sensors": hardware.get_sensor_data(),
-        "co2": hardware.get_aranet4_data(),
+        "tailscale": cache.get("tailscale", {}),
+        "pihole": cache.get("pihole", {}),
+        "system": cache.get("system", {}),
+        "sensors": cache.get("sensors", {}),
+        "co2": cache.get("co2", {}),
         "hardware": {
             "sense_hat_available": hardware.is_sense_hat_available(),
             "aranet4_available": hardware.is_aranet4_available(),
@@ -128,23 +139,25 @@ async def get_status() -> Dict[str, Any]:
 
 @router.get("/api/sensors")
 async def get_sensors() -> Dict[str, Any]:
-    """Get Sense HAT sensor readings (graceful if unavailable)"""
-    return hardware.get_sensor_data()
+    """Get Sense HAT sensor readings (from cache)"""
+    cache = get_cache()
+    return cache.get("sensors", {})
 
 
 @router.get("/api/status/cards", response_class=HTMLResponse)
 async def get_status_cards(request: Request):
-    """HTMX partial: status cards grid"""
-    pihole, tailscale, system, config = get_services()
+    """HTMX partial: status cards grid (from cache)"""
+    _, _, _, config = get_services()
     templates = request.app.state.templates
+    cache = get_cache()
 
     return templates.TemplateResponse("partials/status_cards.html", {
         "request": request,
-        "tailscale": tailscale.get_status_summary(),
-        "pihole": pihole.get_summary(),
-        "system": system.get_stats(),
-        "sensors": hardware.get_sensor_data(),
-        "co2": hardware.get_aranet4_data(),
+        "tailscale": cache.get("tailscale", {}),
+        "pihole": cache.get("pihole", {}),
+        "system": cache.get("system", {}),
+        "sensors": cache.get("sensors", {}),
+        "co2": cache.get("co2", {}),
         "sense_hat_available": hardware.is_sense_hat_available(),
         "aranet4_available": hardware.is_aranet4_available(),
         "config": config,
@@ -434,8 +447,9 @@ async def get_aranet4_status() -> Dict[str, Any]:
 
 @router.get("/api/aranet4/data")
 async def get_aranet4_data() -> Dict[str, Any]:
-    """Get CO2 sensor readings from Aranet4 devices"""
-    return hardware.get_aranet4_data()
+    """Get CO2 sensor readings from Aranet4 devices (from cache)"""
+    cache = get_cache()
+    return cache.get("co2", {})
 
 
 @router.post("/api/aranet4/config/{sensor_name}", response_class=HTMLResponse)

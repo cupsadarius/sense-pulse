@@ -111,6 +111,7 @@ def main() -> int:
 
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
     from sense_pulse.config import load_config
+    from sense_pulse.cache import initialize_cache
 
     # Load configuration
     config = load_config(args.config)
@@ -123,6 +124,11 @@ def main() -> int:
     logger.info("=" * 50)
     logger.info("Starting sense-pulse")
     logger.info("=" * 50)
+
+    # Initialize data cache with 60s TTL and 30s polling interval
+    logger.info("Initializing data cache (60s TTL, 30s poll interval)")
+    cache = initialize_cache(cache_ttl=60.0, poll_interval=30.0)
+    cache.start_polling()
 
     try:
         # Web server only mode
