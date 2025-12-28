@@ -1,4 +1,4 @@
-"""Aranet4 CO2 sensor communication via aranetctl CLI"""
+"""Aranet4 CO2 sensor communication via aranetctl CLI scan"""
 
 import logging
 import re
@@ -43,111 +43,30 @@ class Aranet4Sensor:
         self,
         mac_address: str,
         name: str = "sensor",
-        timeout: int = 30,
         cache_duration: int = 60,
     ):
         self.mac_address = mac_address.upper()
         self.name = name
-        self.timeout = timeout
         self.cache_duration = cache_duration
         self._cached_reading: Optional[Aranet4Reading] = None
         self._last_error: Optional[str] = None
         self._lock = threading.Lock()
 
-    def poll(self) -> Optional[Aranet4Reading]:
-        """
-        Poll the sensor for a new reading using aranetctl CLI.
-        Called by background thread only.
-        """
-        try:
-            logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
+    def update_reading(self, reading: Aranet4Reading) -> None:
+        """Update cached reading (called by polling loop)"""
+        with self._lock:
+            self._cached_reading = reading
+            self._last_error = None
+        logger.info(
+            f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
+            f"T={reading.temperature}°C, H={reading.humidity}%, "
+            f"Battery={reading.battery}%"
+        )
 
-            # Run aranetctl CLI command
-            result = subprocess.run(
-                ["aranetctl", self.mac_address],
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-            )
-
-            if result.returncode != 0:
-                error = result.stderr.strip() or f"Exit code {result.returncode}"
-                logger.warning(f"Aranet4 {self.name}: CLI error: {error}")
-                self._last_error = error
-                return None
-
-            # Parse CLI output
-            output = result.stdout
-            reading = self._parse_cli_output(output)
-
-            if reading is None:
-                logger.warning(f"Aranet4 {self.name}: Failed to parse output")
-                self._last_error = "Failed to parse CLI output"
-                return None
-
-            logger.info(
-                f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
-                f"T={reading.temperature}°C, H={reading.humidity}%, "
-                f"Battery={reading.battery}%"
-            )
-
-            with self._lock:
-                self._cached_reading = reading
-                self._last_error = None
-
-            return reading
-
-        except subprocess.TimeoutExpired:
-            logger.error(f"Aranet4 {self.name}: CLI timeout after {self.timeout}s")
-            self._last_error = "Timeout"
-            return None
-        except FileNotFoundError:
-            logger.error(f"Aranet4 {self.name}: aranetctl not found")
-            self._last_error = "aranetctl not installed"
-            return None
-        except Exception as e:
-            error_msg = str(e) if str(e) else f"{type(e).__name__}"
-            logger.error(f"Aranet4 {self.name}: Poll error: {error_msg}")
-            self._last_error = error_msg
-            return None
-
-    def _parse_cli_output(self, output: str) -> Optional[Aranet4Reading]:
-        """Parse aranetctl CLI output into Aranet4Reading"""
-        try:
-            # aranetctl output format:
-            # CO2: 450 ppm
-            # Temperature: 22.5 C
-            # Humidity: 45 %
-            # Pressure: 1013.25 hPa
-            # Battery: 95 %
-            # Update interval: 300 s
-            # Last update: 120 s
-
-            co2_match = re.search(r"CO2:\s*(\d+)", output)
-            temp_match = re.search(r"Temperature:\s*([\d.]+)", output)
-            humidity_match = re.search(r"Humidity:\s*(\d+)", output)
-            pressure_match = re.search(r"Pressure:\s*([\d.]+)", output)
-            battery_match = re.search(r"Battery:\s*(\d+)", output)
-            interval_match = re.search(r"Update interval:\s*(\d+)", output)
-            ago_match = re.search(r"Last update:\s*(\d+)", output)
-
-            if not all([co2_match, temp_match, humidity_match, pressure_match, battery_match]):
-                logger.warning(f"Aranet4 {self.name}: Missing fields in output: {output[:200]}")
-                return None
-
-            return Aranet4Reading(
-                co2=int(co2_match.group(1)),
-                temperature=round(float(temp_match.group(1)), 1),
-                humidity=int(humidity_match.group(1)),
-                pressure=round(float(pressure_match.group(1)), 1),
-                battery=int(battery_match.group(1)),
-                interval=int(interval_match.group(1)) if interval_match else 300,
-                ago=int(ago_match.group(1)) if ago_match else 0,
-                timestamp=time.time(),
-            )
-        except Exception as e:
-            logger.error(f"Aranet4 {self.name}: Parse error: {e}")
-            return None
+    def set_error(self, error: str) -> None:
+        """Set error state (called by polling loop)"""
+        with self._lock:
+            self._last_error = error
 
     def get_cached_reading(self) -> Optional[Aranet4Reading]:
         """
@@ -181,24 +100,123 @@ _polling_thread: Optional[threading.Thread] = None
 _polling_stop_event = threading.Event()
 _sensors_to_poll: List[Aranet4Sensor] = []
 _poll_interval = 30  # seconds
+_scan_duration = 10  # seconds for BLE scan
+
+
+def _parse_scan_output(output: str) -> Dict[str, Aranet4Reading]:
+    """
+    Parse aranetctl --scan output into readings by MAC address.
+
+    Example format:
+    =======================================
+      Name:     Aranet4 25A3E
+      Address:  C0:06:A0:90:7C:59
+      RSSI:     -75 dBm
+    ---------------------------------------
+      CO2:            2096 ppm
+      Temperature:    22.8 °C
+      Humidity:       40 %
+      Pressure:       960.6 hPa
+      Battery:        49 %
+      Status Display: RED
+      Age:            211/300 s
+    """
+    readings: Dict[str, Aranet4Reading] = {}
+
+    # Split by device separator
+    device_blocks = re.split(r'={30,}', output)
+
+    for block in device_blocks:
+        if not block.strip():
+            continue
+
+        # Extract address
+        addr_match = re.search(r'Address:\s*([0-9A-Fa-f:]+)', block)
+        if not addr_match:
+            continue
+        address = addr_match.group(1).upper()
+
+        # Extract readings
+        co2_match = re.search(r'CO2:\s*(\d+)', block)
+        temp_match = re.search(r'Temperature:\s*([\d.]+)', block)
+        humidity_match = re.search(r'Humidity:\s*(\d+)', block)
+        pressure_match = re.search(r'Pressure:\s*([\d.]+)', block)
+        battery_match = re.search(r'Battery:\s*(\d+)', block)
+        age_match = re.search(r'Age:\s*(\d+)/(\d+)', block)
+
+        if not all([co2_match, temp_match, humidity_match, pressure_match, battery_match]):
+            logger.warning(f"Incomplete data for device {address}")
+            continue
+
+        interval = 300
+        ago = 0
+        if age_match:
+            ago = int(age_match.group(1))
+            interval = int(age_match.group(2))
+
+        readings[address] = Aranet4Reading(
+            co2=int(co2_match.group(1)),
+            temperature=round(float(temp_match.group(1)), 1),
+            humidity=int(humidity_match.group(1)),
+            pressure=round(float(pressure_match.group(1)), 1),
+            battery=int(battery_match.group(1)),
+            interval=interval,
+            ago=ago,
+            timestamp=time.time(),
+        )
+
+    return readings
+
+
+def _do_scan() -> Dict[str, Aranet4Reading]:
+    """Run aranetctl --scan and return readings by MAC address"""
+    try:
+        logger.info("Aranet4: Running BLE scan...")
+
+        result = subprocess.run(
+            ["aranetctl", "--scan"],
+            capture_output=True,
+            text=True,
+            timeout=_scan_duration + 15,
+        )
+
+        if result.returncode != 0:
+            logger.warning(f"Aranet4 scan error: {result.stderr.strip()}")
+            return {}
+
+        readings = _parse_scan_output(result.stdout)
+        logger.info(f"Aranet4: Scan found {len(readings)} device(s)")
+        return readings
+
+    except subprocess.TimeoutExpired:
+        logger.error("Aranet4: Scan timeout")
+        return {}
+    except FileNotFoundError:
+        logger.error("Aranet4: aranetctl not found")
+        return {}
+    except Exception as e:
+        logger.error(f"Aranet4: Scan error: {e}")
+        return {}
 
 
 def _polling_loop():
-    """Background thread that polls all registered sensors"""
+    """Background thread that scans for all sensors at once"""
     logger.info("Aranet4 background polling started")
 
     while not _polling_stop_event.is_set():
-        for sensor in _sensors_to_poll:
-            if _polling_stop_event.is_set():
-                break
-            try:
-                sensor.poll()
-            except Exception as e:
-                logger.error(f"Aranet4 polling error for {sensor.name}: {e}")
+        try:
+            # Single scan gets all devices
+            readings = _do_scan()
 
-            # Brief delay between sensors
-            if not _polling_stop_event.is_set():
-                time.sleep(2)
+            # Update each registered sensor with its reading
+            for sensor in _sensors_to_poll:
+                if sensor.mac_address in readings:
+                    sensor.update_reading(readings[sensor.mac_address])
+                else:
+                    sensor.set_error("Not found in scan")
+
+        except Exception as e:
+            logger.error(f"Aranet4 polling error: {e}")
 
         # Wait for next poll interval
         _polling_stop_event.wait(_poll_interval)
@@ -242,51 +260,46 @@ def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
     try:
         logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
 
-        # aranetctl --scan scans for devices
         result = subprocess.run(
-            ["aranetctl", "--scan", str(duration)],
+            ["aranetctl", "--scan"],
             capture_output=True,
             text=True,
-            timeout=duration + 10,
+            timeout=duration + 15,
         )
 
         if result.returncode != 0:
             logger.warning(f"Scan CLI error: {result.stderr.strip()}")
             return []
 
-        # Parse scan output - format varies, typically:
-        # Name: Aranet4 12345
-        # Address: C0:06:A0:90:7C:59
-        # RSSI: -65
+        # Parse scan output
         found_devices = []
-        current_device: Dict[str, Any] = {}
+        device_blocks = re.split(r'={30,}', result.stdout)
 
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if not line:
-                if current_device.get("address"):
-                    found_devices.append(current_device)
-                    current_device = {}
+        for block in device_blocks:
+            if not block.strip():
                 continue
 
-            if ":" in line:
-                key, _, value = line.partition(":")
-                key = key.strip().lower()
-                value = value.strip()
+            addr_match = re.search(r'Address:\s*([0-9A-Fa-f:]+)', block)
+            name_match = re.search(r'Name:\s*(.+)', block)
+            rssi_match = re.search(r'RSSI:\s*(-?\d+)', block)
+            co2_match = re.search(r'CO2:\s*(\d+)', block)
+            temp_match = re.search(r'Temperature:\s*([\d.]+)', block)
+            humidity_match = re.search(r'Humidity:\s*(\d+)', block)
 
-                if key == "address":
-                    current_device["address"] = value
-                elif key == "name":
-                    current_device["name"] = value
-                elif key == "rssi":
-                    try:
-                        current_device["rssi"] = int(value.replace("dBm", "").strip())
-                    except ValueError:
-                        pass
-
-        # Don't forget last device
-        if current_device.get("address"):
-            found_devices.append(current_device)
+            if addr_match:
+                device = {
+                    "address": addr_match.group(1).upper(),
+                    "name": name_match.group(1).strip() if name_match else "Aranet4",
+                }
+                if rssi_match:
+                    device["rssi"] = int(rssi_match.group(1))
+                if co2_match:
+                    device["co2"] = int(co2_match.group(1))
+                if temp_match:
+                    device["temperature"] = float(temp_match.group(1))
+                if humidity_match:
+                    device["humidity"] = int(humidity_match.group(1))
+                found_devices.append(device)
 
         logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
         return found_devices
