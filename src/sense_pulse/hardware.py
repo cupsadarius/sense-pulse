@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
+    from sense_pulse.aranet4 import Aranet4Sensor
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,11 @@ _initialized: bool = False
 _current_display_mode: str = "idle"
 _current_rotation: int = 0
 _web_rotation_offset: int = 90  # Default offset for web preview
+
+# Aranet4 CO2 sensors
+_aranet4_office: Optional["Aranet4Sensor"] = None
+_aranet4_bedroom: Optional["Aranet4Sensor"] = None
+_aranet4_initialized: bool = False
 
 
 def _init_sense_hat() -> None:
@@ -172,3 +178,140 @@ def set_display_mode(mode: str) -> None:
     """Update the current display mode label"""
     global _current_display_mode
     _current_display_mode = mode
+
+
+def init_aranet4_sensors(
+    office_mac: str = "",
+    bedroom_mac: str = "",
+    office_enabled: bool = False,
+    bedroom_enabled: bool = False,
+    timeout: int = 10,
+    cache_duration: int = 60,
+) -> None:
+    """Initialize Aranet4 CO2 sensors"""
+    global _aranet4_office, _aranet4_bedroom, _aranet4_initialized
+
+    if _aranet4_initialized:
+        return
+
+    _aranet4_initialized = True
+
+    try:
+        from sense_pulse.aranet4 import Aranet4Sensor
+
+        if office_enabled and office_mac:
+            _aranet4_office = Aranet4Sensor(
+                mac_address=office_mac,
+                name="office",
+                timeout=timeout,
+                cache_duration=cache_duration,
+            )
+            logger.info(f"Aranet4 office sensor configured: {office_mac}")
+
+        if bedroom_enabled and bedroom_mac:
+            _aranet4_bedroom = Aranet4Sensor(
+                mac_address=bedroom_mac,
+                name="bedroom",
+                timeout=timeout,
+                cache_duration=cache_duration,
+            )
+            logger.info(f"Aranet4 bedroom sensor configured: {bedroom_mac}")
+
+    except ImportError:
+        logger.warning("Aranet4 module not available - CO2 sensors disabled")
+    except Exception as e:
+        logger.error(f"Failed to initialize Aranet4 sensors: {e}")
+
+
+def update_aranet4_sensor(
+    sensor_name: str,
+    mac_address: str,
+    enabled: bool,
+    timeout: int = 10,
+    cache_duration: int = 60,
+) -> Dict[str, str]:
+    """Update a single Aranet4 sensor configuration"""
+    global _aranet4_office, _aranet4_bedroom
+
+    try:
+        from sense_pulse.aranet4 import Aranet4Sensor
+
+        if sensor_name == "office":
+            if enabled and mac_address:
+                _aranet4_office = Aranet4Sensor(
+                    mac_address=mac_address,
+                    name="office",
+                    timeout=timeout,
+                    cache_duration=cache_duration,
+                )
+                logger.info(f"Aranet4 office sensor updated: {mac_address}")
+            else:
+                _aranet4_office = None
+                logger.info("Aranet4 office sensor disabled")
+            return {"status": "ok", "message": f"Office sensor {'enabled' if enabled else 'disabled'}"}
+
+        elif sensor_name == "bedroom":
+            if enabled and mac_address:
+                _aranet4_bedroom = Aranet4Sensor(
+                    mac_address=mac_address,
+                    name="bedroom",
+                    timeout=timeout,
+                    cache_duration=cache_duration,
+                )
+                logger.info(f"Aranet4 bedroom sensor updated: {mac_address}")
+            else:
+                _aranet4_bedroom = None
+                logger.info("Aranet4 bedroom sensor disabled")
+            return {"status": "ok", "message": f"Bedroom sensor {'enabled' if enabled else 'disabled'}"}
+
+        else:
+            return {"status": "error", "message": f"Unknown sensor: {sensor_name}"}
+
+    except ImportError:
+        return {"status": "error", "message": "Aranet4 module not available"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def get_aranet4_data() -> Dict[str, Any]:
+    """Get CO2 sensor data from Aranet4 devices"""
+    result = {
+        "office": None,
+        "bedroom": None,
+        "available": False,
+    }
+
+    if _aranet4_office is not None:
+        try:
+            reading = _aranet4_office.get_reading()
+            if reading:
+                result["office"] = reading.to_dict()
+                result["available"] = True
+        except Exception as e:
+            logger.error(f"Failed to read office sensor: {e}")
+
+    if _aranet4_bedroom is not None:
+        try:
+            reading = _aranet4_bedroom.get_reading()
+            if reading:
+                result["bedroom"] = reading.to_dict()
+                result["available"] = True
+        except Exception as e:
+            logger.error(f"Failed to read bedroom sensor: {e}")
+
+    return result
+
+
+def get_aranet4_status() -> Dict[str, Any]:
+    """Get status of Aranet4 sensors"""
+    return {
+        "office": _aranet4_office.get_status() if _aranet4_office else None,
+        "bedroom": _aranet4_bedroom.get_status() if _aranet4_bedroom else None,
+        "office_configured": _aranet4_office is not None,
+        "bedroom_configured": _aranet4_bedroom is not None,
+    }
+
+
+def is_aranet4_available() -> bool:
+    """Check if any Aranet4 sensor is configured"""
+    return _aranet4_office is not None or _aranet4_bedroom is not None

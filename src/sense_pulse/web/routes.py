@@ -34,9 +34,22 @@ class SleepConfigUpdate(BaseModel):
     disable_pi_leds: Optional[bool] = None
 
 
+class Aranet4SensorUpdate(BaseModel):
+    mac_address: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class Aranet4ConfigUpdate(BaseModel):
+    office: Optional[Aranet4SensorUpdate] = None
+    bedroom: Optional[Aranet4SensorUpdate] = None
+    timeout: Optional[int] = None
+    cache_duration: Optional[int] = None
+
+
 class ConfigUpdate(BaseModel):
     display: Optional[DisplayConfigUpdate] = None
     sleep: Optional[SleepConfigUpdate] = None
+    aranet4: Optional[Aranet4ConfigUpdate] = None
 
 
 # Lazy-initialized shared instances
@@ -58,6 +71,15 @@ def get_services():
         _system = SystemStats()
         # Initialize hardware settings from config
         hardware.set_web_rotation_offset(_config.display.web_rotation_offset)
+        # Initialize Aranet4 sensors from config
+        hardware.init_aranet4_sensors(
+            office_mac=_config.aranet4.office.mac_address,
+            bedroom_mac=_config.aranet4.bedroom.mac_address,
+            office_enabled=_config.aranet4.office.enabled,
+            bedroom_enabled=_config.aranet4.bedroom.enabled,
+            timeout=_config.aranet4.timeout,
+            cache_duration=_config.aranet4.cache_duration,
+        )
     return _pihole, _tailscale, _system, _config
 
 
@@ -90,8 +112,10 @@ async def get_status() -> Dict[str, Any]:
         "pihole": pihole.get_summary(),
         "system": system.get_stats(),
         "sensors": hardware.get_sensor_data(),
+        "co2": hardware.get_aranet4_data(),
         "hardware": {
             "sense_hat_available": hardware.is_sense_hat_available(),
+            "aranet4_available": hardware.is_aranet4_available(),
         },
         "config": {
             "show_icons": config.display.show_icons,
@@ -111,7 +135,7 @@ async def get_sensors() -> Dict[str, Any]:
 @router.get("/api/status/cards", response_class=HTMLResponse)
 async def get_status_cards(request: Request):
     """HTMX partial: status cards grid"""
-    pihole, tailscale, system, _ = get_services()
+    pihole, tailscale, system, config = get_services()
     templates = request.app.state.templates
 
     return templates.TemplateResponse("partials/status_cards.html", {
@@ -120,7 +144,10 @@ async def get_status_cards(request: Request):
         "pihole": pihole.get_summary(),
         "system": system.get_stats(),
         "sensors": hardware.get_sensor_data(),
+        "co2": hardware.get_aranet4_data(),
         "sense_hat_available": hardware.is_sense_hat_available(),
+        "aranet4_available": hardware.is_aranet4_available(),
+        "config": config,
     })
 
 
@@ -359,4 +386,117 @@ async def get_display_controls(request: Request):
         "request": request,
         "config": config,
         "sense_hat_available": hardware.is_sense_hat_available(),
+    })
+
+
+# ============================================================================
+# Aranet4 CO2 Sensor API
+# ============================================================================
+
+@router.get("/api/aranet4/scan")
+async def scan_aranet4_devices() -> Dict[str, Any]:
+    """Scan for Aranet4 devices via Bluetooth LE"""
+    try:
+        from sense_pulse.aranet4 import scan_for_aranet4_sync
+        devices = scan_for_aranet4_sync(timeout=10.0)
+        return {
+            "status": "ok",
+            "devices": devices,
+            "count": len(devices),
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "devices": [],
+            "count": 0,
+        }
+
+
+@router.get("/api/aranet4/status")
+async def get_aranet4_status() -> Dict[str, Any]:
+    """Get Aranet4 sensor status and readings"""
+    return {
+        "status": hardware.get_aranet4_status(),
+        "data": hardware.get_aranet4_data(),
+        "available": hardware.is_aranet4_available(),
+    }
+
+
+@router.get("/api/aranet4/data")
+async def get_aranet4_data() -> Dict[str, Any]:
+    """Get CO2 sensor readings from Aranet4 devices"""
+    return hardware.get_aranet4_data()
+
+
+@router.post("/api/aranet4/config/{sensor_name}", response_class=HTMLResponse)
+async def update_aranet4_sensor(request: Request, sensor_name: str):
+    """Update Aranet4 sensor configuration (HTMX endpoint)"""
+    global _config
+
+    if sensor_name not in ["office", "bedroom"]:
+        return HTMLResponse(content="Invalid sensor name", status_code=400)
+
+    form = await request.form()
+    mac_address = form.get("mac_address", "")
+    enabled = form.get("enabled", "off") == "on"
+
+    if _config_path is None or not _config_path.exists():
+        return HTMLResponse(content="No config file found", status_code=500)
+
+    try:
+        # Load current config file
+        with open(_config_path) as f:
+            config_data = yaml.safe_load(f) or {}
+
+        # Ensure aranet4 section exists
+        if "aranet4" not in config_data:
+            config_data["aranet4"] = {}
+        if sensor_name not in config_data["aranet4"]:
+            config_data["aranet4"][sensor_name] = {}
+
+        # Update sensor config
+        config_data["aranet4"][sensor_name]["mac_address"] = mac_address
+        config_data["aranet4"][sensor_name]["enabled"] = enabled
+
+        # Write back to file
+        with open(_config_path, "w") as f:
+            yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
+
+        # Reload config
+        _config = reload_config()
+
+        # Update hardware sensor
+        timeout = _config.aranet4.timeout
+        cache_duration = _config.aranet4.cache_duration
+        hardware.update_aranet4_sensor(
+            sensor_name=sensor_name,
+            mac_address=mac_address,
+            enabled=enabled,
+            timeout=timeout,
+            cache_duration=cache_duration,
+        )
+
+        # Return updated controls
+        templates = request.app.state.templates
+        return templates.TemplateResponse("partials/aranet4_controls.html", {
+            "request": request,
+            "config": _config,
+            "aranet4_status": hardware.get_aranet4_status(),
+        })
+
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+
+
+@router.get("/api/aranet4/controls", response_class=HTMLResponse)
+async def get_aranet4_controls(request: Request):
+    """HTMX partial: Aranet4 sensor controls panel"""
+    _, _, _, config = get_services()
+    templates = request.app.state.templates
+
+    return templates.TemplateResponse("partials/aranet4_controls.html", {
+        "request": request,
+        "config": config,
+        "aranet4_status": hardware.get_aranet4_status(),
     })

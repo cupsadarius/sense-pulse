@@ -11,6 +11,7 @@ from sense_pulse.pihole import PiHoleStats
 from sense_pulse.schedule import SleepSchedule
 from sense_pulse.system import SystemStats
 from sense_pulse.tailscale import TailscaleStatus
+from sense_pulse import hardware
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,16 @@ class StatsDisplay:
         # Track sleep state for Pi LED control
         self._was_sleeping = False
         self._disable_pi_leds = config.sleep.disable_pi_leds
+
+        # Initialize Aranet4 CO2 sensors
+        hardware.init_aranet4_sensors(
+            office_mac=config.aranet4.office.mac_address,
+            bedroom_mac=config.aranet4.bedroom.mac_address,
+            office_enabled=config.aranet4.office.enabled,
+            bedroom_enabled=config.aranet4.bedroom.enabled,
+            timeout=config.aranet4.timeout,
+            cache_duration=config.aranet4.cache_duration,
+        )
 
         logger.info("StatsDisplay initialized successfully")
 
@@ -185,6 +196,66 @@ class StatsDisplay:
                 color=(255, 0, 255),
             )
 
+    def _get_co2_color(self, co2: int) -> tuple:
+        """Get color based on CO2 level (green/yellow/red)"""
+        if co2 < 1000:
+            return (0, 255, 0)  # Green - good
+        elif co2 < 1500:
+            return (255, 255, 0)  # Yellow - moderate
+        else:
+            return (255, 0, 0)  # Red - poor
+
+    def _get_co2_icon(self, co2: int) -> str:
+        """Get icon name based on CO2 level"""
+        if co2 < 1000:
+            return "co2_good"
+        elif co2 < 1500:
+            return "co2_moderate"
+        else:
+            return "co2_poor"
+
+    def display_co2_levels(self):
+        """Display CO2 levels from Aranet4 sensors"""
+        if not hardware.is_aranet4_available():
+            return
+
+        logger.info("Displaying CO2 levels...")
+        co2_data = hardware.get_aranet4_data()
+
+        # Display office sensor
+        if co2_data.get("office"):
+            co2 = co2_data["office"]["co2"]
+            color = self._get_co2_color(co2)
+            if self.show_icons:
+                icon = self._get_co2_icon(co2)
+                self.display.show_icon_with_text(
+                    icon,
+                    f"Office: {co2}ppm",
+                    text_color=color,
+                )
+            else:
+                self.display.show_text(
+                    f"Office CO2: {co2}ppm",
+                    color=color,
+                )
+
+        # Display bedroom sensor
+        if co2_data.get("bedroom"):
+            co2 = co2_data["bedroom"]["co2"]
+            color = self._get_co2_color(co2)
+            if self.show_icons:
+                icon = self._get_co2_icon(co2)
+                self.display.show_icon_with_text(
+                    icon,
+                    f"Bedroom: {co2}ppm",
+                    text_color=color,
+                )
+            else:
+                self.display.show_text(
+                    f"Bedroom CO2: {co2}ppm",
+                    color=color,
+                )
+
     def run_cycle(self):
         """Run one complete display cycle"""
         is_sleeping = self.sleep_schedule.is_sleep_time()
@@ -213,6 +284,7 @@ class StatsDisplay:
             self.display_tailscale_status()
             self.display_pihole_stats()
             self.display_sensor_data()
+            self.display_co2_levels()
             self.display_system_stats()
             logger.info("Display cycle completed successfully")
         except Exception as e:

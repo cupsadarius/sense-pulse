@@ -161,6 +161,42 @@ ICONS = {
         O, M, M, M, O, M, O, M,
         M, M, M, M, O, M, O, M,
     ],
+
+    "co2_good": [
+        # Green cloud icon (CO2 good < 1000ppm)
+        O, O, G, G, G, G, O, O,
+        O, G, G, G, G, G, G, O,
+        G, G, G, G, G, G, G, G,
+        G, G, G, G, G, G, G, G,
+        O, G, G, G, G, G, G, O,
+        O, O, O, G, G, O, O, O,
+        O, O, G, G, G, G, O, O,
+        O, O, O, G, G, O, O, O,
+    ],
+
+    "co2_moderate": [
+        # Yellow/Orange cloud icon (CO2 moderate 1000-1500ppm)
+        O, O, Y, Y, Y, Y, O, O,
+        O, Y, Y, Y, Y, Y, Y, O,
+        Y, Y, Y, Y, Y, Y, Y, Y,
+        Y, Y, Y, Y, Y, Y, Y, Y,
+        O, Y, Y, Y, Y, Y, Y, O,
+        O, O, O, Y, Y, O, O, O,
+        O, O, Y, Y, Y, Y, O, O,
+        O, O, O, Y, Y, O, O, O,
+    ],
+
+    "co2_poor": [
+        # Red cloud icon (CO2 poor > 1500ppm)
+        O, O, R, R, R, R, O, O,
+        O, R, R, R, R, R, R, O,
+        R, R, R, R, R, R, R, R,
+        R, R, R, R, R, R, R, R,
+        O, R, R, R, R, R, R, O,
+        O, O, O, R, R, O, O, O,
+        O, O, R, R, R, R, O, O,
+        O, O, O, R, R, O, O, O,
+    ],
 }
 
 

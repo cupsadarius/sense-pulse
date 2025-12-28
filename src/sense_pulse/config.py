@@ -63,6 +63,22 @@ class WebConfig:
 
 
 @dataclass
+class Aranet4SensorConfig:
+    """Configuration for a single Aranet4 sensor"""
+    mac_address: str = ""
+    enabled: bool = False
+
+
+@dataclass
+class Aranet4Config:
+    """Configuration for Aranet4 CO2 sensors"""
+    office: Aranet4SensorConfig = field(default_factory=Aranet4SensorConfig)
+    bedroom: Aranet4SensorConfig = field(default_factory=Aranet4SensorConfig)
+    timeout: int = 10  # Connection timeout in seconds
+    cache_duration: int = 60  # Cache readings for this many seconds
+
+
+@dataclass
 class Config:
     pihole: PiholeConfig = field(default_factory=PiholeConfig)
     tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
@@ -71,6 +87,7 @@ class Config:
     update: UpdateConfig = field(default_factory=UpdateConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     web: WebConfig = field(default_factory=WebConfig)
+    aranet4: Aranet4Config = field(default_factory=Aranet4Config)
 
 
 def find_config_file() -> Optional[Path]:
@@ -97,6 +114,15 @@ def load_config(config_path: Optional[str] = None) -> Config:
     with open(path) as f:
         data = yaml.safe_load(f) or {}
 
+    # Parse Aranet4 config with nested sensor configs
+    aranet4_data = data.get("aranet4", {})
+    aranet4_config = Aranet4Config(
+        office=Aranet4SensorConfig(**aranet4_data.get("office", {})),
+        bedroom=Aranet4SensorConfig(**aranet4_data.get("bedroom", {})),
+        timeout=aranet4_data.get("timeout", 10),
+        cache_duration=aranet4_data.get("cache_duration", 60),
+    )
+
     return Config(
         pihole=PiholeConfig(**data.get("pihole", {})),
         tailscale=TailscaleConfig(**data.get("tailscale", {})),
@@ -105,4 +131,5 @@ def load_config(config_path: Optional[str] = None) -> Config:
         update=UpdateConfig(**data.get("update", {})),
         logging=LoggingConfig(**data.get("logging", {})),
         web=WebConfig(**data.get("web", {})),
+        aranet4=aranet4_config,
     )
