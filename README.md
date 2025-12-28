@@ -4,11 +4,13 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 
 ## Features
 
+- **Data Caching**: 60-second cache with 30-second background polling for instant API responses
 - **Web Dashboard**: Real-time status page at port 8080 with live updates
 - **Visual Icons**: 8x8 pixel art icons for each stat (can be toggled off for text-only)
 - **Tailscale Status**: Shows connection status and count of online devices in your Tailnet
 - **Pi-hole Stats**: Queries today, ads blocked, block percentage
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
+- **CO2 Monitoring**: Aranet4 CO2 sensor integration with color-coded alerts
 - **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
 - **Pi LED Control**: Optionally disable Pi's onboard LEDs (PWR/ACT) during sleep
@@ -279,6 +281,7 @@ sense-pulse/
         ├── __main__.py     # python -m entry point
         ├── cli.py          # Command-line interface
         ├── config.py       # Configuration loading
+        ├── cache.py        # Data caching with background polling
         ├── hardware.py     # Sense HAT abstraction layer
         ├── icons.py        # 8x8 LED pixel art
         ├── tailscale.py    # Tailscale status
@@ -288,6 +291,7 @@ sense-pulse/
         ├── schedule.py     # Sleep schedule
         ├── controller.py   # Main controller
         ├── pi_leds.py      # Pi onboard LED control
+        ├── aranet4.py      # Aranet4 CO2 sensor integration
         └── web/            # Web dashboard module
             ├── __init__.py
             ├── app.py      # FastAPI application
