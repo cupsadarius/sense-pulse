@@ -1,5 +1,5 @@
 [Unit]
-Description=Sense Pulse - Pi-hole and Tailscale Status Display
+Description=Sense Pulse - Pi-hole and Tailscale Status Display with Web Dashboard
 After=network.target pihole-FTL.service tailscaled.service
 Wants=network.target
 
