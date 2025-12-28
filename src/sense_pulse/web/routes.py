@@ -124,8 +124,6 @@ async def get_status_cards(request: Request):
 @router.post("/api/display/clear")
 async def clear_display():
     """Clear the LED matrix (no-op if Sense HAT unavailable)"""
-    # Update tracked state to cleared
-    hardware.update_matrix_state([[0, 0, 0] for _ in range(64)], "cleared")
     return hardware.clear_display()
 
 
@@ -159,7 +157,7 @@ async def matrix_websocket(websocket: WebSocket):
             # Get current matrix state and send to client
             matrix_state = hardware.get_matrix_state()
             await websocket.send_json(matrix_state)
-            await asyncio.sleep(0.5)  # Update every 500ms
+            await asyncio.sleep(0.05)  # Update every 50ms (~20 FPS) for smooth scrolling
     except WebSocketDisconnect:
         pass
     except Exception:
