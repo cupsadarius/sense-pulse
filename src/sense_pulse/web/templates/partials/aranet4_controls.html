@@ -1,0 +1,203 @@
+<div class="space-y-4">
+    <!-- Scan for Devices Button -->
+    <div class="p-3 bg-gray-800/50 rounded-lg">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <p class="font-medium">Aranet4 CO2 Sensors</p>
+                <p class="text-sm text-gray-400">Bluetooth LE CO2 monitors</p>
+            </div>
+            <button id="scan-aranet4-btn"
+                    onclick="scanAranet4Devices()"
+                    class="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors text-sm font-medium flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                Scan for Devices
+            </button>
+        </div>
+        <!-- Scan Results (populated by JavaScript) -->
+        <div id="aranet4-scan-results" class="hidden mt-3 p-3 bg-gray-700/50 rounded-lg">
+            <p class="text-sm text-gray-400 mb-2">Found devices:</p>
+            <div id="aranet4-device-list" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- Office Sensor Config -->
+    <div class="p-3 bg-gray-800/50 rounded-lg">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <span class="text-green-400">🏢</span>
+                <div>
+                    <p class="font-medium">Office Sensor</p>
+                    <p class="text-xs text-gray-500">
+                        {% if config.aranet4.office.enabled and config.aranet4.office.mac_address %}
+                        {{ config.aranet4.office.mac_address }}
+                        {% else %}
+                        Not configured
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% if aranet4_status.office and aranet4_status.office.connected %}
+            <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
+            {% else %}
+            <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
+            {% endif %}
+        </div>
+        <form hx-post="/api/aranet4/config/office"
+              hx-target="#aranet4-controls"
+              hx-swap="innerHTML"
+              class="space-y-2">
+            <div class="flex gap-2">
+                <select name="mac_address" id="office-mac-select"
+                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-gray-500 transition-colors">
+                    <option value="">Select device...</option>
+                    {% if config.aranet4.office.mac_address %}
+                    <option value="{{ config.aranet4.office.mac_address }}" selected>{{ config.aranet4.office.mac_address }}</option>
+                    {% endif %}
+                </select>
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded-lg cursor-pointer">
+                    <input type="checkbox" name="enabled" {% if config.aranet4.office.enabled %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-600 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800">
+                    <span class="text-sm">Enable</span>
+                </label>
+            </div>
+            <button type="submit"
+                    class="w-full px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
+                Save Office Sensor
+            </button>
+        </form>
+    </div>
+
+    <!-- Bedroom Sensor Config -->
+    <div class="p-3 bg-gray-800/50 rounded-lg">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <span class="text-purple-400">🛏️</span>
+                <div>
+                    <p class="font-medium">Bedroom Sensor</p>
+                    <p class="text-xs text-gray-500">
+                        {% if config.aranet4.bedroom.enabled and config.aranet4.bedroom.mac_address %}
+                        {{ config.aranet4.bedroom.mac_address }}
+                        {% else %}
+                        Not configured
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% if aranet4_status.bedroom and aranet4_status.bedroom.connected %}
+            <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
+            {% else %}
+            <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
+            {% endif %}
+        </div>
+        <form hx-post="/api/aranet4/config/bedroom"
+              hx-target="#aranet4-controls"
+              hx-swap="innerHTML"
+              class="space-y-2">
+            <div class="flex gap-2">
+                <select name="mac_address" id="bedroom-mac-select"
+                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-gray-500 transition-colors">
+                    <option value="">Select device...</option>
+                    {% if config.aranet4.bedroom.mac_address %}
+                    <option value="{{ config.aranet4.bedroom.mac_address }}" selected>{{ config.aranet4.bedroom.mac_address }}</option>
+                    {% endif %}
+                </select>
+                <label class="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded-lg cursor-pointer">
+                    <input type="checkbox" name="enabled" {% if config.aranet4.bedroom.enabled %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-600 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-800">
+                    <span class="text-sm">Enable</span>
+                </label>
+            </div>
+            <button type="submit"
+                    class="w-full px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors text-sm font-medium">
+                Save Bedroom Sensor
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    async function scanAranet4Devices() {
+        const btn = document.getElementById('scan-aranet4-btn');
+        const resultsDiv = document.getElementById('aranet4-scan-results');
+        const deviceList = document.getElementById('aranet4-device-list');
+
+        // Show loading state
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" class="opacity-75"></path>
+            </svg>
+            Scanning...
+        `;
+
+        try {
+            const response = await fetch('/api/aranet4/scan');
+            const data = await response.json();
+
+            resultsDiv.classList.remove('hidden');
+
+            if (data.status === 'ok' && data.devices.length > 0) {
+                deviceList.innerHTML = data.devices.map(device => `
+                    <div class="flex items-center justify-between p-2 bg-gray-600/50 rounded">
+                        <div>
+                            <p class="text-sm font-medium">${device.name}</p>
+                            <p class="text-xs text-gray-400">${device.address}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="selectDevice('office', '${device.address}')"
+                                    class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30">
+                                Office
+                            </button>
+                            <button onclick="selectDevice('bedroom', '${device.address}')"
+                                    class="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs hover:bg-purple-500/30">
+                                Bedroom
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                deviceList.innerHTML = `
+                    <p class="text-sm text-yellow-400">No Aranet4 devices found. Make sure your sensors are nearby and powered on.</p>
+                `;
+            }
+        } catch (error) {
+            deviceList.innerHTML = `
+                <p class="text-sm text-red-400">Scan failed: ${error.message}</p>
+            `;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                Scan for Devices
+            `;
+        }
+    }
+
+    function selectDevice(sensor, address) {
+        const selectId = sensor + '-mac-select';
+        const select = document.getElementById(selectId);
+
+        // Add option if not exists
+        let optionExists = false;
+        for (let option of select.options) {
+            if (option.value === address) {
+                optionExists = true;
+                option.selected = true;
+                break;
+            }
+        }
+
+        if (!optionExists) {
+            const newOption = document.createElement('option');
+            newOption.value = address;
+            newOption.text = address;
+            newOption.selected = true;
+            select.add(newOption);
+        }
+    }
+</script>

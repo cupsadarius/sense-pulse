@@ -37,3 +37,15 @@ web:
   enabled: true        # Enable web dashboard
   host: "0.0.0.0"      # Bind address (0.0.0.0 for all interfaces)
   port: 8080           # Web server port
+
+# Aranet4 CO2 sensor settings (Bluetooth LE)
+# Use the web UI to scan for devices and get MAC addresses
+aranet4:
+  timeout: 10          # Connection timeout in seconds
+  cache_duration: 60   # Cache readings for this many seconds
+  office:
+    enabled: false     # Enable office sensor
+    mac_address: ""    # Bluetooth MAC address (e.g., "AA:BB:CC:DD:EE:FF")
+  bedroom:
+    enabled: false     # Enable bedroom sensor
+    mac_address: ""    # Bluetooth MAC address (e.g., "AA:BB:CC:DD:EE:FF")
