@@ -124,8 +124,6 @@ async def get_status_cards(request: Request):
 @router.post("/api/display/clear")
 async def clear_display():
     """Clear the LED matrix (no-op if Sense HAT unavailable)"""
-    # Update tracked state to cleared
-    hardware.update_matrix_state([[0, 0, 0] for _ in range(64)], "cleared")
     return hardware.clear_display()
 
 
