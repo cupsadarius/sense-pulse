@@ -1,5 +1,7 @@
 """Aranet4 CO2 sensor communication via the aranet4 Python package"""
 
+import asyncio
+import concurrent.futures
 import logging
 import time
 from dataclasses import dataclass
@@ -40,8 +42,8 @@ class Aranet4Sensor:
         self,
         mac_address: str,
         name: str = "sensor",
-        timeout: int = 10,
-        cache_duration: int = 30,
+        timeout: int = 30,
+        cache_duration: int = 60,
     ):
         """
         Initialize Aranet4 sensor connection.
@@ -61,22 +63,24 @@ class Aranet4Sensor:
 
     def _fetch_reading(self) -> Optional[Aranet4Reading]:
         """Fetch a reading from the sensor using aranet4 package"""
-        import concurrent.futures
 
         def _do_fetch():
+            """Run in separate thread with fresh event loop"""
+            import aranet4
+
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
             try:
-                import aranet4
+                logger.info(f"Aranet4 {self.name}: Connecting to {self.mac_address}")
 
-                logger.debug(f"Aranet4 {self.name}: Connecting to {self.mac_address}")
-
-                # Use the aranet4 package to get current readings
                 reading = aranet4.client.get_current_readings(self.mac_address)
 
                 if reading is None:
-                    logger.error(f"Aranet4 {self.name}: No reading returned")
                     return None
 
-                result = Aranet4Reading(
+                return Aranet4Reading(
                     co2=reading.co2,
                     temperature=round(reading.temperature, 1),
                     humidity=reading.humidity,
@@ -86,27 +90,27 @@ class Aranet4Sensor:
                     ago=reading.ago,
                     timestamp=time.time(),
                 )
-
-                logger.info(
-                    f"Aranet4 {self.name}: CO2={result.co2}ppm, "
-                    f"T={result.temperature}°C, H={result.humidity}%, "
-                    f"Battery={result.battery}%"
-                )
-
-                return result
-
-            except Exception as e:
-                logger.error(f"Aranet4 {self.name}: Error: {e}")
-                return None
+            finally:
+                loop.close()
 
         try:
-            # Run BLE operation in thread pool to avoid blocking asyncio
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Run BLE operation in thread with its own event loop
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(_do_fetch)
-                result = future.result(timeout=self.timeout + 5)
-                if result is None:
+                reading = future.result(timeout=self.timeout)
+
+                if reading:
+                    logger.info(
+                        f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
+                        f"T={reading.temperature}°C, H={reading.humidity}%, "
+                        f"Battery={reading.battery}%"
+                    )
+                    self._last_error = None
+                    return reading
+                else:
                     self._last_error = "No reading returned"
-                return result
+                    return None
+
         except concurrent.futures.TimeoutError:
             logger.error(f"Aranet4 {self.name}: Connection timeout")
             self._last_error = "Connection timeout"
