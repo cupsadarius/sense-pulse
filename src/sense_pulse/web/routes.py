@@ -247,55 +247,76 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
         return {"status": "error", "message": str(e)}
 
 
-@router.post("/api/config/display/rotation")
-async def set_rotation(request: Request) -> Dict[str, str]:
+@router.post("/api/config/display/rotation", response_class=HTMLResponse)
+async def set_rotation(request: Request):
     """Set display rotation (HTMX endpoint)"""
     form = await request.form()
     rotation = int(form.get("rotation", 0))
 
     # Validate rotation value
     if rotation not in [0, 90, 180, 270]:
-        return {"status": "error", "message": "Invalid rotation value"}
+        rotation = 0
 
     # Update config
-    result = await update_config(ConfigUpdate(
+    await update_config(ConfigUpdate(
         display=DisplayConfigUpdate(rotation=rotation)
     ))
 
     # Also update hardware if available
     hardware.set_rotation(rotation)
 
-    return result
+    # Return updated HTML partial
+    _, _, _, config = get_services()
+    templates = request.app.state.templates
+    return templates.TemplateResponse("partials/display_controls.html", {
+        "request": request,
+        "config": config,
+        "sense_hat_available": hardware.is_sense_hat_available(),
+    })
 
 
-@router.post("/api/config/display/icons")
-async def toggle_icons(request: Request) -> Dict[str, str]:
+@router.post("/api/config/display/icons", response_class=HTMLResponse)
+async def toggle_icons(request: Request):
     """Toggle show_icons setting (HTMX endpoint)"""
     _, _, _, config = get_services()
 
     # Toggle current value
     new_value = not config.display.show_icons
 
-    result = await update_config(ConfigUpdate(
+    await update_config(ConfigUpdate(
         display=DisplayConfigUpdate(show_icons=new_value)
     ))
 
-    return result
+    # Re-fetch config after update and return HTML partial
+    _, _, _, config = get_services()
+    templates = request.app.state.templates
+    return templates.TemplateResponse("partials/display_controls.html", {
+        "request": request,
+        "config": config,
+        "sense_hat_available": hardware.is_sense_hat_available(),
+    })
 
 
-@router.post("/api/config/sleep/pi-leds")
-async def toggle_pi_leds(request: Request) -> Dict[str, str]:
+@router.post("/api/config/sleep/pi-leds", response_class=HTMLResponse)
+async def toggle_pi_leds(request: Request):
     """Toggle disable_pi_leds setting (HTMX endpoint)"""
     _, _, _, config = get_services()
 
     # Toggle current value
     new_value = not config.sleep.disable_pi_leds
 
-    result = await update_config(ConfigUpdate(
+    await update_config(ConfigUpdate(
         sleep=SleepConfigUpdate(disable_pi_leds=new_value)
     ))
 
-    return result
+    # Re-fetch config after update and return HTML partial
+    _, _, _, config = get_services()
+    templates = request.app.state.templates
+    return templates.TemplateResponse("partials/display_controls.html", {
+        "request": request,
+        "config": config,
+        "sense_hat_available": hardware.is_sense_hat_available(),
+    })
 
 
 @router.get("/api/config/display/controls", response_class=HTMLResponse)
