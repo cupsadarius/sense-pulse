@@ -1,6 +1,8 @@
-"""Aranet4 CO2 sensor communication via the aranet4 Python package"""
+"""Aranet4 CO2 sensor communication via aranetctl CLI"""
 
 import logging
+import re
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -54,63 +56,98 @@ class Aranet4Sensor:
 
     def poll(self) -> Optional[Aranet4Reading]:
         """
-        Poll the sensor for a new reading. Called by background thread only.
-        This actually connects to the BLE device.
+        Poll the sensor for a new reading using aranetctl CLI.
+        Called by background thread only.
         """
-        import aranet4
+        try:
+            logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
 
-        max_retries = 3
-        last_error = None
+            # Run aranetctl CLI command
+            result = subprocess.run(
+                ["aranetctl", self.mac_address],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+            )
 
-        for attempt in range(max_retries):
-            try:
-                if attempt > 0:
-                    # Wait before retry with exponential backoff
-                    wait_time = 2 ** attempt
-                    logger.info(f"Aranet4 {self.name}: Retry {attempt}/{max_retries} in {wait_time}s")
-                    time.sleep(wait_time)
+            if result.returncode != 0:
+                error = result.stderr.strip() or f"Exit code {result.returncode}"
+                logger.warning(f"Aranet4 {self.name}: CLI error: {error}")
+                self._last_error = error
+                return None
 
-                logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
+            # Parse CLI output
+            output = result.stdout
+            reading = self._parse_cli_output(output)
 
-                # aranet4 package handles its own asyncio event loop internally
-                reading = aranet4.client.get_current_readings(self.mac_address)
+            if reading is None:
+                logger.warning(f"Aranet4 {self.name}: Failed to parse output")
+                self._last_error = "Failed to parse CLI output"
+                return None
 
-                if reading is None:
-                    logger.warning(f"Aranet4 {self.name}: No reading returned")
-                    last_error = "No reading returned"
-                    continue
+            logger.info(
+                f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
+                f"T={reading.temperature}°C, H={reading.humidity}%, "
+                f"Battery={reading.battery}%"
+            )
 
-                result = Aranet4Reading(
-                    co2=reading.co2,
-                    temperature=round(reading.temperature, 1),
-                    humidity=reading.humidity,
-                    pressure=round(reading.pressure, 1),
-                    battery=reading.battery,
-                    interval=reading.interval,
-                    ago=reading.ago,
-                    timestamp=time.time(),
-                )
+            with self._lock:
+                self._cached_reading = reading
+                self._last_error = None
 
-                logger.info(
-                    f"Aranet4 {self.name}: CO2={result.co2}ppm, "
-                    f"T={result.temperature}°C, H={result.humidity}%, "
-                    f"Battery={result.battery}%"
-                )
+            return reading
 
-                with self._lock:
-                    self._cached_reading = result
-                    self._last_error = None
+        except subprocess.TimeoutExpired:
+            logger.error(f"Aranet4 {self.name}: CLI timeout after {self.timeout}s")
+            self._last_error = "Timeout"
+            return None
+        except FileNotFoundError:
+            logger.error(f"Aranet4 {self.name}: aranetctl not found")
+            self._last_error = "aranetctl not installed"
+            return None
+        except Exception as e:
+            error_msg = str(e) if str(e) else f"{type(e).__name__}"
+            logger.error(f"Aranet4 {self.name}: Poll error: {error_msg}")
+            self._last_error = error_msg
+            return None
 
-                return result
+    def _parse_cli_output(self, output: str) -> Optional[Aranet4Reading]:
+        """Parse aranetctl CLI output into Aranet4Reading"""
+        try:
+            # aranetctl output format:
+            # CO2: 450 ppm
+            # Temperature: 22.5 C
+            # Humidity: 45 %
+            # Pressure: 1013.25 hPa
+            # Battery: 95 %
+            # Update interval: 300 s
+            # Last update: 120 s
 
-            except Exception as e:
-                last_error = str(e) if str(e) else f"{type(e).__name__}"
-                logger.warning(f"Aranet4 {self.name}: Attempt {attempt+1} failed: {last_error}")
+            co2_match = re.search(r"CO2:\s*(\d+)", output)
+            temp_match = re.search(r"Temperature:\s*([\d.]+)", output)
+            humidity_match = re.search(r"Humidity:\s*(\d+)", output)
+            pressure_match = re.search(r"Pressure:\s*([\d.]+)", output)
+            battery_match = re.search(r"Battery:\s*(\d+)", output)
+            interval_match = re.search(r"Update interval:\s*(\d+)", output)
+            ago_match = re.search(r"Last update:\s*(\d+)", output)
 
-        # All retries exhausted
-        logger.error(f"Aranet4 {self.name}: Poll failed after {max_retries} attempts: {last_error}")
-        self._last_error = last_error
-        return None
+            if not all([co2_match, temp_match, humidity_match, pressure_match, battery_match]):
+                logger.warning(f"Aranet4 {self.name}: Missing fields in output: {output[:200]}")
+                return None
+
+            return Aranet4Reading(
+                co2=int(co2_match.group(1)),
+                temperature=round(float(temp_match.group(1)), 1),
+                humidity=int(humidity_match.group(1)),
+                pressure=round(float(pressure_match.group(1)), 1),
+                battery=int(battery_match.group(1)),
+                interval=int(interval_match.group(1)) if interval_match else 300,
+                ago=int(ago_match.group(1)) if ago_match else 0,
+                timestamp=time.time(),
+            )
+        except Exception as e:
+            logger.error(f"Aranet4 {self.name}: Parse error: {e}")
+            return None
 
     def get_cached_reading(self) -> Optional[Aranet4Reading]:
         """
@@ -159,9 +196,9 @@ def _polling_loop():
             except Exception as e:
                 logger.error(f"Aranet4 polling error for {sensor.name}: {e}")
 
-            # Longer delay between sensors to avoid BLE adapter conflicts
+            # Brief delay between sensors
             if not _polling_stop_event.is_set():
-                time.sleep(5)
+                time.sleep(2)
 
         # Wait for next poll interval
         _polling_stop_event.wait(_poll_interval)
@@ -201,37 +238,64 @@ def stop_polling() -> None:
 
 
 def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
-    """Scan for Aranet4 devices in range using aranet4 package."""
+    """Scan for Aranet4 devices in range using aranetctl CLI."""
     try:
-        import aranet4
-
         logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
 
+        # aranetctl --scan scans for devices
+        result = subprocess.run(
+            ["aranetctl", "--scan", str(duration)],
+            capture_output=True,
+            text=True,
+            timeout=duration + 10,
+        )
+
+        if result.returncode != 0:
+            logger.warning(f"Scan CLI error: {result.stderr.strip()}")
+            return []
+
+        # Parse scan output - format varies, typically:
+        # Name: Aranet4 12345
+        # Address: C0:06:A0:90:7C:59
+        # RSSI: -65
         found_devices = []
-        seen_addresses = set()
+        current_device: Dict[str, Any] = {}
 
-        def on_detect(advertisement):
-            if advertisement.device.address not in seen_addresses:
-                seen_addresses.add(advertisement.device.address)
-                device_info = {
-                    "name": advertisement.device.name or "Aranet4",
-                    "address": advertisement.device.address,
-                    "rssi": advertisement.rssi,
-                }
-                if advertisement.readings:
-                    device_info["co2"] = advertisement.readings.co2
-                    device_info["temperature"] = advertisement.readings.temperature
-                    device_info["humidity"] = advertisement.readings.humidity
-                found_devices.append(device_info)
-                logger.info(f"Found: {device_info['name']} ({device_info['address']})")
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                if current_device.get("address"):
+                    found_devices.append(current_device)
+                    current_device = {}
+                continue
 
-        aranet4.client.find_nearby(on_detect, duration=duration)
+            if ":" in line:
+                key, _, value = line.partition(":")
+                key = key.strip().lower()
+                value = value.strip()
+
+                if key == "address":
+                    current_device["address"] = value
+                elif key == "name":
+                    current_device["name"] = value
+                elif key == "rssi":
+                    try:
+                        current_device["rssi"] = int(value.replace("dBm", "").strip())
+                    except ValueError:
+                        pass
+
+        # Don't forget last device
+        if current_device.get("address"):
+            found_devices.append(current_device)
 
         logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
         return found_devices
 
-    except ImportError:
-        logger.error("aranet4 library not installed - cannot scan")
+    except subprocess.TimeoutExpired:
+        logger.error("Scan timeout")
+        return []
+    except FileNotFoundError:
+        logger.error("aranetctl not found - cannot scan")
         return []
     except Exception as e:
         logger.error(f"BLE scan error: {e}")
