@@ -1,6 +1,5 @@
 """Aranet4 CO2 sensor communication via the aranet4 Python package"""
 
-import asyncio
 import logging
 import threading
 import time
@@ -61,45 +60,38 @@ class Aranet4Sensor:
         try:
             import aranet4
 
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
 
-            try:
-                logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
+            # aranet4 package handles its own asyncio event loop internally
+            reading = aranet4.client.get_current_readings(self.mac_address)
 
-                reading = aranet4.client.get_current_readings(self.mac_address)
+            if reading is None:
+                logger.warning(f"Aranet4 {self.name}: No reading returned")
+                self._last_error = "No reading returned"
+                return None
 
-                if reading is None:
-                    logger.warning(f"Aranet4 {self.name}: No reading returned")
-                    self._last_error = "No reading returned"
-                    return None
+            result = Aranet4Reading(
+                co2=reading.co2,
+                temperature=round(reading.temperature, 1),
+                humidity=reading.humidity,
+                pressure=round(reading.pressure, 1),
+                battery=reading.battery,
+                interval=reading.interval,
+                ago=reading.ago,
+                timestamp=time.time(),
+            )
 
-                result = Aranet4Reading(
-                    co2=reading.co2,
-                    temperature=round(reading.temperature, 1),
-                    humidity=reading.humidity,
-                    pressure=round(reading.pressure, 1),
-                    battery=reading.battery,
-                    interval=reading.interval,
-                    ago=reading.ago,
-                    timestamp=time.time(),
-                )
+            logger.info(
+                f"Aranet4 {self.name}: CO2={result.co2}ppm, "
+                f"T={result.temperature}°C, H={result.humidity}%, "
+                f"Battery={result.battery}%"
+            )
 
-                logger.info(
-                    f"Aranet4 {self.name}: CO2={result.co2}ppm, "
-                    f"T={result.temperature}°C, H={result.humidity}%, "
-                    f"Battery={result.battery}%"
-                )
+            with self._lock:
+                self._cached_reading = result
+                self._last_error = None
 
-                with self._lock:
-                    self._cached_reading = result
-                    self._last_error = None
-
-                return result
-
-            finally:
-                loop.close()
+            return result
 
         except Exception as e:
             logger.error(f"Aranet4 {self.name}: Poll error: {e}")
