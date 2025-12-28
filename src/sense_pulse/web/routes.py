@@ -397,14 +397,16 @@ async def get_display_controls(request: Request):
 async def scan_aranet4_devices() -> Dict[str, Any]:
     """Scan for Aranet4 devices via Bluetooth LE"""
     try:
-        from sense_pulse.aranet4 import scan_for_aranet4_sync
-        devices = scan_for_aranet4_sync(timeout=10.0)
+        from sense_pulse.aranet4 import _scan_for_aranet4_async
+        devices = await _scan_for_aranet4_async(timeout=10.0)
         return {
             "status": "ok",
             "devices": devices,
             "count": len(devices),
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "status": "error",
             "message": str(e),
