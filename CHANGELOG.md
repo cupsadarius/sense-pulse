@@ -14,7 +14,8 @@
 - Live WebSocket feed reads directly from Sense HAT hardware via `get_pixels()`
 - ~20 FPS update rate for smooth scrolling text visualization
 - Web preview now shows exactly what's on the physical display in real-time
-- Rotation synced with display config (0°, 90°, 180°, 270°)
+- Configurable `web_rotation_offset` to align web preview with physical display
+- WebSocket connection persists across HTMX partial updates
 
 **Fixed Config Toggles**
 - Toggle buttons (Show Icons, Disable Pi LEDs, Rotation) now work correctly

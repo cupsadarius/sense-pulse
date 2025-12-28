@@ -25,6 +25,7 @@ class DisplayConfigUpdate(BaseModel):
     show_icons: Optional[bool] = None
     scroll_speed: Optional[float] = None
     icon_duration: Optional[float] = None
+    web_rotation_offset: Optional[int] = None
 
 
 class SleepConfigUpdate(BaseModel):
@@ -55,6 +56,8 @@ def get_services():
         _pihole = PiHoleStats(_config.pihole.host, _config.pihole.password)
         _tailscale = TailscaleStatus(_config.tailscale.cache_duration)
         _system = SystemStats()
+        # Initialize hardware settings from config
+        hardware.set_web_rotation_offset(_config.display.web_rotation_offset)
     return _pihole, _tailscale, _system, _config
 
 
@@ -221,6 +224,10 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
                 config_data["display"]["scroll_speed"] = updates.display.scroll_speed
             if updates.display.icon_duration is not None:
                 config_data["display"]["icon_duration"] = updates.display.icon_duration
+            if updates.display.web_rotation_offset is not None:
+                config_data["display"]["web_rotation_offset"] = updates.display.web_rotation_offset
+                # Also update hardware immediately
+                hardware.set_web_rotation_offset(updates.display.web_rotation_offset)
 
         if updates.sleep:
             if "sleep" not in config_data:
@@ -308,6 +315,31 @@ async def toggle_pi_leds(request: Request):
     ))
 
     # Re-fetch config after update and return HTML partial
+    _, _, _, config = get_services()
+    templates = request.app.state.templates
+    return templates.TemplateResponse("partials/display_controls.html", {
+        "request": request,
+        "config": config,
+        "sense_hat_available": hardware.is_sense_hat_available(),
+    })
+
+
+@router.post("/api/config/display/web-offset", response_class=HTMLResponse)
+async def set_web_offset(request: Request):
+    """Set web preview rotation offset (HTMX endpoint)"""
+    form = await request.form()
+    offset = int(form.get("web_offset", 90))
+
+    # Validate offset value
+    if offset not in [0, 90, 180, 270]:
+        offset = 90
+
+    # Update config
+    await update_config(ConfigUpdate(
+        display=DisplayConfigUpdate(web_rotation_offset=offset)
+    ))
+
+    # Return updated HTML partial
     _, _, _, config = get_services()
     templates = request.app.state.templates
     return templates.TemplateResponse("partials/display_controls.html", {

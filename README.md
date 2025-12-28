@@ -178,10 +178,11 @@ tailscale:
 
 # Display settings
 display:
-  rotation: 0          # 0, 90, 180, or 270 degrees
-  show_icons: true     # Show 8x8 pixel icons before text
-  scroll_speed: 0.05   # Text scroll speed (lower = faster)
-  icon_duration: 1.5   # How long to show icons (seconds)
+  rotation: 0              # 0, 90, 180, or 270 degrees
+  show_icons: true         # Show 8x8 pixel icons before text
+  scroll_speed: 0.05       # Text scroll speed (lower = faster)
+  icon_duration: 1.5       # How long to show icons (seconds)
+  web_rotation_offset: 90  # Rotation offset for web preview (0, 90, 180, 270)
 
 # Sleep schedule (display turns off during these hours)
 sleep:

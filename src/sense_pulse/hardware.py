@@ -16,6 +16,7 @@ _initialized: bool = False
 # Track current display mode (semantic label for what's being shown)
 _current_display_mode: str = "idle"
 _current_rotation: int = 0
+_web_rotation_offset: int = 90  # Default offset for web preview
 
 
 def _init_sense_hat() -> None:
@@ -145,6 +146,7 @@ def get_matrix_state() -> Dict[str, Any]:
                 "pixels": pixels,
                 "mode": _current_display_mode,
                 "rotation": _current_rotation,
+                "web_offset": _web_rotation_offset,
                 "available": True,
             }
         except Exception:
@@ -155,8 +157,15 @@ def get_matrix_state() -> Dict[str, Any]:
         "pixels": [[0, 0, 0] for _ in range(64)],
         "mode": _current_display_mode,
         "rotation": _current_rotation,
+        "web_offset": _web_rotation_offset,
         "available": False,
     }
+
+
+def set_web_rotation_offset(offset: int) -> None:
+    """Set web preview rotation offset"""
+    global _web_rotation_offset
+    _web_rotation_offset = offset
 
 
 def set_display_mode(mode: str) -> None:
