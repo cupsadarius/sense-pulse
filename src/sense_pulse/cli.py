@@ -60,12 +60,28 @@ def main() -> int:
         action="store_true",
         help="Enable debug logging",
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Start web status server on port 8080",
+    )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8080,
+        help="Port for web server (default: 8080)",
+    )
+    parser.add_argument(
+        "--web-host",
+        type=str,
+        default="0.0.0.0",
+        help="Host for web server (default: 0.0.0.0)",
+    )
 
     args = parser.parse_args()
 
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
     from sense_pulse.config import load_config
-    from sense_pulse.controller import StatsDisplay
 
     # Load configuration
     config = load_config(args.config)
@@ -80,6 +96,19 @@ def main() -> int:
     logger.info("=" * 50)
 
     try:
+        # Web server mode
+        if args.web:
+            import uvicorn
+            from sense_pulse.web.app import create_app
+
+            logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
+            app = create_app()
+            uvicorn.run(app, host=args.web_host, port=args.web_port)
+            return 0
+
+        # LED display mode (requires Sense HAT)
+        from sense_pulse.controller import StatsDisplay
+
         controller = StatsDisplay(config)
 
         if args.once:
