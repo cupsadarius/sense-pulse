@@ -61,40 +61,55 @@ class Aranet4Sensor:
 
     def _fetch_reading(self) -> Optional[Aranet4Reading]:
         """Fetch a reading from the sensor using aranet4 package"""
-        try:
-            import aranet4
+        import concurrent.futures
 
-            logger.debug(f"Aranet4 {self.name}: Connecting to {self.mac_address}")
+        def _do_fetch():
+            try:
+                import aranet4
 
-            # Use the aranet4 package to get current readings
-            reading = aranet4.client.get_current_readings(self.mac_address)
+                logger.debug(f"Aranet4 {self.name}: Connecting to {self.mac_address}")
 
-            if reading is None:
-                logger.error(f"Aranet4 {self.name}: No reading returned")
+                # Use the aranet4 package to get current readings
+                reading = aranet4.client.get_current_readings(self.mac_address)
+
+                if reading is None:
+                    logger.error(f"Aranet4 {self.name}: No reading returned")
+                    return None
+
+                result = Aranet4Reading(
+                    co2=reading.co2,
+                    temperature=round(reading.temperature, 1),
+                    humidity=reading.humidity,
+                    pressure=round(reading.pressure, 1),
+                    battery=reading.battery,
+                    interval=reading.interval,
+                    ago=reading.ago,
+                    timestamp=time.time(),
+                )
+
+                logger.info(
+                    f"Aranet4 {self.name}: CO2={result.co2}ppm, "
+                    f"T={result.temperature}°C, H={result.humidity}%, "
+                    f"Battery={result.battery}%"
+                )
+
+                return result
+
+            except Exception as e:
+                logger.error(f"Aranet4 {self.name}: Error: {e}")
                 return None
 
-            result = Aranet4Reading(
-                co2=reading.co2,
-                temperature=round(reading.temperature, 1),
-                humidity=reading.humidity,
-                pressure=round(reading.pressure, 1),
-                battery=reading.battery,
-                interval=reading.interval,
-                ago=reading.ago,
-                timestamp=time.time(),
-            )
-
-            logger.info(
-                f"Aranet4 {self.name}: CO2={result.co2}ppm, "
-                f"T={result.temperature}°C, H={result.humidity}%, "
-                f"Battery={result.battery}%"
-            )
-
-            return result
-
-        except ImportError:
-            logger.error("aranet4 library not installed - Aranet4 unavailable")
-            self._last_error = "aranet4 not installed"
+        try:
+            # Run BLE operation in thread pool to avoid blocking asyncio
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(_do_fetch)
+                result = future.result(timeout=self.timeout + 5)
+                if result is None:
+                    self._last_error = "No reading returned"
+                return result
+        except concurrent.futures.TimeoutError:
+            logger.error(f"Aranet4 {self.name}: Connection timeout")
+            self._last_error = "Connection timeout"
             return None
         except Exception as e:
             logger.error(f"Aranet4 {self.name}: Error: {e}")
