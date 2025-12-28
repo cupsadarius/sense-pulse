@@ -98,6 +98,25 @@
                 </div>
             </div>
 
+            <!-- Aranet4 CO2 Sensors -->
+            <div class="bg-sense-card rounded-xl border border-sense-border p-6">
+                <h2 class="text-lg font-semibold mb-4">CO2 Sensors</h2>
+                <div id="aranet4-controls"
+                     hx-get="/api/aranet4/controls"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <!-- Loading state -->
+                    <div class="space-y-4 animate-pulse">
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Status Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
             <!-- Service Status -->
             <div class="bg-sense-card rounded-xl border border-sense-border p-6">
                 <h2 class="text-lg font-semibold mb-4">Service Status</h2>
