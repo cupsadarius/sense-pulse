@@ -103,7 +103,7 @@ def main() -> int:
 
             logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
             app = create_app()
-            uvicorn.run(app, host=args.web_host, port=args.web_port)
+            uvicorn.run(app, host=args.web_host, port=args.web_port, log_level=log_level.lower())
             return 0
 
         # LED display mode (requires Sense HAT)
