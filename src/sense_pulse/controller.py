@@ -12,6 +12,7 @@ from sense_pulse.schedule import SleepSchedule
 from sense_pulse.system import SystemStats
 from sense_pulse.tailscale import TailscaleStatus
 from sense_pulse import hardware
+from sense_pulse.cache import get_cache
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class StatsDisplay:
 
         self.config = config
         self.show_icons = config.display.show_icons
+        self.cache = get_cache()
 
         self.pihole = PiHoleStats(config.pihole.host, config.pihole.password)
         self.tailscale = TailscaleStatus(config.tailscale.cache_duration)
@@ -48,6 +50,13 @@ class StatsDisplay:
         self._was_sleeping = False
         self._disable_pi_leds = config.sleep.disable_pi_leds
 
+        # Register data sources with cache for background polling
+        self.cache.register_source("tailscale", self.tailscale.get_status_summary)
+        self.cache.register_source("pihole", self.pihole.get_summary)
+        self.cache.register_source("system", self.system.get_stats)
+        self.cache.register_source("sensors", hardware.get_sensor_data)
+        self.cache.register_source("co2", hardware.get_aranet4_data)
+
         # Initialize Aranet4 CO2 sensors
         hardware.init_aranet4_sensors(
             office_mac=config.aranet4.office.mac_address,
@@ -61,9 +70,9 @@ class StatsDisplay:
         logger.info("StatsDisplay initialized successfully")
 
     def display_tailscale_status(self):
-        """Display Tailscale connection status and device count"""
+        """Display Tailscale connection status and device count (from cache)"""
         logger.info("Displaying Tailscale status...")
-        status = self.tailscale.get_status_summary()
+        status = self.cache.get("tailscale", {})
 
         is_connected = status["connected"]
 
@@ -92,9 +101,9 @@ class StatsDisplay:
                 )
 
     def display_pihole_stats(self):
-        """Display Pi-hole statistics"""
+        """Display Pi-hole statistics (from cache)"""
         logger.info("Displaying Pi-hole stats...")
-        stats = self.pihole.get_summary()
+        stats = self.cache.get("pihole", {})
 
         if self.show_icons:
             self.display.show_icon_with_text(
@@ -127,9 +136,9 @@ class StatsDisplay:
             )
 
     def display_sensor_data(self):
-        """Display Sense HAT sensor data"""
+        """Display Sense HAT sensor data (from cache)"""
         logger.info("Displaying sensor data...")
-        sensors = self.display.get_sensor_data()
+        sensors = self.cache.get("sensors", {})
 
         if self.show_icons:
             self.display.show_icon_with_text(
@@ -162,9 +171,9 @@ class StatsDisplay:
             )
 
     def display_system_stats(self):
-        """Display system resource statistics"""
+        """Display system resource statistics (from cache)"""
         logger.info("Displaying system stats...")
-        stats = self.system.get_stats()
+        stats = self.cache.get("system", {})
 
         if self.show_icons:
             self.display.show_icon_with_text(
@@ -215,12 +224,12 @@ class StatsDisplay:
             return "co2_poor"
 
     def display_co2_levels(self):
-        """Display CO2 levels from Aranet4 sensors"""
+        """Display CO2 levels from Aranet4 sensors (from cache)"""
         if not hardware.is_aranet4_available():
             return
 
         logger.info("Displaying CO2 levels...")
-        co2_data = hardware.get_aranet4_data()
+        co2_data = self.cache.get("co2", {})
 
         # Display office sensor
         if co2_data.get("office"):
