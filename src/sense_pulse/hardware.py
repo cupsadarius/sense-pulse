@@ -203,7 +203,6 @@ def init_aranet4_sensors(
             _aranet4_office = Aranet4Sensor(
                 mac_address=office_mac,
                 name="office",
-                timeout=timeout,
                 cache_duration=cache_duration,
             )
             register_sensor(_aranet4_office)
@@ -213,7 +212,6 @@ def init_aranet4_sensors(
             _aranet4_bedroom = Aranet4Sensor(
                 mac_address=bedroom_mac,
                 name="bedroom",
-                timeout=timeout,
                 cache_duration=cache_duration,
             )
             register_sensor(_aranet4_bedroom)
@@ -247,7 +245,6 @@ def update_aranet4_sensor(
                 _aranet4_office = Aranet4Sensor(
                     mac_address=mac_address,
                     name="office",
-                    timeout=timeout,
                     cache_duration=cache_duration,
                 )
                 register_sensor(_aranet4_office)
@@ -266,7 +263,6 @@ def update_aranet4_sensor(
                 _aranet4_bedroom = Aranet4Sensor(
                     mac_address=mac_address,
                     name="bedroom",
-                    timeout=timeout,
                     cache_duration=cache_duration,
                 )
                 register_sensor(_aranet4_bedroom)
