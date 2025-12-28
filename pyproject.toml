@@ -10,6 +10,7 @@ keywords = ["raspberry-pi", "sense-hat", "pi-hole", "tailscale", "led-display"]
 dependencies = [
     "requests>=2.28.0",
     "pyyaml>=6.0",
+    "psutil>=5.9.0",
     # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
 

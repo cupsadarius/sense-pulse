@@ -14,6 +14,7 @@ OR = [255, 165, 0]    # Orange
 GR = [128, 128, 128]  # Gray
 LB = [0, 100, 255]    # Light Blue
 DR = [139, 0, 0]      # Dark Red
+M = [255, 0, 255]     # Magenta
 
 # Icon definitions - each is a 64-element list (8x8 grid)
 ICONS = {
@@ -123,6 +124,42 @@ ICONS = {
         GR, O, O, O, O, O, O, GR,
         O, GR, O, O, O, O, GR, O,
         O, O, GR, GR, GR, GR, O, O,
+    ],
+
+    "cpu": [
+        # Yellow CPU chip icon
+        O, O, Y, O, O, Y, O, O,
+        O, Y, Y, Y, Y, Y, Y, O,
+        Y, Y, O, O, O, O, Y, Y,
+        O, Y, O, Y, Y, O, Y, O,
+        O, Y, O, Y, Y, O, Y, O,
+        Y, Y, O, O, O, O, Y, Y,
+        O, Y, Y, Y, Y, Y, Y, O,
+        O, O, Y, O, O, Y, O, O,
+    ],
+
+    "memory": [
+        # Cyan RAM stick icon
+        C, C, C, C, C, C, C, C,
+        C, O, C, O, C, O, C, O,
+        C, C, C, C, C, C, C, C,
+        C, C, C, C, C, C, C, C,
+        O, C, O, C, O, C, O, C,
+        O, C, O, C, O, C, O, C,
+        O, C, O, C, O, C, O, C,
+        O, O, O, O, O, O, O, O,
+    ],
+
+    "load": [
+        # Magenta bar graph/meter icon
+        O, O, O, O, O, O, O, M,
+        O, O, O, O, O, O, M, M,
+        O, O, O, O, O, M, M, M,
+        O, O, O, O, M, M, M, M,
+        O, O, O, M, O, M, O, M,
+        O, O, M, M, O, M, O, M,
+        O, M, M, M, O, M, O, M,
+        M, M, M, M, O, M, O, M,
     ],
 }
 

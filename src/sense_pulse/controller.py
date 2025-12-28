@@ -8,6 +8,7 @@ from sense_pulse.config import Config
 from sense_pulse.display import SenseHatDisplay
 from sense_pulse.pihole import PiHoleStats
 from sense_pulse.schedule import SleepSchedule
+from sense_pulse.system import SystemStats
 from sense_pulse.tailscale import TailscaleStatus
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class StatsDisplay:
             config.sleep.start_hour,
             config.sleep.end_hour,
         )
+        self.system = SystemStats()
 
         logger.info("StatsDisplay initialized successfully")
 
@@ -143,6 +145,41 @@ class StatsDisplay:
                 color=(200, 200, 200),
             )
 
+    def display_system_stats(self):
+        """Display system resource statistics"""
+        logger.info("Displaying system stats...")
+        stats = self.system.get_stats()
+
+        if self.show_icons:
+            self.display.show_icon_with_text(
+                "cpu",
+                f"CPU: {stats['cpu_percent']:.0f}%",
+                text_color=(255, 200, 0),
+            )
+            self.display.show_icon_with_text(
+                "memory",
+                f"Mem: {stats['memory_percent']:.0f}%",
+                text_color=(0, 200, 255),
+            )
+            self.display.show_icon_with_text(
+                "load",
+                f"Load: {stats['load_1min']:.2f}",
+                text_color=(255, 0, 255),
+            )
+        else:
+            self.display.show_text(
+                f"CPU: {stats['cpu_percent']:.0f}%",
+                color=(255, 200, 0),
+            )
+            self.display.show_text(
+                f"Mem: {stats['memory_percent']:.0f}%",
+                color=(0, 200, 255),
+            )
+            self.display.show_text(
+                f"Load: {stats['load_1min']:.2f}",
+                color=(255, 0, 255),
+            )
+
     def run_cycle(self):
         """Run one complete display cycle"""
         if self.sleep_schedule.is_sleep_time():
@@ -156,6 +193,7 @@ class StatsDisplay:
             self.display_tailscale_status()
             self.display_pihole_stats()
             self.display_sensor_data()
+            self.display_system_stats()
             logger.info("Display cycle completed successfully")
         except Exception as e:
             logger.error(f"Error during display cycle: {e}")

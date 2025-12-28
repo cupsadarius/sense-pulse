@@ -8,6 +8,7 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 - **Tailscale Status**: Shows connection status and count of online devices in your Tailnet
 - **Pi-hole Stats**: Queries today, ads blocked, block percentage
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
+- **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
 - **YAML Configuration**: Easy-to-edit config file
 - **Auto-start**: Runs as a systemd daemon
@@ -24,6 +25,9 @@ The LED matrix cycles through:
 6. **Temperature** (Orange)
 7. **Humidity** (Blue)
 8. **Pressure** (Gray)
+9. **CPU Usage** (Yellow)
+10. **Memory Usage** (Cyan)
+11. **System Load** (Magenta)
 
 ## Prerequisites
 
@@ -202,6 +206,7 @@ sense-pulse/
         ├── icons.py        # 8x8 LED pixel art
         ├── tailscale.py    # Tailscale status
         ├── pihole.py       # Pi-hole stats
+        ├── system.py       # System stats (CPU, memory, load)
         ├── display.py      # Sense HAT display
         ├── schedule.py     # Sleep schedule
         └── controller.py   # Main controller
