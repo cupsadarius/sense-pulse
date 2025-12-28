@@ -145,79 +145,59 @@ class Aranet4Sensor:
         }
 
 
-async def _scan_for_aranet4_async(timeout: float = 10.0) -> List[Dict[str, Any]]:
+def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
     """
-    Async scan for Aranet4 devices in range using bleak.
+    Scan for Aranet4 devices in range using aranet4 package.
 
     Args:
-        timeout: Scan duration in seconds
+        duration: Scan duration in seconds
 
     Returns:
-        List of discovered devices with name and address
+        List of discovered devices with name, address, and readings
     """
     try:
-        from bleak import BleakScanner
+        import aranet4
 
-        logger.info(f"Scanning for Aranet4 devices ({timeout}s)...")
+        logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
 
-        devices = await BleakScanner.discover(timeout=timeout)
+        found_devices = []
+        seen_addresses = set()
 
-        result = []
-        for device in devices:
-            name = device.name or ""
-            # Aranet4 devices have names like "Aranet4 XXXXX"
-            if "Aranet4" in name or "Aranet" in name:
-                result.append({
-                    "name": name,
-                    "address": device.address,
-                    "rssi": device.rssi if hasattr(device, "rssi") else None,
-                })
-                logger.info(f"Found Aranet4: {name} ({device.address})")
+        def on_detect(advertisement):
+            """Callback for each detected device"""
+            if advertisement.device.address not in seen_addresses:
+                seen_addresses.add(advertisement.device.address)
+                device_info = {
+                    "name": advertisement.device.name or "Aranet4",
+                    "address": advertisement.device.address,
+                    "rssi": advertisement.rssi,
+                }
+                # Include readings if available from advertisement
+                if advertisement.readings:
+                    device_info["co2"] = advertisement.readings.co2
+                    device_info["temperature"] = advertisement.readings.temperature
+                    device_info["humidity"] = advertisement.readings.humidity
+                found_devices.append(device_info)
+                logger.info(
+                    f"Found: {device_info['name']} ({device_info['address']})"
+                )
 
-        logger.info(f"Scan complete: found {len(result)} Aranet4 device(s)")
-        return result
+        # Use aranet4's find_nearby function
+        aranet4.client.find_nearby(on_detect, duration=duration)
+
+        logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
+        return found_devices
 
     except ImportError:
-        logger.error("bleak library not installed - cannot scan")
+        logger.error("aranet4 library not installed - cannot scan")
         return []
     except Exception as e:
         logger.error(f"BLE scan error: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
-def scan_for_aranet4_devices(timeout: float = 10.0) -> List[Dict[str, Any]]:
-    """
-    Scan for Aranet4 devices in range (synchronous wrapper).
-
-    Args:
-        timeout: Scan duration in seconds
-
-    Returns:
-        List of discovered devices with name and address
-    """
-    import asyncio
-
-    try:
-        # Try to get existing event loop
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If loop is running (e.g., in FastAPI), create a new one in a thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    lambda: asyncio.run(_scan_for_aranet4_async(timeout))
-                )
-                return future.result(timeout=timeout + 5)
-        else:
-            return loop.run_until_complete(_scan_for_aranet4_async(timeout))
-    except RuntimeError:
-        # No event loop, create one
-        return asyncio.run(_scan_for_aranet4_async(timeout))
-    except Exception as e:
-        logger.error(f"Scan failed: {e}")
-        return []
-
-
-def scan_for_aranet4_sync(timeout: float = 10.0) -> List[Dict[str, Any]]:
-    """Synchronous wrapper for scan_for_aranet4_devices"""
-    return scan_for_aranet4_devices(timeout)
+def scan_for_aranet4_sync(duration: int = 10) -> List[Dict[str, Any]]:
+    """Synchronous scan for Aranet4 devices"""
+    return scan_for_aranet4_devices(duration)

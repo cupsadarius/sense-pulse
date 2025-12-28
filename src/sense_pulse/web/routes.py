@@ -396,9 +396,16 @@ async def get_display_controls(request: Request):
 @router.get("/api/aranet4/scan")
 async def scan_aranet4_devices() -> Dict[str, Any]:
     """Scan for Aranet4 devices via Bluetooth LE"""
+    import concurrent.futures
+
     try:
-        from sense_pulse.aranet4 import _scan_for_aranet4_async
-        devices = await _scan_for_aranet4_async(timeout=10.0)
+        from sense_pulse.aranet4 import scan_for_aranet4_sync
+
+        # Run sync scan in thread pool to not block FastAPI
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(scan_for_aranet4_sync, 10)
+            devices = future.result(timeout=15)
+
         return {
             "status": "ok",
             "devices": devices,
