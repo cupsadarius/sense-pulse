@@ -1,8 +1,8 @@
 """Aranet4 CO2 sensor communication via the aranet4 Python package"""
 
 import asyncio
-import concurrent.futures
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
@@ -45,27 +45,20 @@ class Aranet4Sensor:
         timeout: int = 30,
         cache_duration: int = 60,
     ):
-        """
-        Initialize Aranet4 sensor connection.
-
-        Args:
-            mac_address: Bluetooth MAC address of the device
-            name: Friendly name for the sensor (e.g., "office", "bedroom")
-            timeout: Connection timeout in seconds
-            cache_duration: How long to cache readings in seconds
-        """
         self.mac_address = mac_address.upper()
         self.name = name
         self.timeout = timeout
         self.cache_duration = cache_duration
         self._cached_reading: Optional[Aranet4Reading] = None
         self._last_error: Optional[str] = None
+        self._lock = threading.Lock()
 
-    def _fetch_reading(self) -> Optional[Aranet4Reading]:
-        """Fetch a reading from the sensor using aranet4 package"""
-
-        def _do_fetch():
-            """Run in separate thread with fresh event loop"""
+    def poll(self) -> Optional[Aranet4Reading]:
+        """
+        Poll the sensor for a new reading. Called by background thread only.
+        This actually connects to the BLE device.
+        """
+        try:
             import aranet4
 
             # Create a new event loop for this thread
@@ -73,14 +66,16 @@ class Aranet4Sensor:
             asyncio.set_event_loop(loop)
 
             try:
-                logger.info(f"Aranet4 {self.name}: Connecting to {self.mac_address}")
+                logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
 
                 reading = aranet4.client.get_current_readings(self.mac_address)
 
                 if reading is None:
+                    logger.warning(f"Aranet4 {self.name}: No reading returned")
+                    self._last_error = "No reading returned"
                     return None
 
-                return Aranet4Reading(
+                result = Aranet4Reading(
                     co2=reading.co2,
                     temperature=round(reading.temperature, 1),
                     humidity=reading.humidity,
@@ -90,90 +85,117 @@ class Aranet4Sensor:
                     ago=reading.ago,
                     timestamp=time.time(),
                 )
+
+                logger.info(
+                    f"Aranet4 {self.name}: CO2={result.co2}ppm, "
+                    f"T={result.temperature}°C, H={result.humidity}%, "
+                    f"Battery={result.battery}%"
+                )
+
+                with self._lock:
+                    self._cached_reading = result
+                    self._last_error = None
+
+                return result
+
             finally:
                 loop.close()
 
-        try:
-            # Run BLE operation in thread with its own event loop
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_do_fetch)
-                reading = future.result(timeout=self.timeout)
-
-                if reading:
-                    logger.info(
-                        f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
-                        f"T={reading.temperature}°C, H={reading.humidity}%, "
-                        f"Battery={reading.battery}%"
-                    )
-                    self._last_error = None
-                    return reading
-                else:
-                    self._last_error = "No reading returned"
-                    return None
-
-        except concurrent.futures.TimeoutError:
-            logger.error(f"Aranet4 {self.name}: Connection timeout")
-            self._last_error = "Connection timeout"
-            return None
         except Exception as e:
-            logger.error(f"Aranet4 {self.name}: Error: {e}")
+            logger.error(f"Aranet4 {self.name}: Poll error: {e}")
             self._last_error = str(e)
             return None
 
-    def get_reading(self) -> Optional[Aranet4Reading]:
+    def get_cached_reading(self) -> Optional[Aranet4Reading]:
         """
-        Get current sensor reading (with caching).
-
-        Returns cached value if within cache_duration, otherwise fetches new reading.
+        Get cached reading only. Does NOT trigger BLE connection.
+        Use this from web server and display code.
         """
-        # Check cache
-        if self._cached_reading is not None:
-            age = time.time() - self._cached_reading.timestamp
-            if age < self.cache_duration:
-                logger.debug(
-                    f"Aranet4 {self.name}: Using cached reading ({age:.0f}s old)"
-                )
-                return self._cached_reading
-
-        # Fetch new reading
-        reading = self._fetch_reading()
-        if reading:
-            self._cached_reading = reading
-            self._last_error = None
-        return reading
+        with self._lock:
+            return self._cached_reading
 
     def get_co2(self) -> Optional[int]:
-        """Get current CO2 level in ppm"""
-        reading = self.get_reading()
+        """Get cached CO2 level in ppm"""
+        reading = self.get_cached_reading()
         return reading.co2 if reading else None
 
     def get_status(self) -> Dict[str, Any]:
         """Get sensor status including last reading and any errors"""
-        reading = self._cached_reading
-        return {
-            "name": self.name,
-            "mac_address": self.mac_address,
-            "connected": reading is not None,
-            "last_reading": reading.to_dict() if reading else None,
-            "cache_age": (
-                int(time.time() - reading.timestamp)
-                if reading
-                else None
-            ),
-            "last_error": self._last_error,
-        }
+        with self._lock:
+            reading = self._cached_reading
+            return {
+                "name": self.name,
+                "mac_address": self.mac_address,
+                "connected": reading is not None and (time.time() - reading.timestamp) < self.cache_duration,
+                "last_reading": reading.to_dict() if reading else None,
+                "cache_age": int(time.time() - reading.timestamp) if reading else None,
+                "last_error": self._last_error,
+            }
+
+
+# Background polling thread
+_polling_thread: Optional[threading.Thread] = None
+_polling_stop_event = threading.Event()
+_sensors_to_poll: List[Aranet4Sensor] = []
+_poll_interval = 30  # seconds
+
+
+def _polling_loop():
+    """Background thread that polls all registered sensors"""
+    logger.info("Aranet4 background polling started")
+
+    while not _polling_stop_event.is_set():
+        for sensor in _sensors_to_poll:
+            if _polling_stop_event.is_set():
+                break
+            try:
+                sensor.poll()
+            except Exception as e:
+                logger.error(f"Aranet4 polling error for {sensor.name}: {e}")
+
+            # Small delay between sensors to avoid BLE conflicts
+            if not _polling_stop_event.is_set():
+                time.sleep(2)
+
+        # Wait for next poll interval
+        _polling_stop_event.wait(_poll_interval)
+
+    logger.info("Aranet4 background polling stopped")
+
+
+def register_sensor(sensor: Aranet4Sensor) -> None:
+    """Register a sensor for background polling"""
+    global _polling_thread
+
+    if sensor not in _sensors_to_poll:
+        _sensors_to_poll.append(sensor)
+        logger.info(f"Registered Aranet4 sensor: {sensor.name} ({sensor.mac_address})")
+
+    # Start polling thread if not running
+    if _polling_thread is None or not _polling_thread.is_alive():
+        _polling_stop_event.clear()
+        _polling_thread = threading.Thread(target=_polling_loop, daemon=True)
+        _polling_thread.start()
+
+
+def unregister_sensor(sensor: Aranet4Sensor) -> None:
+    """Unregister a sensor from background polling"""
+    if sensor in _sensors_to_poll:
+        _sensors_to_poll.remove(sensor)
+        logger.info(f"Unregistered Aranet4 sensor: {sensor.name}")
+
+
+def stop_polling() -> None:
+    """Stop the background polling thread"""
+    global _polling_thread
+    _polling_stop_event.set()
+    if _polling_thread and _polling_thread.is_alive():
+        _polling_thread.join(timeout=5)
+    _polling_thread = None
 
 
 def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
-    """
-    Scan for Aranet4 devices in range using aranet4 package.
-
-    Args:
-        duration: Scan duration in seconds
-
-    Returns:
-        List of discovered devices with name, address, and readings
-    """
+    """Scan for Aranet4 devices in range using aranet4 package."""
     try:
         import aranet4
 
@@ -183,7 +205,6 @@ def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
         seen_addresses = set()
 
         def on_detect(advertisement):
-            """Callback for each detected device"""
             if advertisement.device.address not in seen_addresses:
                 seen_addresses.add(advertisement.device.address)
                 device_info = {
@@ -191,17 +212,13 @@ def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
                     "address": advertisement.device.address,
                     "rssi": advertisement.rssi,
                 }
-                # Include readings if available from advertisement
                 if advertisement.readings:
                     device_info["co2"] = advertisement.readings.co2
                     device_info["temperature"] = advertisement.readings.temperature
                     device_info["humidity"] = advertisement.readings.humidity
                 found_devices.append(device_info)
-                logger.info(
-                    f"Found: {device_info['name']} ({device_info['address']})"
-                )
+                logger.info(f"Found: {device_info['name']} ({device_info['address']})")
 
-        # Use aranet4's find_nearby function
         aranet4.client.find_nearby(on_detect, duration=duration)
 
         logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
@@ -212,8 +229,6 @@ def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
         return []
     except Exception as e:
         logger.error(f"BLE scan error: {e}")
-        import traceback
-        traceback.print_exc()
         return []
 
 
