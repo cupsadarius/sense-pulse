@@ -193,9 +193,14 @@
                 modeEl.textContent = mode || 'idle';
             }
 
-            // Update each LED
+            // Update each LED (rotate 90° clockwise to match physical display)
             for (let i = 0; i < 64; i++) {
-                const led = document.getElementById('led-' + i);
+                // Rotate 90° clockwise: (row, col) -> (col, 7 - row)
+                const row = Math.floor(i / 8);
+                const col = i % 8;
+                const rotatedIndex = col * 8 + (7 - row);
+
+                const led = document.getElementById('led-' + rotatedIndex);
                 if (led && pixels && pixels[i]) {
                     const [r, g, b] = pixels[i];
                     if (r === 0 && g === 0 && b === 0) {
