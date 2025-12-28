@@ -15,6 +15,7 @@ _initialized: bool = False
 
 # Track current display mode (semantic label for what's being shown)
 _current_display_mode: str = "idle"
+_current_rotation: int = 0
 
 
 def _init_sense_hat() -> None:
@@ -117,7 +118,10 @@ def set_pixels(pixels: List[List[int]], mode: str = "custom") -> Dict[str, str]:
 
 def set_rotation(rotation: int) -> Dict[str, str]:
     """Set LED matrix rotation if available"""
+    global _current_rotation
     _init_sense_hat()
+
+    _current_rotation = rotation
 
     if not _sense_hat_available or _sense_hat is None:
         return {"status": "skipped", "message": "Sense HAT not available"}
@@ -140,6 +144,7 @@ def get_matrix_state() -> Dict[str, Any]:
             return {
                 "pixels": pixels,
                 "mode": _current_display_mode,
+                "rotation": _current_rotation,
                 "available": True,
             }
         except Exception:
@@ -149,6 +154,7 @@ def get_matrix_state() -> Dict[str, Any]:
     return {
         "pixels": [[0, 0, 0] for _ in range(64)],
         "mode": _current_display_mode,
+        "rotation": _current_rotation,
         "available": False,
     }
 

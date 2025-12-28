@@ -183,9 +183,26 @@
             }).join('');
         }
 
+        function rotateIndex(i, rotation) {
+            // Rotate pixel index based on display rotation config
+            const row = Math.floor(i / 8);
+            const col = i % 8;
+            switch (rotation) {
+                case 90:
+                    return col * 8 + (7 - row);
+                case 180:
+                    return (7 - row) * 8 + (7 - col);
+                case 270:
+                    return (7 - col) * 8 + row;
+                default: // 0 or invalid
+                    return i;
+            }
+        }
+
         function updateLEDMatrix(data) {
             const pixels = data.pixels;
             const mode = data.mode;
+            const rotation = data.rotation || 0;
 
             // Update mode display
             const modeEl = document.getElementById('matrix-mode');
@@ -193,13 +210,9 @@
                 modeEl.textContent = mode || 'idle';
             }
 
-            // Update each LED (rotate 90° clockwise to match physical display)
+            // Update each LED (apply rotation from config)
             for (let i = 0; i < 64; i++) {
-                // Rotate 90° clockwise: (row, col) -> (col, 7 - row)
-                const row = Math.floor(i / 8);
-                const col = i % 8;
-                const rotatedIndex = col * 8 + (7 - row);
-
+                const rotatedIndex = rotateIndex(i, rotation);
                 const led = document.getElementById('led-' + rotatedIndex);
                 if (led && pixels && pixels[i]) {
                     const [r, g, b] = pixels[i];
