@@ -1,5 +1,95 @@
 # Changelog
 
+## Version 0.4.0 - Web Status Dashboard
+
+### New Features
+
+**Web Dashboard**
+- Real-time status page accessible at `http://<pi-ip>:8080`
+- Built with FastAPI, HTMX, and Tailwind CSS
+- Dark theme with responsive design
+- Works on any device with a web browser
+
+**Status Cards**
+- Tailscale connection status and device count
+- Pi-hole queries, blocked ads, and block rate
+- Environment sensors (temperature, humidity, pressure)
+- System stats with CPU/memory progress bars
+- Auto-refresh every 5 seconds via HTMX polling
+
+**LED Matrix Preview**
+- Real-time 8x8 LED grid visualization via WebSocket
+- Colored pixels with glow effects
+- Display mode indicator
+- Updates at 500ms intervals
+
+**Configuration Hot-Reload**
+- Toggle show_icons from the web UI
+- Change display rotation from dropdown
+- Changes persist to config.yaml immediately
+- No service restart required
+
+**Hardware Abstraction**
+- New `hardware.py` module for Sense HAT abstraction
+- Graceful degradation when Sense HAT unavailable
+- Dashboard works on any machine for development
+- Clear "Hardware Unavailable" messages in UI
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Web dashboard |
+| `/health` | GET | Health check (always returns 200) |
+| `/api/status` | GET | All status data as JSON |
+| `/api/sensors` | GET | Sensor readings |
+| `/api/matrix` | GET | Current LED matrix state |
+| `/api/config` | GET | Current configuration |
+| `/api/config` | POST | Update configuration |
+| `/api/display/clear` | POST | Clear LED matrix |
+| `/ws/matrix` | WebSocket | Real-time matrix updates |
+
+### CLI Changes
+
+New command-line options:
+```
+--web              Start web status server
+--web-port PORT    Port for web server (default: 8080)
+--web-host HOST    Host for web server (default: 0.0.0.0)
+```
+
+### New Dependencies
+
+- `fastapi>=0.109.0` - Modern async web framework
+- `uvicorn[standard]>=0.27.0` - ASGI server
+- `jinja2>=3.1.0` - Template engine
+
+### New Files
+
+- `src/sense_pulse/hardware.py` - Hardware abstraction layer
+- `src/sense_pulse/web/` - Web module
+  - `app.py` - FastAPI application factory
+  - `routes.py` - API endpoints
+  - `templates/` - Jinja2 HTML templates
+- `sense-pulse-web.service` - Systemd service for web dashboard
+
+### Migration from v0.3.0
+
+No breaking changes! The web dashboard is an additional feature.
+
+To use the web dashboard:
+```bash
+# Run web server
+uv run sense-pulse --web
+
+# Or install as a service
+sudo cp sense-pulse-web.service /etc/systemd/system/
+sudo systemctl enable sense-pulse-web.service
+sudo systemctl start sense-pulse-web.service
+```
+
+---
+
 ## Version 0.3.0 - Icon Display System
 
 ### New Features
