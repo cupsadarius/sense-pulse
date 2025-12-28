@@ -57,46 +57,60 @@ class Aranet4Sensor:
         Poll the sensor for a new reading. Called by background thread only.
         This actually connects to the BLE device.
         """
-        try:
-            import aranet4
+        import aranet4
 
-            logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
+        max_retries = 3
+        last_error = None
 
-            # aranet4 package handles its own asyncio event loop internally
-            reading = aranet4.client.get_current_readings(self.mac_address)
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    # Wait before retry with exponential backoff
+                    wait_time = 2 ** attempt
+                    logger.info(f"Aranet4 {self.name}: Retry {attempt}/{max_retries} in {wait_time}s")
+                    time.sleep(wait_time)
 
-            if reading is None:
-                logger.warning(f"Aranet4 {self.name}: No reading returned")
-                self._last_error = "No reading returned"
-                return None
+                logger.info(f"Aranet4 {self.name}: Polling {self.mac_address}")
 
-            result = Aranet4Reading(
-                co2=reading.co2,
-                temperature=round(reading.temperature, 1),
-                humidity=reading.humidity,
-                pressure=round(reading.pressure, 1),
-                battery=reading.battery,
-                interval=reading.interval,
-                ago=reading.ago,
-                timestamp=time.time(),
-            )
+                # aranet4 package handles its own asyncio event loop internally
+                reading = aranet4.client.get_current_readings(self.mac_address)
 
-            logger.info(
-                f"Aranet4 {self.name}: CO2={result.co2}ppm, "
-                f"T={result.temperature}°C, H={result.humidity}%, "
-                f"Battery={result.battery}%"
-            )
+                if reading is None:
+                    logger.warning(f"Aranet4 {self.name}: No reading returned")
+                    last_error = "No reading returned"
+                    continue
 
-            with self._lock:
-                self._cached_reading = result
-                self._last_error = None
+                result = Aranet4Reading(
+                    co2=reading.co2,
+                    temperature=round(reading.temperature, 1),
+                    humidity=reading.humidity,
+                    pressure=round(reading.pressure, 1),
+                    battery=reading.battery,
+                    interval=reading.interval,
+                    ago=reading.ago,
+                    timestamp=time.time(),
+                )
 
-            return result
+                logger.info(
+                    f"Aranet4 {self.name}: CO2={result.co2}ppm, "
+                    f"T={result.temperature}°C, H={result.humidity}%, "
+                    f"Battery={result.battery}%"
+                )
 
-        except Exception as e:
-            logger.error(f"Aranet4 {self.name}: Poll error: {e}")
-            self._last_error = str(e)
-            return None
+                with self._lock:
+                    self._cached_reading = result
+                    self._last_error = None
+
+                return result
+
+            except Exception as e:
+                last_error = str(e) if str(e) else f"{type(e).__name__}"
+                logger.warning(f"Aranet4 {self.name}: Attempt {attempt+1} failed: {last_error}")
+
+        # All retries exhausted
+        logger.error(f"Aranet4 {self.name}: Poll failed after {max_retries} attempts: {last_error}")
+        self._last_error = last_error
+        return None
 
     def get_cached_reading(self) -> Optional[Aranet4Reading]:
         """
@@ -145,9 +159,9 @@ def _polling_loop():
             except Exception as e:
                 logger.error(f"Aranet4 polling error for {sensor.name}: {e}")
 
-            # Small delay between sensors to avoid BLE conflicts
+            # Longer delay between sensors to avoid BLE adapter conflicts
             if not _polling_stop_event.is_set():
-                time.sleep(2)
+                time.sleep(5)
 
         # Wait for next poll interval
         _polling_stop_event.wait(_poll_interval)
