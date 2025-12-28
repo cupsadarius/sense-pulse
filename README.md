@@ -33,12 +33,12 @@ The LED matrix cycles through:
 
 ## Web Dashboard
 
-Sense Pulse includes a web-based status dashboard accessible from any browser.
+Sense Pulse includes a web-based status dashboard accessible from any browser. The web server runs automatically alongside the LED display in a single process.
 
 ### Features
 
 - **Real-time Updates**: Status cards refresh every 5 seconds via HTMX
-- **LED Matrix Preview**: Live WebSocket feed of the 8x8 LED display
+- **Live LED Matrix Preview**: Real-time WebSocket feed of the 8x8 LED display (~20 FPS)
 - **Configuration Controls**: Toggle icons, change rotation from the browser
 - **Graceful Degradation**: Works without Sense HAT hardware (sensor data shows as unavailable)
 - **Dark Theme**: Beautiful dark UI with Tailwind CSS
@@ -46,14 +46,20 @@ Sense Pulse includes a web-based status dashboard accessible from any browser.
 ### Quick Start
 
 ```bash
-# Start the web server on port 8080
-uv run sense-pulse --web
+# Start display + web server (default)
+uv run sense-pulse
+
+# Web server only (no LED display)
+uv run sense-pulse --web-only
+
+# LED display only (no web server)
+uv run sense-pulse --no-web
 
 # Custom port
-uv run sense-pulse --web --web-port 3000
+uv run sense-pulse --web-port 3000
 
 # With verbose logging
-uv run sense-pulse --web --verbose
+uv run sense-pulse --verbose
 ```
 
 Then open `http://<your-pi-ip>:8080` in your browser.
@@ -73,14 +79,16 @@ Then open `http://<your-pi-ip>:8080` in your browser.
 
 ### Running as a Service
 
-A separate systemd service is provided for the web dashboard:
+The web dashboard runs automatically with the main service - no separate service needed:
 
 ```bash
-sudo cp sense-pulse-web.service /etc/systemd/system/
+sudo cp sense-pulse.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable sense-pulse-web.service
-sudo systemctl start sense-pulse-web.service
+sudo systemctl enable sense-pulse.service
+sudo systemctl start sense-pulse.service
 ```
+
+The web dashboard will be available at `http://<your-pi-ip>:8080`.
 
 ## Prerequisites
 
@@ -244,11 +252,14 @@ Options:
   -c, --config PATH     Path to config file
   --once                Run one display cycle and exit
   -v, --verbose         Enable debug logging
-  --web                 Start web status server
+  --web-only            Start web server only (no LED display)
+  --no-web              Disable web server (LED display only)
   --web-port PORT       Port for web server (default: 8080)
   --web-host HOST       Host for web server (default: 0.0.0.0)
   -h, --help            Show help
 ```
+
+By default, both the LED display and web server run together in a single process.
 
 ## Project Structure
 
@@ -257,8 +268,7 @@ sense-pulse/
 ├── pyproject.toml          # Project configuration
 ├── config.example.yaml     # Example configuration
 ├── config.yaml             # Your configuration (gitignored)
-├── sense-pulse.service     # Systemd service file (LED display)
-├── sense-pulse-web.service # Systemd service file (web dashboard)
+├── sense-pulse.service     # Systemd service file (runs display + web)
 ├── 99-pi-leds.rules        # udev rules for LED control without root
 ├── setup.sh                # Setup script
 ├── README.md
