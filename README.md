@@ -11,6 +11,7 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
 - **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
+- **Pi LED Control**: Optionally disable Pi's onboard LEDs (PWR/ACT) during sleep
 - **YAML Configuration**: Easy-to-edit config file with hot-reload
 - **Auto-start**: Runs as a systemd daemon
 
@@ -178,6 +179,7 @@ display:
 sleep:
   start_hour: 22       # 10 PM
   end_hour: 7          # 7 AM
+  disable_pi_leds: false  # Also turn off Pi's red/green onboard LEDs
 
 # Update settings
 update:
@@ -257,6 +259,7 @@ sense-pulse/
 ├── config.yaml             # Your configuration (gitignored)
 ├── sense-pulse.service     # Systemd service file (LED display)
 ├── sense-pulse-web.service # Systemd service file (web dashboard)
+├── 99-pi-leds.rules        # udev rules for LED control without root
 ├── setup.sh                # Setup script
 ├── README.md
 └── src/
@@ -273,6 +276,7 @@ sense-pulse/
         ├── display.py      # Sense HAT display
         ├── schedule.py     # Sleep schedule
         ├── controller.py   # Main controller
+        ├── pi_leds.py      # Pi onboard LED control
         └── web/            # Web dashboard module
             ├── __init__.py
             ├── app.py      # FastAPI application
@@ -325,6 +329,30 @@ sudo systemctl status sense-pulse.service
 
 # View logs
 sudo journalctl -u sense-pulse -n 50
+```
+
+### Pi Onboard LEDs Not Turning Off
+
+The `disable_pi_leds` feature requires write access to `/sys/class/leds/`.
+
+**Install udev rules (recommended):**
+```bash
+# Install the provided udev rules file
+sudo cp 99-pi-leds.rules /etc/udev/rules.d/
+
+# Reload udev rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Verify permissions (should now be world-writable)
+ls -la /sys/class/leds/ACT/brightness
+```
+
+**Manual testing:**
+```bash
+# Test LED control (should work without sudo after udev rules)
+echo none > /sys/class/leds/ACT/trigger
+echo 0 > /sys/class/leds/ACT/brightness
+echo mmc0 > /sys/class/leds/ACT/trigger  # restore
 ```
 
 ## License

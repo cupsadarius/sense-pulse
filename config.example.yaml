@@ -21,6 +21,7 @@ display:
 sleep:
   start_hour: 22       # 10 PM
   end_hour: 7          # 7 AM
+  disable_pi_leds: false  # Disable Pi onboard LEDs (red PWR & green ACT) during sleep
 
 # Update settings
 update:
