@@ -1,5 +1,59 @@
 # Changelog
 
+## Version 0.5.0 - Pi Onboard LED Control
+
+### New Features
+
+**Sleep Mode Pi LED Control**
+- New `disable_pi_leds` option in sleep configuration
+- Automatically turns off Pi's onboard LEDs (PWR red and ACT green) during sleep hours
+- LEDs are restored when exiting sleep mode or on application shutdown
+- Graceful degradation on non-Pi hardware (feature is silently skipped)
+
+### Configuration
+
+```yaml
+sleep:
+  start_hour: 22
+  end_hour: 7
+  disable_pi_leds: true  # NEW: Disable Pi onboard LEDs during sleep
+```
+
+### Technical Details
+
+**New Module:**
+- `src/sense_pulse/pi_leds.py` - Controls Pi onboard LEDs via `/sys/class/leds/`
+
+**Functions:**
+- `disable_led(name)` / `enable_led(name)` - Control individual LEDs
+- `disable_all_leds()` / `enable_all_leds()` - Control both LEDs
+- `get_led_status()` - Get current LED state
+- `is_pi_led_available()` - Check if LEDs are controllable
+
+**LED Control Flow:**
+1. Saves original LED trigger settings (e.g., `mmc0` for ACT, `default-on` for PWR)
+2. Sets trigger to `none` for manual control
+3. Sets brightness to `0` to turn off
+4. Restores original trigger when re-enabling
+
+### Requirements
+
+- Requires write access to `/sys/class/leds/` (run as root or configure udev rules)
+- Works on Raspberry Pi models with accessible LED sysfs interface
+
+### Migration from v0.4.0
+
+No breaking changes! The feature is disabled by default.
+
+To enable:
+```yaml
+# In config.yaml
+sleep:
+  disable_pi_leds: true
+```
+
+---
+
 ## Version 0.4.0 - Web Status Dashboard
 
 ### New Features
