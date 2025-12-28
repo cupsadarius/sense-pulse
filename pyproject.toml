@@ -14,6 +14,7 @@ dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "jinja2>=3.1.0",
+    "aranet4>=2.3.0",  # Aranet4 CO2 sensor support (uses bleak internally)
     # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
 
