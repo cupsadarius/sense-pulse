@@ -40,6 +40,7 @@ class DisplayConfig:
 class SleepConfig:
     start_hour: int = 22
     end_hour: int = 7
+    disable_pi_leds: bool = False  # Disable Pi onboard LEDs (PWR/ACT) during sleep
 
 
 @dataclass

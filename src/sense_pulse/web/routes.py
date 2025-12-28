@@ -30,6 +30,7 @@ class DisplayConfigUpdate(BaseModel):
 class SleepConfigUpdate(BaseModel):
     start_hour: Optional[int] = None
     end_hour: Optional[int] = None
+    disable_pi_leds: Optional[bool] = None
 
 
 class ConfigUpdate(BaseModel):
@@ -189,6 +190,7 @@ async def get_config() -> Dict[str, Any]:
         "sleep": {
             "start_hour": config.sleep.start_hour,
             "end_hour": config.sleep.end_hour,
+            "disable_pi_leds": config.sleep.disable_pi_leds,
         },
         "update": {
             "interval": config.update.interval,
@@ -229,6 +231,8 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
                 config_data["sleep"]["start_hour"] = updates.sleep.start_hour
             if updates.sleep.end_hour is not None:
                 config_data["sleep"]["end_hour"] = updates.sleep.end_hour
+            if updates.sleep.disable_pi_leds is not None:
+                config_data["sleep"]["disable_pi_leds"] = updates.sleep.disable_pi_leds
 
         # Write back to file
         with open(_config_path, "w") as f:
@@ -274,6 +278,21 @@ async def toggle_icons(request: Request) -> Dict[str, str]:
 
     result = await update_config(ConfigUpdate(
         display=DisplayConfigUpdate(show_icons=new_value)
+    ))
+
+    return result
+
+
+@router.post("/api/config/sleep/pi-leds")
+async def toggle_pi_leds(request: Request) -> Dict[str, str]:
+    """Toggle disable_pi_leds setting (HTMX endpoint)"""
+    _, _, _, config = get_services()
+
+    # Toggle current value
+    new_value = not config.sleep.disable_pi_leds
+
+    result = await update_config(ConfigUpdate(
+        sleep=SleepConfigUpdate(disable_pi_leds=new_value)
     ))
 
     return result
