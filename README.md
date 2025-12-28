@@ -259,6 +259,7 @@ sense-pulse/
 ├── config.yaml             # Your configuration (gitignored)
 ├── sense-pulse.service     # Systemd service file (LED display)
 ├── sense-pulse-web.service # Systemd service file (web dashboard)
+├── 99-pi-leds.rules        # udev rules for LED control without root
 ├── setup.sh                # Setup script
 ├── README.md
 └── src/
@@ -334,15 +335,24 @@ sudo journalctl -u sense-pulse -n 50
 
 The `disable_pi_leds` feature requires write access to `/sys/class/leds/`.
 
+**Install udev rules (recommended):**
 ```bash
-# Check if LEDs are accessible
-ls -la /sys/class/leds/
+# Install the provided udev rules file
+sudo cp 99-pi-leds.rules /etc/udev/rules.d/
 
-# Test manual control (requires root)
-echo none | sudo tee /sys/class/leds/ACT/trigger
-echo 0 | sudo tee /sys/class/leds/ACT/brightness
+# Reload udev rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
 
-# For the service to control LEDs, run as root or add udev rules
+# Verify permissions (should now be world-writable)
+ls -la /sys/class/leds/ACT/brightness
+```
+
+**Manual testing:**
+```bash
+# Test LED control (should work without sudo after udev rules)
+echo none > /sys/class/leds/ACT/trigger
+echo 0 > /sys/class/leds/ACT/brightness
+echo mmc0 > /sys/class/leds/ACT/trigger  # restore
 ```
 
 ## License

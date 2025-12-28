@@ -1,0 +1,11 @@
+# Allow pi user to control onboard LEDs
+# Install: sudo cp 99-pi-leds.rules /etc/udev/rules.d/
+# Reload: sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# PWR LED (red)
+SUBSYSTEM=="leds", KERNEL=="PWR", RUN+="/bin/chmod 666 /sys/class/leds/PWR/brightness /sys/class/leds/PWR/trigger"
+SUBSYSTEM=="leds", KERNEL=="led1", RUN+="/bin/chmod 666 /sys/class/leds/led1/brightness /sys/class/leds/led1/trigger"
+
+# ACT LED (green)
+SUBSYSTEM=="leds", KERNEL=="ACT", RUN+="/bin/chmod 666 /sys/class/leds/ACT/brightness /sys/class/leds/ACT/trigger"
+SUBSYSTEM=="leds", KERNEL=="led0", RUN+="/bin/chmod 666 /sys/class/leds/led0/brightness /sys/class/leds/led0/trigger"
