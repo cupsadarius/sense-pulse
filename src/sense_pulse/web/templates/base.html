@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Sense Pulse{% endblock %}</title>
+    <title>{% block title %}Sense Pulse - Status Dashboard{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script>
@@ -21,13 +21,13 @@
         }
     </script>
     <style>
-        .htmx-request .htmx-indicator {
-            opacity: 1;
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px currentColor; }
+            50% { box-shadow: 0 0 20px currentColor; }
         }
-        .htmx-indicator {
-            opacity: 0;
-            transition: opacity 200ms ease-in;
-        }
+        .status-glow { animation: pulse-glow 2s ease-in-out infinite; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
     {% block head %}{% endblock %}
 </head>

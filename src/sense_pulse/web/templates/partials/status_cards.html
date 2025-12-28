@@ -1,116 +1,157 @@
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in">
     <!-- Tailscale Card -->
-    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-cyan-500/50 transition-colors">
+    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-green-500/50 transition-colors">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Tailscale</h3>
-            <svg class="w-5 h-5 text-cyan-400" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-        </div>
-        <div class="flex items-baseline space-x-2">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-7 h-7 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-400">Tailscale</h3>
+                    {% if tailscale.connected %}
+                    <p class="text-lg font-bold text-green-400">Connected</p>
+                    {% else %}
+                    <p class="text-lg font-bold text-red-400">Disconnected</p>
+                    {% endif %}
+                </div>
+            </div>
             {% if tailscale.connected %}
-            <span class="text-2xl font-bold text-green-400">Connected</span>
+            <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
             {% else %}
-            <span class="text-2xl font-bold text-red-400">Disconnected</span>
+            <span class="w-3 h-3 bg-red-500 rounded-full"></span>
             {% endif %}
         </div>
-        {% if tailscale.connected %}
-        <p class="text-sm text-cyan-400 mt-2">
-            <span class="font-semibold">{{ tailscale.device_count }}</span> device{% if tailscale.device_count != 1 %}s{% endif %} online
-        </p>
-        {% endif %}
+        <div class="flex items-center justify-between pt-4 border-t border-sense-border">
+            <span class="text-sm text-gray-400">Online Devices</span>
+            <span class="text-2xl font-bold text-cyan-400">{{ tailscale.device_count }}</span>
+        </div>
     </div>
 
     <!-- Pi-hole Card -->
     <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-red-500/50 transition-colors">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Pi-hole</h3>
-            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-        </div>
-        <div class="space-y-2">
-            <div class="flex justify-between items-center">
-                <span class="text-gray-400 text-sm">Queries</span>
-                <span class="text-lg font-semibold text-white">{{ "{:,}".format(pihole.queries_today|int) }}</span>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-red-500/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-400">Pi-hole</h3>
+                    <p class="text-lg font-bold text-green-400">Active</p>
+                </div>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-400 text-sm">Blocked</span>
+        </div>
+        <div class="space-y-3 pt-4 border-t border-sense-border">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-400">Queries Today</span>
+                <span class="text-lg font-semibold text-green-400">{{ "{:,}".format(pihole.queries_today|int) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-400">Blocked</span>
                 <span class="text-lg font-semibold text-red-400">{{ "{:,}".format(pihole.ads_blocked_today|int) }}</span>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-400 text-sm">Block Rate</span>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-400">Block Rate</span>
                 <span class="text-lg font-semibold text-orange-400">{{ "%.1f"|format(pihole.ads_percentage_today) }}%</span>
             </div>
         </div>
     </div>
 
-    <!-- Environment Card -->
-    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-orange-500/50 transition-colors">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Environment</h3>
-            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
-            </svg>
+    <!-- Sensors Card -->
+    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-blue-500/50 transition-colors">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                <svg class="w-7 h-7 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">Environment</h3>
+                <p class="text-lg font-bold text-blue-400">Sense HAT</p>
+            </div>
         </div>
         {% if sensors.available %}
-        <div class="space-y-2">
-            <div class="flex justify-between items-center">
-                <span class="text-gray-400 text-sm">Temperature</span>
-                <span class="text-lg font-semibold text-orange-400">{{ sensors.temperature }}&deg;C</span>
+        <!-- Available state -->
+        <div class="space-y-3 pt-4 border-t border-sense-border">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-orange-400">🌡️</span>
+                    <span class="text-sm text-gray-400">Temperature</span>
+                </div>
+                <span class="text-lg font-semibold text-orange-400">{{ sensors.temperature }}°C</span>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-400 text-sm">Humidity</span>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-blue-400">💧</span>
+                    <span class="text-sm text-gray-400">Humidity</span>
+                </div>
                 <span class="text-lg font-semibold text-blue-400">{{ sensors.humidity }}%</span>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-400 text-sm">Pressure</span>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400">🔘</span>
+                    <span class="text-sm text-gray-400">Pressure</span>
+                </div>
                 <span class="text-lg font-semibold text-gray-300">{{ sensors.pressure|int }} mb</span>
             </div>
         </div>
         {% else %}
-        <div class="flex flex-col items-center justify-center py-4">
-            <div class="flex items-center text-yellow-500 mb-2">
-                <span class="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-                <span class="text-sm font-medium">Unavailable</span>
+        <!-- Unavailable state -->
+        <div class="pt-4 border-t border-sense-border">
+            <div class="flex items-center gap-2 text-yellow-500 mb-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <span class="text-sm font-medium">Hardware Unavailable</span>
             </div>
-            <p class="text-xs text-gray-500 text-center">
-                Sense HAT hardware required for sensor data
+            <p class="text-xs text-gray-500">
+                Sense HAT not detected. Sensor readings require connected hardware.
+            </p>
+            <p class="text-xs text-gray-600 mt-2">
+                Other stats (Tailscale, Pi-hole, System) remain functional.
             </p>
         </div>
         {% endif %}
     </div>
 
     <!-- System Card -->
-    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-purple-500/50 transition-colors">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">System</h3>
-            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-            </svg>
+    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-yellow-500/50 transition-colors">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-yellow-500/10 rounded-lg flex items-center justify-center">
+                <svg class="w-7 h-7 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">System</h3>
+                <p class="text-lg font-bold text-yellow-400">Raspberry Pi</p>
+            </div>
         </div>
-        <div class="space-y-3">
+        <div class="space-y-3 pt-4 border-t border-sense-border">
             <div>
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-gray-400 text-sm">CPU</span>
-                    <span class="text-sm font-semibold text-white">{{ system.cpu_percent }}%</span>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-400">CPU</span>
+                    <span class="text-sm font-semibold text-yellow-400">{{ system.cpu_percent }}%</span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-purple-500 h-2 rounded-full transition-all duration-300" style="width: {{ system.cpu_percent }}%"></div>
+                    <div class="bg-yellow-400 h-2 rounded-full transition-all duration-300" style="width: {{ system.cpu_percent }}%"></div>
                 </div>
             </div>
             <div>
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-gray-400 text-sm">Memory</span>
-                    <span class="text-sm font-semibold text-white">{{ system.memory_percent }}%</span>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-400">Memory</span>
+                    <span class="text-sm font-semibold text-cyan-400">{{ system.memory_percent }}%</span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: {{ system.memory_percent }}%"></div>
+                    <div class="bg-cyan-400 h-2 rounded-full transition-all duration-300" style="width: {{ system.memory_percent }}%"></div>
                 </div>
             </div>
-            <div class="flex justify-between items-center pt-1">
-                <span class="text-gray-400 text-sm">Load (1m)</span>
-                <span class="text-sm font-semibold text-cyan-400">{{ system.load_1min }}</span>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-400">Load (1m)</span>
+                <span class="text-lg font-semibold text-purple-400">{{ system.load_1min }}</span>
             </div>
         </div>
     </div>
