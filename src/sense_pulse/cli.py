@@ -3,6 +3,7 @@
 import argparse
 import logging
 import sys
+import threading
 from typing import Optional
 
 from sense_pulse import __version__
@@ -28,6 +29,22 @@ def setup_logging(level: str, log_file: Optional[str]) -> None:
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=handlers,
+    )
+
+
+def run_web_server(host: str, port: int, log_level: str) -> None:
+    """Run the web server in a background thread"""
+    import uvicorn
+    from sense_pulse.web.app import create_app
+
+    app = create_app()
+    # Use log_config=None to prevent uvicorn from reconfiguring logging
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        log_level=log_level.lower(),
+        log_config=None,
     )
 
 
@@ -61,9 +78,14 @@ def main() -> int:
         help="Enable debug logging",
     )
     parser.add_argument(
-        "--web",
+        "--web-only",
         action="store_true",
-        help="Start web status server on port 8080",
+        help="Start web server only (no LED display)",
+    )
+    parser.add_argument(
+        "--no-web",
+        action="store_true",
+        help="Disable web server (LED display only)",
     )
     parser.add_argument(
         "--web-port",
@@ -76,6 +98,13 @@ def main() -> int:
         type=str,
         default="0.0.0.0",
         help="Host for web server (default: 0.0.0.0)",
+    )
+    # Keep --web as hidden alias for --web-only for backwards compatibility
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        dest="web_only",
+        help=argparse.SUPPRESS,
     )
 
     args = parser.parse_args()
@@ -96,8 +125,8 @@ def main() -> int:
     logger.info("=" * 50)
 
     try:
-        # Web server mode
-        if args.web:
+        # Web server only mode
+        if args.web_only:
             import uvicorn
             from sense_pulse.web.app import create_app
 
@@ -105,6 +134,16 @@ def main() -> int:
             app = create_app()
             uvicorn.run(app, host=args.web_host, port=args.web_port, log_level=log_level.lower())
             return 0
+
+        # Start web server in background thread (unless disabled)
+        if not args.no_web:
+            logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
+            web_thread = threading.Thread(
+                target=run_web_server,
+                args=(args.web_host, args.web_port, log_level),
+                daemon=True,
+            )
+            web_thread.start()
 
         # LED display mode (requires Sense HAT)
         from sense_pulse.controller import StatsDisplay
