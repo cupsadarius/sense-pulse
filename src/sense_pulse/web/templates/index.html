@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <!-- Header -->
+    <header class="border-b border-sense-border bg-sense-card/50 backdrop-blur-sm sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-green-400 to-cyan-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold">Sense Pulse</h1>
+                    <p class="text-xs text-gray-400">Raspberry Pi Status Dashboard</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- Hardware Status Indicator -->
+                <div class="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
+                    <svg class="w-4 h-4 {% if sense_hat_available %}text-green-400{% else %}text-yellow-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                    </svg>
+                    <span class="text-xs text-gray-400">Sense HAT</span>
+                    <span class="w-2 h-2 {% if sense_hat_available %}bg-green-500{% else %}bg-yellow-500{% endif %} rounded-full"></span>
+                </div>
+                <div class="text-sm text-gray-400">
+                    Last updated: <span class="text-gray-300" id="last-update">just now</span>
+                </div>
+                <div class="flex items-center gap-2" id="ws-status">
+                    <span class="w-2 h-2 bg-yellow-500 rounded-full" id="ws-indicator"></span>
+                    <span class="text-sm text-yellow-400" id="ws-label">Connecting...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Status Grid -->
+        <div id="status-cards"
+             hx-get="/api/status/cards"
+             hx-trigger="load, every 5s"
+             hx-swap="innerHTML">
+            <!-- Loading skeleton -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {% for i in range(4) %}
+                <div class="bg-sense-card rounded-xl border border-sense-border p-6 animate-pulse">
+                    <div class="h-12 bg-gray-700 rounded w-12 mb-4"></div>
+                    <div class="h-4 bg-gray-700 rounded w-1/2 mb-2"></div>
+                    <div class="h-6 bg-gray-700 rounded w-3/4"></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- LED Matrix Preview -->
+        <div class="bg-sense-card rounded-xl border border-sense-border p-6 mb-8 transition-opacity {% if not sense_hat_available %}opacity-50{% endif %}" id="led-matrix-section">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold">LED Matrix Preview</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-400">Current display:</span>
+                    <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-sm font-medium" id="matrix-mode">
+                        idle
+                    </span>
+                </div>
+            </div>
+
+            <!-- 8x8 LED Grid -->
+            <div class="flex justify-center">
+                <div class="bg-gray-900 p-4 rounded-lg inline-block">
+                    <div class="grid grid-cols-8 gap-1" id="led-matrix">
+                        {% for i in range(64) %}
+                        <div class="w-6 h-6 rounded-sm bg-gray-800 transition-all duration-150" id="led-{{ i }}"></div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% if not sense_hat_available %}
+            <p class="text-center text-sm text-gray-500 mt-4">LED Matrix preview requires Sense HAT hardware</p>
+            {% endif %}
+        </div>
+
+        <!-- Quick Actions & Settings -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Display Controls -->
+            <div class="bg-sense-card rounded-xl border border-sense-border p-6">
+                <h2 class="text-lg font-semibold mb-4">Display Controls</h2>
+                <div id="display-controls"
+                     hx-get="/api/config/display/controls"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <!-- Loading state -->
+                    <div class="space-y-4 animate-pulse">
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Status -->
+            <div class="bg-sense-card rounded-xl border border-sense-border p-6">
+                <h2 class="text-lg font-semibold mb-4">Service Status</h2>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                            <span>sense-pulse.service</span>
+                        </div>
+                        <span class="text-sm text-green-400">running</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                            <span>pihole-FTL.service</span>
+                        </div>
+                        <span class="text-sm text-green-400">running</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                            <span>tailscaled.service</span>
+                        </div>
+                        <span class="text-sm text-green-400">running</span>
+                    </div>
+                </div>
+                <div class="mt-4 flex gap-2">
+                    <button class="flex-1 px-4 py-2 bg-yellow-500/10 text-yellow-400 rounded-lg hover:bg-yellow-500/20 transition-colors text-sm font-medium"
+                            hx-post="/api/service/restart"
+                            hx-swap="none">
+                        Restart Display
+                    </button>
+                    <button class="flex-1 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
+                            hx-post="/api/display/clear"
+                            hx-swap="none">
+                        Clear Matrix
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-sense-border mt-12 py-6">
+        <div class="max-w-7xl mx-auto px-4 flex items-center justify-between text-sm text-gray-400">
+            <span>Sense Pulse v0.4.0</span>
+            <a href="https://github.com/cupsadarius/sense-pulse" class="hover:text-white transition-colors">
+                GitHub
+            </a>
+        </div>
+    </footer>
+
+    <script>
+        // Update last updated timestamp on HTMX swap
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target.id === 'status-cards') {
+                document.getElementById('last-update').textContent = 'just now';
+            }
+        });
+
+        // WebSocket for LED Matrix real-time updates
+        let ws = null;
+        let wsReconnectTimeout = null;
+
+        function updateWSStatus(connected) {
+            const indicator = document.getElementById('ws-indicator');
+            const label = document.getElementById('ws-label');
+            if (connected) {
+                indicator.className = 'w-2 h-2 bg-green-500 rounded-full status-glow text-green-500';
+                label.className = 'text-sm text-green-400';
+                label.textContent = 'Live';
+            } else {
+                indicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
+                label.className = 'text-sm text-yellow-400';
+                label.textContent = 'Reconnecting...';
+            }
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function updateLEDMatrix(data) {
+            const pixels = data.pixels;
+            const mode = data.mode;
+
+            // Update mode display
+            const modeEl = document.getElementById('matrix-mode');
+            if (modeEl) {
+                modeEl.textContent = mode || 'idle';
+            }
+
+            // Update each LED
+            for (let i = 0; i < 64; i++) {
+                const led = document.getElementById('led-' + i);
+                if (led && pixels && pixels[i]) {
+                    const [r, g, b] = pixels[i];
+                    if (r === 0 && g === 0 && b === 0) {
+                        led.style.backgroundColor = '#1f2937'; // gray-800
+                        led.style.boxShadow = 'none';
+                    } else {
+                        const color = rgbToHex(r, g, b);
+                        led.style.backgroundColor = color;
+                        led.style.boxShadow = '0 0 8px ' + color;
+                    }
+                }
+            }
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/matrix';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                updateWSStatus(true);
+                if (wsReconnectTimeout) {
+                    clearTimeout(wsReconnectTimeout);
+                    wsReconnectTimeout = null;
+                }
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateLEDMatrix(data);
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message:', e);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                updateWSStatus(false);
+                // Reconnect after 2 seconds
+                wsReconnectTimeout = setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                ws.close();
+            };
+        }
+
+        // Start WebSocket connection
+        connectWebSocket();
+    </script>
+{% endblock %}

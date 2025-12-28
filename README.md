@@ -4,13 +4,14 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 
 ## Features
 
+- **Web Dashboard**: Real-time status page at port 8080 with live updates
 - **Visual Icons**: 8x8 pixel art icons for each stat (can be toggled off for text-only)
 - **Tailscale Status**: Shows connection status and count of online devices in your Tailnet
 - **Pi-hole Stats**: Queries today, ads blocked, block percentage
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
 - **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
-- **YAML Configuration**: Easy-to-edit config file
+- **YAML Configuration**: Easy-to-edit config file with hot-reload
 - **Auto-start**: Runs as a systemd daemon
 
 ## Display Cycle
@@ -28,6 +29,57 @@ The LED matrix cycles through:
 9. **CPU Usage** (Yellow)
 10. **Memory Usage** (Cyan)
 11. **System Load** (Magenta)
+
+## Web Dashboard
+
+Sense Pulse includes a web-based status dashboard accessible from any browser.
+
+### Features
+
+- **Real-time Updates**: Status cards refresh every 5 seconds via HTMX
+- **LED Matrix Preview**: Live WebSocket feed of the 8x8 LED display
+- **Configuration Controls**: Toggle icons, change rotation from the browser
+- **Graceful Degradation**: Works without Sense HAT hardware (sensor data shows as unavailable)
+- **Dark Theme**: Beautiful dark UI with Tailwind CSS
+
+### Quick Start
+
+```bash
+# Start the web server on port 8080
+uv run sense-pulse --web
+
+# Custom port
+uv run sense-pulse --web --web-port 3000
+
+# With verbose logging
+uv run sense-pulse --web --verbose
+```
+
+Then open `http://<your-pi-ip>:8080` in your browser.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Web dashboard |
+| `/health` | GET | Health check |
+| `/api/status` | GET | All status data as JSON |
+| `/api/sensors` | GET | Sensor readings |
+| `/api/matrix` | GET | Current LED matrix state |
+| `/api/config` | GET | Current configuration |
+| `/api/config` | POST | Update configuration |
+| `/ws/matrix` | WebSocket | Real-time LED matrix updates |
+
+### Running as a Service
+
+A separate systemd service is provided for the web dashboard:
+
+```bash
+sudo cp sense-pulse-web.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable sense-pulse-web.service
+sudo systemctl start sense-pulse-web.service
+```
 
 ## Prerequisites
 
@@ -135,6 +187,12 @@ update:
 logging:
   level: "INFO"        # DEBUG, INFO, WARNING, ERROR
   file: "/var/log/sense-pulse.log"
+
+# Web dashboard settings
+web:
+  enabled: true        # Enable web dashboard
+  host: "0.0.0.0"      # Bind address (0.0.0.0 for all interfaces)
+  port: 8080           # Web server port
 ```
 
 ## Running as a Service
@@ -184,6 +242,9 @@ Options:
   -c, --config PATH     Path to config file
   --once                Run one display cycle and exit
   -v, --verbose         Enable debug logging
+  --web                 Start web status server
+  --web-port PORT       Port for web server (default: 8080)
+  --web-host HOST       Host for web server (default: 0.0.0.0)
   -h, --help            Show help
 ```
 
@@ -194,7 +255,8 @@ sense-pulse/
 ├── pyproject.toml          # Project configuration
 ├── config.example.yaml     # Example configuration
 ├── config.yaml             # Your configuration (gitignored)
-├── sense-pulse.service     # Systemd service file
+├── sense-pulse.service     # Systemd service file (LED display)
+├── sense-pulse-web.service # Systemd service file (web dashboard)
 ├── setup.sh                # Setup script
 ├── README.md
 └── src/
@@ -203,13 +265,19 @@ sense-pulse/
         ├── __main__.py     # python -m entry point
         ├── cli.py          # Command-line interface
         ├── config.py       # Configuration loading
+        ├── hardware.py     # Sense HAT abstraction layer
         ├── icons.py        # 8x8 LED pixel art
         ├── tailscale.py    # Tailscale status
         ├── pihole.py       # Pi-hole stats
         ├── system.py       # System stats (CPU, memory, load)
         ├── display.py      # Sense HAT display
         ├── schedule.py     # Sleep schedule
-        └── controller.py   # Main controller
+        ├── controller.py   # Main controller
+        └── web/            # Web dashboard module
+            ├── __init__.py
+            ├── app.py      # FastAPI application
+            ├── routes.py   # API endpoints
+            └── templates/  # Jinja2 HTML templates
 ```
 
 ## Troubleshooting

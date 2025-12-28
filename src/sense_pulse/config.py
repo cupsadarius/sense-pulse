@@ -54,6 +54,13 @@ class LoggingConfig:
 
 
 @dataclass
+class WebConfig:
+    enabled: bool = True
+    host: str = "0.0.0.0"
+    port: int = 8080
+
+
+@dataclass
 class Config:
     pihole: PiholeConfig = field(default_factory=PiholeConfig)
     tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
@@ -61,6 +68,7 @@ class Config:
     sleep: SleepConfig = field(default_factory=SleepConfig)
     update: UpdateConfig = field(default_factory=UpdateConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    web: WebConfig = field(default_factory=WebConfig)
 
 
 def find_config_file() -> Optional[Path]:
@@ -94,4 +102,5 @@ def load_config(config_path: Optional[str] = None) -> Config:
         sleep=SleepConfig(**data.get("sleep", {})),
         update=UpdateConfig(**data.get("update", {})),
         logging=LoggingConfig(**data.get("logging", {})),
+        web=WebConfig(**data.get("web", {})),
     )
