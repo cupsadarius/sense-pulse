@@ -1,5 +1,74 @@
 # Changelog
 
+## Version 0.6.0 - Real-Time LED Matrix Preview
+
+### New Features
+
+**Single Process Architecture**
+- Web server and LED display now run together in a single process by default
+- Eliminates need for separate `sense-pulse-web.service`
+- Shared in-memory state for real-time LED matrix preview
+- New CLI options: `--web-only` (web server only) and `--no-web` (LED display only)
+
+**Real-Time LED Matrix Preview**
+- Live WebSocket feed reads directly from Sense HAT hardware via `get_pixels()`
+- ~20 FPS update rate for smooth scrolling text visualization
+- Web preview now shows exactly what's on the physical display in real-time
+- Rotation synced with display config (0°, 90°, 180°, 270°)
+
+**Fixed Config Toggles**
+- Toggle buttons (Show Icons, Disable Pi LEDs, Rotation) now work correctly
+- Endpoints return HTML partials instead of JSON for proper HTMX updates
+- Changes apply immediately without page refresh
+
+### Technical Changes
+
+**CLI Updates:**
+- Default: runs both LED display and web server
+- `--web-only`: web server only (replaces `--web`)
+- `--no-web`: LED display only
+- `--web`: kept as hidden alias for backwards compatibility
+
+**Hardware Module:**
+- `get_matrix_state()` now reads directly from `sense_hat.get_pixels()`
+- Removed redundant `_current_matrix` state tracking
+- Added `_current_rotation` tracking for web preview sync
+
+**Display Module:**
+- Uses shared `hardware` module for all matrix operations
+- Removed duplicate Sense HAT initialization
+
+**Routes:**
+- Toggle endpoints return `HTMLResponse` with rendered partials
+- WebSocket update interval reduced from 500ms to 50ms
+
+### Files Changed
+
+- `src/sense_pulse/cli.py` - Single process with threading
+- `src/sense_pulse/hardware.py` - Direct hardware pixel reading
+- `src/sense_pulse/display.py` - Uses shared hardware module
+- `src/sense_pulse/web/routes.py` - HTML responses for toggles
+- `src/sense_pulse/web/templates/index.html` - Config-based rotation
+- Removed: `sense-pulse-web.service`
+
+### Migration from v0.5.0
+
+**Service Changes:**
+```bash
+# Stop and disable old web service
+sudo systemctl stop sense-pulse-web
+sudo systemctl disable sense-pulse-web
+sudo rm /etc/systemd/system/sense-pulse-web.service
+
+# Restart main service (now includes web server)
+sudo systemctl daemon-reload
+sudo systemctl restart sense-pulse
+```
+
+The main service now runs both the LED display and web server automatically.
+
+---
+
 ## Version 0.5.0 - Pi Onboard LED Control
 
 ### New Features
