@@ -145,44 +145,59 @@ class Aranet4Sensor:
         }
 
 
-def scan_for_aranet4_devices(timeout: float = 10.0) -> List[Dict[str, str]]:
+def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
     """
-    Scan for Aranet4 devices in range.
+    Scan for Aranet4 devices in range using aranet4 package.
 
     Args:
-        timeout: Scan duration in seconds
+        duration: Scan duration in seconds
 
     Returns:
-        List of discovered devices with name and address
+        List of discovered devices with name, address, and readings
     """
     try:
         import aranet4
 
-        logger.info(f"Scanning for Aranet4 devices ({timeout}s)...")
+        logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
 
-        # Use aranet4 package's scan functionality
-        devices = aranet4.client.find_nearby(timeout=timeout)
+        found_devices = []
+        seen_addresses = set()
 
-        result = []
-        for device in devices:
-            result.append({
-                "name": device.name or "Aranet4",
-                "address": device.address,
-                "rssi": getattr(device, "rssi", None),
-            })
-            logger.info(f"Found Aranet4: {device.name} ({device.address})")
+        def on_detect(advertisement):
+            """Callback for each detected device"""
+            if advertisement.device.address not in seen_addresses:
+                seen_addresses.add(advertisement.device.address)
+                device_info = {
+                    "name": advertisement.device.name or "Aranet4",
+                    "address": advertisement.device.address,
+                    "rssi": advertisement.rssi,
+                }
+                # Include readings if available from advertisement
+                if advertisement.readings:
+                    device_info["co2"] = advertisement.readings.co2
+                    device_info["temperature"] = advertisement.readings.temperature
+                    device_info["humidity"] = advertisement.readings.humidity
+                found_devices.append(device_info)
+                logger.info(
+                    f"Found: {device_info['name']} ({device_info['address']})"
+                )
 
-        logger.info(f"Scan complete: found {len(result)} Aranet4 device(s)")
-        return result
+        # Use aranet4's find_nearby function
+        aranet4.client.find_nearby(on_detect, duration=duration)
+
+        logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
+        return found_devices
 
     except ImportError:
         logger.error("aranet4 library not installed - cannot scan")
         return []
     except Exception as e:
         logger.error(f"BLE scan error: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
-def scan_for_aranet4_sync(timeout: float = 10.0) -> List[Dict[str, str]]:
-    """Synchronous wrapper for scan_for_aranet4_devices (already synchronous)"""
-    return scan_for_aranet4_devices(timeout)
+def scan_for_aranet4_sync(duration: int = 10) -> List[Dict[str, Any]]:
+    """Synchronous scan for Aranet4 devices"""
+    return scan_for_aranet4_devices(duration)
