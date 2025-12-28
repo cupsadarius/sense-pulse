@@ -1,8 +1,6 @@
-"""Aranet4 CO2 sensor communication via aranetctl CLI scan"""
+"""Aranet4 CO2 sensor communication via aranet4 package scan"""
 
 import logging
-import re
-import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -100,99 +98,38 @@ _polling_thread: Optional[threading.Thread] = None
 _polling_stop_event = threading.Event()
 _sensors_to_poll: List[Aranet4Sensor] = []
 _poll_interval = 30  # seconds
-_scan_duration = 10  # seconds for BLE scan
-
-
-def _parse_scan_output(output: str) -> Dict[str, Aranet4Reading]:
-    """
-    Parse aranetctl --scan output into readings by MAC address.
-
-    Example format:
-    =======================================
-      Name:     Aranet4 25A3E
-      Address:  C0:06:A0:90:7C:59
-      RSSI:     -75 dBm
-    ---------------------------------------
-      CO2:            2096 ppm
-      Temperature:    22.8 °C
-      Humidity:       40 %
-      Pressure:       960.6 hPa
-      Battery:        49 %
-      Status Display: RED
-      Age:            211/300 s
-    """
-    readings: Dict[str, Aranet4Reading] = {}
-
-    # Split by device separator
-    device_blocks = re.split(r'={30,}', output)
-
-    for block in device_blocks:
-        if not block.strip():
-            continue
-
-        # Extract address
-        addr_match = re.search(r'Address:\s*([0-9A-Fa-f:]+)', block)
-        if not addr_match:
-            continue
-        address = addr_match.group(1).upper()
-
-        # Extract readings
-        co2_match = re.search(r'CO2:\s*(\d+)', block)
-        temp_match = re.search(r'Temperature:\s*([\d.]+)', block)
-        humidity_match = re.search(r'Humidity:\s*(\d+)', block)
-        pressure_match = re.search(r'Pressure:\s*([\d.]+)', block)
-        battery_match = re.search(r'Battery:\s*(\d+)', block)
-        age_match = re.search(r'Age:\s*(\d+)/(\d+)', block)
-
-        if not all([co2_match, temp_match, humidity_match, pressure_match, battery_match]):
-            logger.warning(f"Incomplete data for device {address}")
-            continue
-
-        interval = 300
-        ago = 0
-        if age_match:
-            ago = int(age_match.group(1))
-            interval = int(age_match.group(2))
-
-        readings[address] = Aranet4Reading(
-            co2=int(co2_match.group(1)),
-            temperature=round(float(temp_match.group(1)), 1),
-            humidity=int(humidity_match.group(1)),
-            pressure=round(float(pressure_match.group(1)), 1),
-            battery=int(battery_match.group(1)),
-            interval=interval,
-            ago=ago,
-            timestamp=time.time(),
-        )
-
-    return readings
+_scan_duration = 8  # seconds for BLE scan
 
 
 def _do_scan() -> Dict[str, Aranet4Reading]:
-    """Run aranetctl --scan and return readings by MAC address"""
+    """Run aranet4 package scan and return readings by MAC address"""
     try:
+        import aranet4
+
         logger.info("Aranet4: Running BLE scan...")
+        readings: Dict[str, Aranet4Reading] = {}
 
-        result = subprocess.run(
-            ["aranetctl", "--scan"],
-            capture_output=True,
-            text=True,
-            timeout=_scan_duration + 15,
-        )
+        def on_detect(advertisement):
+            if advertisement.readings:
+                address = advertisement.device.address.upper()
+                readings[address] = Aranet4Reading(
+                    co2=advertisement.readings.co2,
+                    temperature=round(advertisement.readings.temperature, 1),
+                    humidity=advertisement.readings.humidity,
+                    pressure=round(advertisement.readings.pressure, 1),
+                    battery=advertisement.readings.battery,
+                    interval=advertisement.readings.interval,
+                    ago=advertisement.readings.ago,
+                    timestamp=time.time(),
+                )
+                logger.debug(f"Aranet4: Found {address} CO2={advertisement.readings.co2}")
 
-        if result.returncode != 0:
-            logger.warning(f"Aranet4 scan error: {result.stderr.strip()}")
-            return {}
-
-        readings = _parse_scan_output(result.stdout)
+        aranet4.client.find_nearby(on_detect, duration=_scan_duration)
         logger.info(f"Aranet4: Scan found {len(readings)} device(s)")
         return readings
 
-    except subprocess.TimeoutExpired:
-        logger.error("Aranet4: Scan timeout")
-        return {}
-    except FileNotFoundError:
-        logger.error("Aranet4: aranetctl not found")
+    except ImportError:
+        logger.error("Aranet4: aranet4 package not installed")
         return {}
     except Exception as e:
         logger.error(f"Aranet4: Scan error: {e}")
@@ -256,59 +193,37 @@ def stop_polling() -> None:
 
 
 def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
-    """Scan for Aranet4 devices in range using aranetctl CLI."""
+    """Scan for Aranet4 devices in range using aranet4 package."""
     try:
+        import aranet4
+
         logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
 
-        result = subprocess.run(
-            ["aranetctl", "--scan"],
-            capture_output=True,
-            text=True,
-            timeout=duration + 15,
-        )
+        found_devices: List[Dict[str, Any]] = []
+        seen_addresses: set = set()
 
-        if result.returncode != 0:
-            logger.warning(f"Scan CLI error: {result.stderr.strip()}")
-            return []
-
-        # Parse scan output
-        found_devices = []
-        device_blocks = re.split(r'={30,}', result.stdout)
-
-        for block in device_blocks:
-            if not block.strip():
-                continue
-
-            addr_match = re.search(r'Address:\s*([0-9A-Fa-f:]+)', block)
-            name_match = re.search(r'Name:\s*(.+)', block)
-            rssi_match = re.search(r'RSSI:\s*(-?\d+)', block)
-            co2_match = re.search(r'CO2:\s*(\d+)', block)
-            temp_match = re.search(r'Temperature:\s*([\d.]+)', block)
-            humidity_match = re.search(r'Humidity:\s*(\d+)', block)
-
-            if addr_match:
-                device = {
-                    "address": addr_match.group(1).upper(),
-                    "name": name_match.group(1).strip() if name_match else "Aranet4",
+        def on_detect(advertisement):
+            if advertisement.device.address not in seen_addresses:
+                seen_addresses.add(advertisement.device.address)
+                device_info: Dict[str, Any] = {
+                    "name": advertisement.device.name or "Aranet4",
+                    "address": advertisement.device.address.upper(),
+                    "rssi": advertisement.rssi,
                 }
-                if rssi_match:
-                    device["rssi"] = int(rssi_match.group(1))
-                if co2_match:
-                    device["co2"] = int(co2_match.group(1))
-                if temp_match:
-                    device["temperature"] = float(temp_match.group(1))
-                if humidity_match:
-                    device["humidity"] = int(humidity_match.group(1))
-                found_devices.append(device)
+                if advertisement.readings:
+                    device_info["co2"] = advertisement.readings.co2
+                    device_info["temperature"] = advertisement.readings.temperature
+                    device_info["humidity"] = advertisement.readings.humidity
+                found_devices.append(device_info)
+                logger.info(f"Found: {device_info['name']} ({device_info['address']})")
+
+        aranet4.client.find_nearby(on_detect, duration=duration)
 
         logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
         return found_devices
 
-    except subprocess.TimeoutExpired:
-        logger.error("Scan timeout")
-        return []
-    except FileNotFoundError:
-        logger.error("aranetctl not found - cannot scan")
+    except ImportError:
+        logger.error("aranet4 library not installed - cannot scan")
         return []
     except Exception as e:
         logger.error(f"BLE scan error: {e}")
