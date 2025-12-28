@@ -11,6 +11,7 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
 - **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
+- **Pi LED Control**: Optionally disable Pi's onboard LEDs (PWR/ACT) during sleep
 - **YAML Configuration**: Easy-to-edit config file with hot-reload
 - **Auto-start**: Runs as a systemd daemon
 
@@ -178,6 +179,7 @@ display:
 sleep:
   start_hour: 22       # 10 PM
   end_hour: 7          # 7 AM
+  disable_pi_leds: false  # Also turn off Pi's red/green onboard LEDs
 
 # Update settings
 update:
@@ -273,6 +275,7 @@ sense-pulse/
         ├── display.py      # Sense HAT display
         ├── schedule.py     # Sleep schedule
         ├── controller.py   # Main controller
+        ├── pi_leds.py      # Pi onboard LED control
         └── web/            # Web dashboard module
             ├── __init__.py
             ├── app.py      # FastAPI application
@@ -325,6 +328,21 @@ sudo systemctl status sense-pulse.service
 
 # View logs
 sudo journalctl -u sense-pulse -n 50
+```
+
+### Pi Onboard LEDs Not Turning Off
+
+The `disable_pi_leds` feature requires write access to `/sys/class/leds/`.
+
+```bash
+# Check if LEDs are accessible
+ls -la /sys/class/leds/
+
+# Test manual control (requires root)
+echo none | sudo tee /sys/class/leds/ACT/trigger
+echo 0 | sudo tee /sys/class/leds/ACT/brightness
+
+# For the service to control LEDs, run as root or add udev rules
 ```
 
 ## License
