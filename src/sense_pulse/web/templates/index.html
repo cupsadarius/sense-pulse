@@ -159,8 +159,14 @@
         });
 
         // WebSocket for LED Matrix real-time updates
-        let ws = null;
-        let wsReconnectTimeout = null;
+        // Use window to persist across any potential script re-runs
+        if (!window.sensePulseWS) {
+            window.sensePulseWS = {
+                ws: null,
+                reconnectTimeout: null,
+                initialized: false
+            };
+        }
 
         function updateWSStatus(connected) {
             const indicator = document.getElementById('ws-indicator');
@@ -183,11 +189,12 @@
             }).join('');
         }
 
-        function rotateIndex(i, rotation) {
-            // Rotate pixel index based on display rotation config
+        function rotateIndex(i, rotation, webOffset) {
+            // Rotate pixel index based on display rotation + configurable web offset
+            const effectiveRotation = (rotation + webOffset) % 360;
             const row = Math.floor(i / 8);
             const col = i % 8;
-            switch (rotation) {
+            switch (effectiveRotation) {
                 case 90:
                     return col * 8 + (7 - row);
                 case 180:
@@ -203,6 +210,7 @@
             const pixels = data.pixels;
             const mode = data.mode;
             const rotation = data.rotation || 0;
+            const webOffset = data.web_offset !== undefined ? data.web_offset : 90;
 
             // Update mode display
             const modeEl = document.getElementById('matrix-mode');
@@ -210,9 +218,9 @@
                 modeEl.textContent = mode || 'idle';
             }
 
-            // Update each LED (apply rotation from config)
+            // Update each LED (apply rotation + web offset from config)
             for (let i = 0; i < 64; i++) {
-                const rotatedIndex = rotateIndex(i, rotation);
+                const rotatedIndex = rotateIndex(i, rotation, webOffset);
                 const led = document.getElementById('led-' + rotatedIndex);
                 if (led && pixels && pixels[i]) {
                     const [r, g, b] = pixels[i];
@@ -229,21 +237,28 @@
         }
 
         function connectWebSocket() {
+            // Don't create a new connection if one already exists and is open/connecting
+            if (window.sensePulseWS.ws &&
+                (window.sensePulseWS.ws.readyState === WebSocket.OPEN ||
+                 window.sensePulseWS.ws.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = protocol + '//' + window.location.host + '/ws/matrix';
 
-            ws = new WebSocket(wsUrl);
+            window.sensePulseWS.ws = new WebSocket(wsUrl);
 
-            ws.onopen = function() {
+            window.sensePulseWS.ws.onopen = function() {
                 console.log('WebSocket connected');
                 updateWSStatus(true);
-                if (wsReconnectTimeout) {
-                    clearTimeout(wsReconnectTimeout);
-                    wsReconnectTimeout = null;
+                if (window.sensePulseWS.reconnectTimeout) {
+                    clearTimeout(window.sensePulseWS.reconnectTimeout);
+                    window.sensePulseWS.reconnectTimeout = null;
                 }
             };
 
-            ws.onmessage = function(event) {
+            window.sensePulseWS.ws.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
                     updateLEDMatrix(data);
@@ -252,20 +267,23 @@
                 }
             };
 
-            ws.onclose = function() {
+            window.sensePulseWS.ws.onclose = function() {
                 console.log('WebSocket disconnected');
                 updateWSStatus(false);
                 // Reconnect after 2 seconds
-                wsReconnectTimeout = setTimeout(connectWebSocket, 2000);
+                window.sensePulseWS.reconnectTimeout = setTimeout(connectWebSocket, 2000);
             };
 
-            ws.onerror = function(error) {
+            window.sensePulseWS.ws.onerror = function(error) {
                 console.error('WebSocket error:', error);
-                ws.close();
+                window.sensePulseWS.ws.close();
             };
         }
 
-        // Start WebSocket connection
-        connectWebSocket();
+        // Start WebSocket connection only if not already initialized
+        if (!window.sensePulseWS.initialized) {
+            window.sensePulseWS.initialized = true;
+            connectWebSocket();
+        }
     </script>
 {% endblock %}

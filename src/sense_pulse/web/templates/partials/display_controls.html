@@ -48,7 +48,7 @@
     <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
         <div>
             <p class="font-medium">Display Rotation</p>
-            <p class="text-sm text-gray-400">Current: {{ config.display.rotation }}°</p>
+            <p class="text-sm text-gray-400">Physical display: {{ config.display.rotation }}°</p>
         </div>
         <form hx-post="/api/config/display/rotation"
               hx-target="#display-controls"
@@ -60,6 +60,26 @@
                 <option value="90" {% if config.display.rotation == 90 %}selected{% endif %}>90°</option>
                 <option value="180" {% if config.display.rotation == 180 %}selected{% endif %}>180°</option>
                 <option value="270" {% if config.display.rotation == 270 %}selected{% endif %}>270°</option>
+            </select>
+        </form>
+    </div>
+
+    <!-- Web Preview Offset -->
+    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+        <div>
+            <p class="font-medium">Web Preview Offset</p>
+            <p class="text-sm text-gray-400">Adjust to match physical display</p>
+        </div>
+        <form hx-post="/api/config/display/web-offset"
+              hx-target="#display-controls"
+              hx-swap="innerHTML"
+              hx-trigger="change">
+            <select name="web_offset"
+                    class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm cursor-pointer hover:border-gray-500 transition-colors">
+                <option value="0" {% if config.display.web_rotation_offset == 0 %}selected{% endif %}>0°</option>
+                <option value="90" {% if config.display.web_rotation_offset == 90 %}selected{% endif %}>90°</option>
+                <option value="180" {% if config.display.web_rotation_offset == 180 %}selected{% endif %}>180°</option>
+                <option value="270" {% if config.display.web_rotation_offset == 270 %}selected{% endif %}>270°</option>
             </select>
         </form>
     </div>
