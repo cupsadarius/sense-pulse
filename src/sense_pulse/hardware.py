@@ -13,6 +13,11 @@ _sense_hat: Optional["SenseHat"] = None
 _sense_hat_available: bool = False
 _initialized: bool = False
 
+# Track current LED matrix state (8x8 grid of RGB values)
+# Each pixel is [R, G, B] with values 0-255
+_current_matrix: List[List[int]] = [[0, 0, 0] for _ in range(64)]
+_current_display_mode: str = "idle"
+
 
 def _init_sense_hat() -> None:
     """Lazy initialization of Sense HAT"""
@@ -92,9 +97,14 @@ def clear_display() -> Dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def set_pixels(pixels: List[List[int]]) -> Dict[str, str]:
+def set_pixels(pixels: List[List[int]], mode: str = "custom") -> Dict[str, str]:
     """Set LED matrix pixels if available"""
+    global _current_matrix, _current_display_mode
     _init_sense_hat()
+
+    # Always track state even if hardware unavailable
+    _current_matrix = pixels.copy() if pixels else [[0, 0, 0] for _ in range(64)]
+    _current_display_mode = mode
 
     if not _sense_hat_available or _sense_hat is None:
         return {"status": "skipped", "message": "Sense HAT not available"}
@@ -118,3 +128,25 @@ def set_rotation(rotation: int) -> Dict[str, str]:
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+def get_matrix_state() -> Dict[str, Any]:
+    """Get current LED matrix state for web preview"""
+    return {
+        "pixels": _current_matrix,
+        "mode": _current_display_mode,
+        "available": _sense_hat_available,
+    }
+
+
+def set_display_mode(mode: str) -> None:
+    """Update the current display mode label"""
+    global _current_display_mode
+    _current_display_mode = mode
+
+
+def update_matrix_state(pixels: List[List[int]], mode: str = "custom") -> None:
+    """Update tracked matrix state without setting hardware (for external updates)"""
+    global _current_matrix, _current_display_mode
+    _current_matrix = pixels.copy() if pixels else [[0, 0, 0] for _ in range(64)]
+    _current_display_mode = mode

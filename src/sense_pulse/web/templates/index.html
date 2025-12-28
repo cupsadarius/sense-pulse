@@ -27,9 +27,9 @@
                 <div class="text-sm text-gray-400">
                     Last updated: <span class="text-gray-300" id="last-update">just now</span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 bg-green-500 rounded-full status-glow text-green-500"></span>
-                    <span class="text-sm text-green-400">Live</span>
+                <div class="flex items-center gap-2" id="ws-status">
+                    <span class="w-2 h-2 bg-yellow-500 rounded-full" id="ws-indicator"></span>
+                    <span class="text-sm text-yellow-400" id="ws-label">Connecting...</span>
                 </div>
             </div>
         </div>
@@ -54,25 +54,23 @@
         </div>
 
         <!-- LED Matrix Preview -->
-        <div class="bg-sense-card rounded-xl border border-sense-border p-6 mb-8 {% if not sense_hat_available %}opacity-50{% endif %}" id="led-matrix-section">
+        <div class="bg-sense-card rounded-xl border border-sense-border p-6 mb-8 transition-opacity {% if not sense_hat_available %}opacity-50{% endif %}" id="led-matrix-section">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-lg font-semibold">LED Matrix Preview</h2>
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-gray-400">Current display:</span>
-                    <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-sm font-medium">
-                        Status
+                    <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-sm font-medium" id="matrix-mode">
+                        idle
                     </span>
                 </div>
             </div>
 
-            <!-- 8x8 LED Grid Placeholder -->
+            <!-- 8x8 LED Grid -->
             <div class="flex justify-center">
                 <div class="bg-gray-900 p-4 rounded-lg inline-block">
                     <div class="grid grid-cols-8 gap-1" id="led-matrix">
-                        {% for row in range(8) %}
-                            {% for col in range(8) %}
-                            <div class="w-6 h-6 rounded-sm bg-gray-800"></div>
-                            {% endfor %}
+                        {% for i in range(64) %}
+                        <div class="w-6 h-6 rounded-sm bg-gray-800 transition-all duration-150" id="led-{{ i }}"></div>
                         {% endfor %}
                     </div>
                 </div>
@@ -87,36 +85,15 @@
             <!-- Display Controls -->
             <div class="bg-sense-card rounded-xl border border-sense-border p-6">
                 <h2 class="text-lg font-semibold mb-4">Display Controls</h2>
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <div>
-                            <p class="font-medium">Show Icons</p>
-                            <p class="text-sm text-gray-400">Display 8x8 pixel art before text</p>
-                        </div>
-                        <div class="relative inline-flex h-6 w-11 items-center rounded-full bg-green-500">
-                            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6"></span>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <div>
-                            <p class="font-medium">Sleep Mode</p>
-                            <p class="text-sm text-gray-400">22:00 - 07:00</p>
-                        </div>
-                        <div class="relative inline-flex h-6 w-11 items-center rounded-full bg-green-500">
-                            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6"></span>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <div>
-                            <p class="font-medium">Display Rotation</p>
-                            <p class="text-sm text-gray-400">Current: 0°</p>
-                        </div>
-                        <select class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm">
-                            <option>0°</option>
-                            <option>90°</option>
-                            <option>180°</option>
-                            <option>270°</option>
-                        </select>
+                <div id="display-controls"
+                     hx-get="/api/config/display/controls"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <!-- Loading state -->
+                    <div class="space-y-4 animate-pulse">
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
+                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
                     </div>
                 </div>
             </div>
@@ -174,11 +151,103 @@
     </footer>
 
     <script>
-        // Update last updated timestamp
+        // Update last updated timestamp on HTMX swap
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             if (evt.detail.target.id === 'status-cards') {
                 document.getElementById('last-update').textContent = 'just now';
             }
         });
+
+        // WebSocket for LED Matrix real-time updates
+        let ws = null;
+        let wsReconnectTimeout = null;
+
+        function updateWSStatus(connected) {
+            const indicator = document.getElementById('ws-indicator');
+            const label = document.getElementById('ws-label');
+            if (connected) {
+                indicator.className = 'w-2 h-2 bg-green-500 rounded-full status-glow text-green-500';
+                label.className = 'text-sm text-green-400';
+                label.textContent = 'Live';
+            } else {
+                indicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
+                label.className = 'text-sm text-yellow-400';
+                label.textContent = 'Reconnecting...';
+            }
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function updateLEDMatrix(data) {
+            const pixels = data.pixels;
+            const mode = data.mode;
+
+            // Update mode display
+            const modeEl = document.getElementById('matrix-mode');
+            if (modeEl) {
+                modeEl.textContent = mode || 'idle';
+            }
+
+            // Update each LED
+            for (let i = 0; i < 64; i++) {
+                const led = document.getElementById('led-' + i);
+                if (led && pixels && pixels[i]) {
+                    const [r, g, b] = pixels[i];
+                    if (r === 0 && g === 0 && b === 0) {
+                        led.style.backgroundColor = '#1f2937'; // gray-800
+                        led.style.boxShadow = 'none';
+                    } else {
+                        const color = rgbToHex(r, g, b);
+                        led.style.backgroundColor = color;
+                        led.style.boxShadow = '0 0 8px ' + color;
+                    }
+                }
+            }
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/matrix';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                updateWSStatus(true);
+                if (wsReconnectTimeout) {
+                    clearTimeout(wsReconnectTimeout);
+                    wsReconnectTimeout = null;
+                }
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateLEDMatrix(data);
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message:', e);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                updateWSStatus(false);
+                // Reconnect after 2 seconds
+                wsReconnectTimeout = setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                ws.close();
+            };
+        }
+
+        // Start WebSocket connection
+        connectWebSocket();
     </script>
 {% endblock %}
