@@ -1,5 +1,93 @@
 # Changelog
 
+## Version 0.7.0 - Data Caching with Background Polling
+
+### New Features
+
+**Centralized Data Cache**
+- All sensor and service data is now cached with a 60-second TTL (Time-To-Live)
+- Background polling thread refreshes data every 30 seconds
+- Web API and LED display read from cache instead of directly calling services
+- Eliminates blocking API requests and improves responsiveness
+- Thread-safe cache access for concurrent operations
+
+**Performance Improvements**
+- Web API endpoints respond instantly from cached data
+- LED display updates use cached data, reducing sensor polling overhead
+- Background thread ensures fresh data is always available
+- Reduces redundant API calls to Pi-hole, Tailscale, and sensors
+
+**Graceful Degradation**
+- Cache returns empty data when sources are unavailable
+- Background polling continues even if individual sources fail
+- System remains responsive during temporary network issues
+
+### Technical Changes
+
+**New Module:**
+- `src/sense_pulse/cache.py` - Centralized caching system with background polling
+  - `DataCache` class with thread-safe operations
+  - `get_cache()` - Get global cache instance
+  - `initialize_cache()` - Initialize cache with custom TTL and poll interval
+
+**Cache Architecture:**
+- `CachedData` dataclass tracks data and timestamp
+- `_polling_loop()` continuously polls all registered data sources
+- Registered sources: Tailscale, Pi-hole, System Stats, Sense HAT, Aranet4 CO2
+
+**CLI Updates:**
+- `cli.py` initializes cache on startup with 60s TTL and 30s poll interval
+- Starts background polling thread automatically
+
+**Controller Updates:**
+- `controller.py` reads from cache instead of direct service calls
+- Registers data sources during initialization
+- Display methods updated to use `cache.get()`
+
+**Web Routes Updates:**
+- `routes.py` endpoints serve cached data
+- All API endpoints (`/api/status`, `/api/sensors`, etc.) read from cache
+- Significantly reduced latency for API requests
+
+### Files Changed
+
+- `src/sense_pulse/cache.py` - New caching module
+- `src/sense_pulse/cli.py` - Cache initialization and startup
+- `src/sense_pulse/controller.py` - Display uses cached data
+- `src/sense_pulse/web/routes.py` - API endpoints use cached data
+
+### Migration from v0.6.0
+
+No breaking changes! The caching system is transparent to users.
+
+```bash
+# Simply restart the service
+sudo systemctl restart sense-pulse
+```
+
+The background polling will start automatically, and all data will be cached with the new system.
+
+### Cache Status
+
+To monitor cache status, check the logs:
+```bash
+sudo journalctl -u sense-pulse -f | grep -i cache
+```
+
+You'll see:
+- Cache initialization messages
+- Background polling activity
+- Cache hit/miss statistics (in debug mode)
+
+### Benefits
+
+1. **Better Responsiveness**: Web API responds instantly from cache
+2. **Reduced Load**: Services polled once every 30s instead of on every request
+3. **Consistent Updates**: Display and web show data from the same polling cycle
+4. **Improved Reliability**: Cached data available even during temporary failures
+
+---
+
 ## Version 0.6.0 - Real-Time LED Matrix Preview
 
 ### New Features
