@@ -1,0 +1,23 @@
+[Unit]
+Description=Sense Pulse Web Dashboard
+After=network.target sense-pulse.service
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/pi/.local/bin/uv run --project /home/pi/Personal/sense-pulse sense-pulse --web
+WorkingDirectory=/home/pi/Personal/sense-pulse
+Restart=on-failure
+RestartSec=10
+
+User=pi
+Group=pi
+
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/pi/.local/bin"
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sense-pulse-web
+
+[Install]
+WantedBy=multi-user.target
