@@ -185,9 +185,11 @@
 
         function rotateIndex(i, rotation) {
             // Rotate pixel index based on display rotation config
+            // Add 90° offset to match physical Sense HAT orientation
+            const effectiveRotation = (rotation + 90) % 360;
             const row = Math.floor(i / 8);
             const col = i % 8;
-            switch (rotation) {
+            switch (effectiveRotation) {
                 case 90:
                     return col * 8 + (7 - row);
                 case 180:
