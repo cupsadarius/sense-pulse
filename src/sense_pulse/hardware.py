@@ -85,7 +85,12 @@ def get_sensor_data() -> Dict[str, Any]:
 
 def clear_display() -> Dict[str, str]:
     """Clear LED matrix if available"""
+    global _current_matrix, _current_display_mode
     _init_sense_hat()
+
+    # Always update tracked state
+    _current_matrix = [[0, 0, 0] for _ in range(64)]
+    _current_display_mode = "cleared"
 
     if not _sense_hat_available or _sense_hat is None:
         return {"status": "skipped", "message": "Sense HAT not available"}

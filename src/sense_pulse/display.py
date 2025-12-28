@@ -2,10 +2,12 @@
 
 import logging
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from sense_hat import SenseHat
+if TYPE_CHECKING:
+    from sense_hat import SenseHat
 
+from sense_pulse import hardware
 from sense_pulse import icons
 
 logger = logging.getLogger(__name__)
@@ -29,8 +31,11 @@ class SenseHatDisplay:
             icon_duration: Default icon display duration
         """
         try:
-            self.sense = SenseHat()
-            self.sense.set_rotation(rotation)
+            # Use shared SenseHat instance from hardware module
+            self.sense: Optional["SenseHat"] = hardware.get_sense_hat()
+            if self.sense is None:
+                raise RuntimeError("Sense HAT not available")
+            hardware.set_rotation(rotation)
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
             self.icon_duration = icon_duration
@@ -74,18 +79,20 @@ class SenseHatDisplay:
         except Exception as e:
             logger.error(f"Failed to display text: {e}")
 
-    def show_icon(self, icon_pixels: List[List[int]], duration: Optional[float] = None):
+    def show_icon(self, icon_pixels: List[List[int]], duration: Optional[float] = None, mode: str = "icon"):
         """
         Display an 8x8 icon on the LED matrix.
 
         Args:
             icon_pixels: 64-element list of [R,G,B] values
             duration: How long to display the icon in seconds
+            mode: Display mode label for tracking
         """
         try:
             display_time = duration if duration is not None else self.icon_duration
             logger.debug("Displaying icon")
-            self.sense.set_pixels(icon_pixels)
+            # Use hardware module for matrix operations (handles state tracking)
+            hardware.set_pixels(icon_pixels, mode)
             time.sleep(display_time)
         except Exception as e:
             logger.error(f"Failed to display icon: {e}")
@@ -110,12 +117,15 @@ class SenseHatDisplay:
         """
         icon = icons.get_icon(icon_name)
         if icon:
-            self.show_icon(icon, duration=icon_duration)
+            self.show_icon(icon, duration=icon_duration, mode=icon_name)
+        # Update mode to show we're scrolling text
+        hardware.set_display_mode("scrolling")
         self.show_text(text, color=text_color, scroll_speed=scroll_speed)
 
     def clear(self):
         """Clear the LED display"""
         try:
-            self.sense.clear()
+            # Use hardware module for matrix operations (handles state tracking)
+            hardware.clear_display()
         except Exception as e:
             logger.error(f"Failed to clear display: {e}")
