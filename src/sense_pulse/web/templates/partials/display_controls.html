@@ -1,0 +1,49 @@
+<div class="space-y-4">
+    <!-- Show Icons Toggle -->
+    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+        <div>
+            <p class="font-medium">Show Icons</p>
+            <p class="text-sm text-gray-400">Display 8x8 pixel art before text</p>
+        </div>
+        <button hx-post="/api/config/display/icons"
+                hx-target="#display-controls"
+                hx-swap="innerHTML"
+                hx-trigger="click"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                       {% if config.display.show_icons %}bg-green-500{% else %}bg-gray-600{% endif %}">
+            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition
+                         {% if config.display.show_icons %}translate-x-6{% else %}translate-x-1{% endif %}"></span>
+        </button>
+    </div>
+
+    <!-- Sleep Mode Info -->
+    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+        <div>
+            <p class="font-medium">Sleep Mode</p>
+            <p class="text-sm text-gray-400">{{ "%02d"|format(config.sleep.start_hour) }}:00 - {{ "%02d"|format(config.sleep.end_hour) }}:00</p>
+        </div>
+        <div class="relative inline-flex h-6 w-11 items-center rounded-full bg-green-500">
+            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6"></span>
+        </div>
+    </div>
+
+    <!-- Display Rotation -->
+    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+        <div>
+            <p class="font-medium">Display Rotation</p>
+            <p class="text-sm text-gray-400">Current: {{ config.display.rotation }}°</p>
+        </div>
+        <form hx-post="/api/config/display/rotation"
+              hx-target="#display-controls"
+              hx-swap="innerHTML"
+              hx-trigger="change">
+            <select name="rotation"
+                    class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm cursor-pointer hover:border-gray-500 transition-colors">
+                <option value="0" {% if config.display.rotation == 0 %}selected{% endif %}>0°</option>
+                <option value="90" {% if config.display.rotation == 90 %}selected{% endif %}>90°</option>
+                <option value="180" {% if config.display.rotation == 180 %}selected{% endif %}>180°</option>
+                <option value="270" {% if config.display.rotation == 270 %}selected{% endif %}>270°</option>
+            </select>
+        </form>
+    </div>
+</div>
