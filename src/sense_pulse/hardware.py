@@ -185,10 +185,10 @@ def init_aranet4_sensors(
     bedroom_mac: str = "",
     office_enabled: bool = False,
     bedroom_enabled: bool = False,
-    timeout: int = 10,
+    timeout: int = 30,
     cache_duration: int = 60,
 ) -> None:
-    """Initialize Aranet4 CO2 sensors"""
+    """Initialize Aranet4 CO2 sensors and start background polling"""
     global _aranet4_office, _aranet4_bedroom, _aranet4_initialized
 
     if _aranet4_initialized:
@@ -197,7 +197,7 @@ def init_aranet4_sensors(
     _aranet4_initialized = True
 
     try:
-        from sense_pulse.aranet4 import Aranet4Sensor
+        from sense_pulse.aranet4 import Aranet4Sensor, register_sensor
 
         if office_enabled and office_mac:
             _aranet4_office = Aranet4Sensor(
@@ -206,6 +206,7 @@ def init_aranet4_sensors(
                 timeout=timeout,
                 cache_duration=cache_duration,
             )
+            register_sensor(_aranet4_office)
             logger.info(f"Aranet4 office sensor configured: {office_mac}")
 
         if bedroom_enabled and bedroom_mac:
@@ -215,6 +216,7 @@ def init_aranet4_sensors(
                 timeout=timeout,
                 cache_duration=cache_duration,
             )
+            register_sensor(_aranet4_bedroom)
             logger.info(f"Aranet4 bedroom sensor configured: {bedroom_mac}")
 
     except ImportError:
@@ -227,16 +229,20 @@ def update_aranet4_sensor(
     sensor_name: str,
     mac_address: str,
     enabled: bool,
-    timeout: int = 10,
+    timeout: int = 30,
     cache_duration: int = 60,
 ) -> Dict[str, str]:
     """Update a single Aranet4 sensor configuration"""
     global _aranet4_office, _aranet4_bedroom
 
     try:
-        from sense_pulse.aranet4 import Aranet4Sensor
+        from sense_pulse.aranet4 import Aranet4Sensor, register_sensor, unregister_sensor
 
         if sensor_name == "office":
+            # Unregister old sensor if exists
+            if _aranet4_office is not None:
+                unregister_sensor(_aranet4_office)
+
             if enabled and mac_address:
                 _aranet4_office = Aranet4Sensor(
                     mac_address=mac_address,
@@ -244,6 +250,7 @@ def update_aranet4_sensor(
                     timeout=timeout,
                     cache_duration=cache_duration,
                 )
+                register_sensor(_aranet4_office)
                 logger.info(f"Aranet4 office sensor updated: {mac_address}")
             else:
                 _aranet4_office = None
@@ -251,6 +258,10 @@ def update_aranet4_sensor(
             return {"status": "ok", "message": f"Office sensor {'enabled' if enabled else 'disabled'}"}
 
         elif sensor_name == "bedroom":
+            # Unregister old sensor if exists
+            if _aranet4_bedroom is not None:
+                unregister_sensor(_aranet4_bedroom)
+
             if enabled and mac_address:
                 _aranet4_bedroom = Aranet4Sensor(
                     mac_address=mac_address,
@@ -258,6 +269,7 @@ def update_aranet4_sensor(
                     timeout=timeout,
                     cache_duration=cache_duration,
                 )
+                register_sensor(_aranet4_bedroom)
                 logger.info(f"Aranet4 bedroom sensor updated: {mac_address}")
             else:
                 _aranet4_bedroom = None
@@ -274,7 +286,7 @@ def update_aranet4_sensor(
 
 
 def get_aranet4_data() -> Dict[str, Any]:
-    """Get CO2 sensor data from Aranet4 devices"""
+    """Get CO2 sensor data from cache only (does not trigger BLE)"""
     result = {
         "office": None,
         "bedroom": None,
@@ -282,22 +294,16 @@ def get_aranet4_data() -> Dict[str, Any]:
     }
 
     if _aranet4_office is not None:
-        try:
-            reading = _aranet4_office.get_reading()
-            if reading:
-                result["office"] = reading.to_dict()
-                result["available"] = True
-        except Exception as e:
-            logger.error(f"Failed to read office sensor: {e}")
+        reading = _aranet4_office.get_cached_reading()
+        if reading:
+            result["office"] = reading.to_dict()
+            result["available"] = True
 
     if _aranet4_bedroom is not None:
-        try:
-            reading = _aranet4_bedroom.get_reading()
-            if reading:
-                result["bedroom"] = reading.to_dict()
-                result["available"] = True
-        except Exception as e:
-            logger.error(f"Failed to read bedroom sensor: {e}")
+        reading = _aranet4_bedroom.get_cached_reading()
+        if reading:
+            result["bedroom"] = reading.to_dict()
+            result["available"] = True
 
     return result
 
