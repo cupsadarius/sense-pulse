@@ -1,9 +1,9 @@
 """Aranet4 CO2 sensor communication via the aranet4 Python package"""
 
+import asyncio
+import concurrent.futures
 import logging
-import subprocess
 import time
-import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
@@ -62,69 +62,58 @@ class Aranet4Sensor:
         self._last_error: Optional[str] = None
 
     def _fetch_reading(self) -> Optional[Aranet4Reading]:
-        """Fetch a reading from the sensor using aranetctl subprocess"""
+        """Fetch a reading from the sensor using aranet4 package"""
+
+        def _do_fetch():
+            """Run in separate thread with fresh event loop"""
+            import aranet4
+
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                logger.info(f"Aranet4 {self.name}: Connecting to {self.mac_address}")
+
+                reading = aranet4.client.get_current_readings(self.mac_address)
+
+                if reading is None:
+                    return None
+
+                return Aranet4Reading(
+                    co2=reading.co2,
+                    temperature=round(reading.temperature, 1),
+                    humidity=reading.humidity,
+                    pressure=round(reading.pressure, 1),
+                    battery=reading.battery,
+                    interval=reading.interval,
+                    ago=reading.ago,
+                    timestamp=time.time(),
+                )
+            finally:
+                loop.close()
+
         try:
-            logger.info(f"Aranet4 {self.name}: Fetching from {self.mac_address}")
+            # Run BLE operation in thread with its own event loop
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_do_fetch)
+                reading = future.result(timeout=self.timeout)
 
-            # Use aranetctl CLI tool via subprocess to avoid asyncio conflicts
-            result = subprocess.run(
-                ["aranetctl", self.mac_address],
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-            )
+                if reading:
+                    logger.info(
+                        f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
+                        f"T={reading.temperature}°C, H={reading.humidity}%, "
+                        f"Battery={reading.battery}%"
+                    )
+                    self._last_error = None
+                    return reading
+                else:
+                    self._last_error = "No reading returned"
+                    return None
 
-            if result.returncode != 0:
-                logger.error(f"Aranet4 {self.name}: aranetctl failed: {result.stderr}")
-                self._last_error = result.stderr.strip() or "aranetctl failed"
-                return None
-
-            # Parse aranetctl output
-            # Format: "Aranet4 | v1.4.4 | OK | 571 ppm | 20.0 C | 43 % | 1017 hPa | 100 % | 2 min"
-            output = result.stdout.strip()
-            logger.debug(f"Aranet4 {self.name}: Raw output: {output}")
-
-            parts = [p.strip() for p in output.split("|")]
-            if len(parts) < 9:
-                logger.error(f"Aranet4 {self.name}: Unexpected output format: {output}")
-                self._last_error = "Unexpected output format"
-                return None
-
-            # Extract values
-            co2_str = parts[3].replace("ppm", "").strip()
-            temp_str = parts[4].replace("C", "").strip()
-            humidity_str = parts[5].replace("%", "").strip()
-            pressure_str = parts[6].replace("hPa", "").strip()
-            battery_str = parts[7].replace("%", "").strip()
-            interval_str = parts[8].replace("min", "").strip()
-
-            reading = Aranet4Reading(
-                co2=int(co2_str),
-                temperature=float(temp_str),
-                humidity=int(humidity_str),
-                pressure=float(pressure_str),
-                battery=int(battery_str),
-                interval=int(interval_str) * 60,  # Convert to seconds
-                ago=0,
-                timestamp=time.time(),
-            )
-
-            logger.info(
-                f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
-                f"T={reading.temperature}°C, H={reading.humidity}%, "
-                f"Battery={reading.battery}%"
-            )
-
-            self._last_error = None
-            return reading
-
-        except subprocess.TimeoutExpired:
+        except concurrent.futures.TimeoutError:
             logger.error(f"Aranet4 {self.name}: Connection timeout")
             self._last_error = "Connection timeout"
-            return None
-        except FileNotFoundError:
-            logger.error(f"Aranet4 {self.name}: aranetctl not found")
-            self._last_error = "aranetctl not found"
             return None
         except Exception as e:
             logger.error(f"Aranet4 {self.name}: Error: {e}")
