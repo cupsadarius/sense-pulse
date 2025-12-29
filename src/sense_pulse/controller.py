@@ -230,11 +230,11 @@ class StatsDisplay:
 
     def display_co2_levels(self):
         """Display CO2 levels from Aranet4 sensors (from cache)"""
-        if not hardware.is_aranet4_available():
+        co2_data = self.cache.get("co2", {})
+        if not co2_data:
             return
 
         logger.info("Displaying CO2 levels...")
-        co2_data = self.cache.get("co2", {})
 
         # Display office sensor
         if co2_data.get("office"):
