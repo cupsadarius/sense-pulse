@@ -1,8 +1,8 @@
 """Tailscale connection status monitoring"""
 
+import asyncio
 import json
 import logging
-import subprocess
 import time
 from typing import Any, Optional
 
@@ -32,12 +32,12 @@ class TailscaleStatus:
         logger.info(f"Initialized Tailscale status checker (cache: {cache_duration}s)")
 
     @retry(
-        retry=retry_if_exception_type(subprocess.TimeoutExpired),
+        retry=retry_if_exception_type(asyncio.TimeoutError),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    def _fetch_status(self) -> Optional[dict]:
+    async def _fetch_status(self) -> Optional[dict]:
         """Fetch Tailscale status data with caching (with retries)"""
         current_time = time.time()
 
@@ -48,15 +48,18 @@ class TailscaleStatus:
 
         try:
             logger.debug("Fetching fresh Tailscale status...")
-            result = subprocess.run(
-                ["tailscale", "status", "--json"],
-                capture_output=True,
-                text=True,
-                timeout=5,
+            process = await asyncio.create_subprocess_exec(
+                "tailscale",
+                "status",
+                "--json",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
+
+            if process.returncode == 0:
+                data = json.loads(stdout.decode())
                 self._cached_data = data
                 self._last_fetch = current_time
                 logger.debug("Successfully fetched Tailscale status")
@@ -65,7 +68,7 @@ class TailscaleStatus:
                 logger.debug("Tailscale command failed or not connected")
                 return None
 
-        except subprocess.TimeoutExpired as e:
+        except asyncio.TimeoutError as e:
             logger.warning(f"Tailscale status check timed out (will retry): {e}")
             raise
         except FileNotFoundError:
@@ -78,16 +81,16 @@ class TailscaleStatus:
             logger.error(f"Error checking Tailscale status: {e}")
             return None
 
-    def is_connected(self) -> bool:
+    async def is_connected(self) -> bool:
         """Check if Tailscale is connected"""
-        status = self._fetch_status()
+        status = await self._fetch_status()
         if not status:
             return False
         return status.get("Self") is not None and status.get("BackendState") == "Running"
 
-    def get_connected_device_count(self) -> int:
+    async def get_connected_device_count(self) -> int:
         """Get count of connected Tailscale devices (peers)"""
-        status = self._fetch_status()
+        status = await self._fetch_status()
         if not status:
             logger.debug("No Tailscale status data, returning 0 devices")
             return 0
@@ -98,9 +101,9 @@ class TailscaleStatus:
         logger.debug(f"Tailscale: {online_count} devices online out of {len(peers)} total peers")
         return online_count
 
-    def get_status_summary(self) -> dict[str, Any]:
+    async def get_status_summary(self) -> dict[str, Any]:
         """Get comprehensive Tailscale status summary"""
         return {
-            "connected": self.is_connected(),
-            "device_count": self.get_connected_device_count(),
+            "connected": await self.is_connected(),
+            "device_count": await self.get_connected_device_count(),
         }
