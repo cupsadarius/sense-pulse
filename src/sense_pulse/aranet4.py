@@ -107,7 +107,10 @@ class Aranet4Sensor:
 # Background polling task
 _polling_task: Optional[asyncio.Task] = None
 _polling_stop_event = asyncio.Event()
-_scan_lock = asyncio.Lock()  # Prevent concurrent BLE scans
+_scan_lock = threading.Lock()  # Prevent concurrent BLE scans (works across async/threads)
+_task_lock = threading.Lock()  # Prevent multiple polling tasks from being created
+_last_scan_time: float = 0  # Track last scan time for cooldown
+_scan_cooldown = 5  # Minimum seconds between scans
 _sensors_to_poll: list[Aranet4Sensor] = []
 _poll_interval = 30  # seconds
 _scan_duration = 8  # seconds for BLE scan
@@ -121,11 +124,24 @@ _task_counter = 0  # For debugging multiple task instances
     reraise=True,
 )
 def _do_scan() -> dict[str, Aranet4Reading]:
-    """Run aranet4 package scan and return readings by MAC address (with retries)"""
+    """Run aranet4 package scan and return readings by MAC address (with retries)
+
+    IMPORTANT: Must be called with _scan_lock held to prevent concurrent scans.
+    """
+    global _last_scan_time
+
     try:
         import aranet4
 
+        # Enforce cooldown period between scans
+        time_since_last_scan = time.time() - _last_scan_time
+        if time_since_last_scan < _scan_cooldown:
+            wait_time = _scan_cooldown - time_since_last_scan
+            logger.debug(f"Aranet4: Scan cooldown, waiting {wait_time:.1f}s")
+            time.sleep(wait_time)
+
         logger.info("Aranet4: Running BLE scan...")
+        _last_scan_time = time.time()
         readings: dict[str, Aranet4Reading] = {}
 
         def on_detect(advertisement):
@@ -165,10 +181,16 @@ async def _polling_loop():
     while not _polling_stop_event.is_set():
         try:
             # Single scan gets all devices (run in thread pool to avoid blocking)
-            # Use lock to prevent concurrent BLE scans
-            async with _scan_lock:
-                logger.debug(f"Aranet4 task #{task_id}: Acquired scan lock, starting scan")
-                readings = await asyncio.to_thread(_do_scan)
+            # Use threading lock to prevent concurrent BLE scans from any context
+            logger.debug(f"Aranet4 task #{task_id}: Waiting for scan lock...")
+
+            def locked_scan():
+                """Run scan with lock held"""
+                with _scan_lock:
+                    logger.debug(f"Aranet4 task #{task_id}: Acquired scan lock, starting scan")
+                    return _do_scan()
+
+            readings = await asyncio.to_thread(locked_scan)
 
             # Update each registered sensor with its reading
             for sensor in _sensors_to_poll:
@@ -197,17 +219,20 @@ def register_sensor(sensor: Aranet4Sensor) -> None:
     else:
         logger.debug(f"Aranet4 sensor already registered: {sensor.name}")
 
-    # Start polling task if not running
-    if _polling_task is None:
-        logger.info("Starting new Aranet4 polling task (no previous task)")
-        _polling_stop_event.clear()
-        _polling_task = asyncio.create_task(_polling_loop())
-    elif _polling_task.done():
-        logger.warning(f"Previous Aranet4 polling task finished (done={_polling_task.done()}), starting new one")
-        _polling_stop_event.clear()
-        _polling_task = asyncio.create_task(_polling_loop())
-    else:
-        logger.debug("Aranet4 polling task already running")
+    # Start polling task if not running (thread-safe check)
+    with _task_lock:
+        if _polling_task is None:
+            logger.info("Starting new Aranet4 polling task (no previous task)")
+            _polling_stop_event.clear()
+            _polling_task = asyncio.create_task(_polling_loop())
+        elif _polling_task.done():
+            logger.warning(
+                f"Previous Aranet4 polling task finished (done={_polling_task.done()}), starting new one"
+            )
+            _polling_stop_event.clear()
+            _polling_task = asyncio.create_task(_polling_loop())
+        else:
+            logger.debug("Aranet4 polling task already running")
 
 
 def unregister_sensor(sensor: Aranet4Sensor) -> None:
@@ -232,34 +257,49 @@ async def stop_polling() -> None:
 
 
 def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
-    """Scan for Aranet4 devices in range using aranet4 package."""
+    """Scan for Aranet4 devices in range using aranet4 package.
+
+    Uses global scan lock to prevent concurrent BLE operations.
+    """
+    global _last_scan_time
+
     try:
         import aranet4
 
-        logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
+        # Acquire global lock to prevent concurrent scans
+        with _scan_lock:
+            # Enforce cooldown period between scans
+            time_since_last_scan = time.time() - _last_scan_time
+            if time_since_last_scan < _scan_cooldown:
+                wait_time = _scan_cooldown - time_since_last_scan
+                logger.debug(f"Aranet4 discovery: Scan cooldown, waiting {wait_time:.1f}s")
+                time.sleep(wait_time)
 
-        found_devices: list[dict[str, Any]] = []
-        seen_addresses: set = set()
+            logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
+            _last_scan_time = time.time()
 
-        def on_detect(advertisement):
-            if advertisement.device.address not in seen_addresses:
-                seen_addresses.add(advertisement.device.address)
-                device_info: dict[str, Any] = {
-                    "name": advertisement.device.name or "Aranet4",
-                    "address": advertisement.device.address.upper(),
-                    "rssi": advertisement.rssi,
-                }
-                if advertisement.readings:
-                    device_info["co2"] = advertisement.readings.co2
-                    device_info["temperature"] = advertisement.readings.temperature
-                    device_info["humidity"] = advertisement.readings.humidity
-                found_devices.append(device_info)
-                logger.info(f"Found: {device_info['name']} ({device_info['address']})")
+            found_devices: list[dict[str, Any]] = []
+            seen_addresses: set = set()
 
-        aranet4.client.find_nearby(on_detect, duration=duration)
+            def on_detect(advertisement):
+                if advertisement.device.address not in seen_addresses:
+                    seen_addresses.add(advertisement.device.address)
+                    device_info: dict[str, Any] = {
+                        "name": advertisement.device.name or "Aranet4",
+                        "address": advertisement.device.address.upper(),
+                        "rssi": advertisement.rssi,
+                    }
+                    if advertisement.readings:
+                        device_info["co2"] = advertisement.readings.co2
+                        device_info["temperature"] = advertisement.readings.temperature
+                        device_info["humidity"] = advertisement.readings.humidity
+                    found_devices.append(device_info)
+                    logger.info(f"Found: {device_info['name']} ({device_info['address']})")
 
-        logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
-        return found_devices
+            aranet4.client.find_nearby(on_detect, duration=duration)
+
+            logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
+            return found_devices
 
     except ImportError:
         logger.error("aranet4 library not installed - cannot scan")
