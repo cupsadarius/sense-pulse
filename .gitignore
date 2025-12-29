@@ -30,7 +30,7 @@ ENV/
 
 # uv
 .uv/
-uv.lock
+# Note: uv.lock is committed for reproducible builds (this is an application, not a library)
 
 # IDE
 .idea/
