@@ -99,7 +99,7 @@ class StatsDisplay:
             icon_name = "tailscale_connected" if is_connected else "tailscale_disconnected"
             status_text = "Connected" if is_connected else "Disconnected"
             color = (0, 255, 0) if is_connected else (255, 0, 0)
-            self.display.show_icon_with_text(icon_name, status_text, text_color=color)
+            await self.display.show_icon_with_text(icon_name, status_text, text_color=color)
         else:
             status_text = "TS: Connected" if is_connected else "TS: Disconnected"
             color = (0, 255, 0) if is_connected else (255, 0, 0)
@@ -108,7 +108,7 @@ class StatsDisplay:
         if is_connected:
             device_count = status["device_count"]
             if self.show_icons:
-                self.display.show_icon_with_text(
+                await self.display.show_icon_with_text(
                     "devices",
                     f"{device_count} Devices",
                     text_color=(0, 200, 255),
@@ -125,17 +125,17 @@ class StatsDisplay:
         stats = await self.cache.get("pihole", {})
 
         if self.show_icons:
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "query",
                 f"Queries: {stats['queries_today']}",
                 text_color=(0, 255, 0),
             )
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "block",
                 f"Blocked: {stats['ads_blocked_today']}",
                 text_color=(255, 0, 0),
             )
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "pihole_shield",
                 f"{stats['ads_percentage_today']:.1f}% Blocked",
                 text_color=(255, 165, 0),
@@ -160,17 +160,17 @@ class StatsDisplay:
         sensors = await self.cache.get("sensors", {})
 
         if self.show_icons:
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "thermometer",
                 f"{sensors['temperature']:.1f}C",
                 text_color=(255, 100, 0),
             )
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "water_drop",
                 f"{sensors['humidity']:.1f}%",
                 text_color=(0, 100, 255),
             )
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "pressure_gauge",
                 f"{sensors['pressure']:.0f}mb",
                 text_color=(200, 200, 200),
@@ -195,17 +195,17 @@ class StatsDisplay:
         stats = await self.cache.get("system", {})
 
         if self.show_icons:
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "cpu",
                 f"CPU: {stats['cpu_percent']:.0f}%",
                 text_color=(255, 200, 0),
             )
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "memory",
                 f"Mem: {stats['memory_percent']:.0f}%",
                 text_color=(0, 200, 255),
             )
-            self.display.show_icon_with_text(
+            await self.display.show_icon_with_text(
                 "load",
                 f"Load: {stats['load_1min']:.2f}",
                 text_color=(255, 0, 255),
@@ -264,7 +264,7 @@ class StatsDisplay:
             # Display temperature
             if temperature is not None:
                 if self.show_icons:
-                    self.display.show_icon_with_text(
+                    await self.display.show_icon_with_text(
                         "thermometer",
                         f"{sensor_label}: {temperature}°C",
                         text_color=(255, 100, 0),
@@ -280,7 +280,7 @@ class StatsDisplay:
                 color = self._get_co2_color(co2)
                 if self.show_icons:
                     icon = self._get_co2_icon(co2)
-                    self.display.show_icon_with_text(
+                    await self.display.show_icon_with_text(
                         icon,
                         f"{sensor_label}: {co2}ppm",
                         text_color=color,
@@ -294,7 +294,7 @@ class StatsDisplay:
             # Display humidity
             if humidity is not None:
                 if self.show_icons:
-                    self.display.show_icon_with_text(
+                    await self.display.show_icon_with_text(
                         "water_drop",
                         f"{sensor_label}: {humidity}%",
                         text_color=(0, 100, 255),
@@ -324,7 +324,7 @@ class StatsDisplay:
 
         if is_sleeping:
             logger.info("Sleep time - display off")
-            self.display.clear()
+            await self.display.clear()
             return
 
         logger.info("Starting display cycle...")
@@ -338,7 +338,7 @@ class StatsDisplay:
             logger.info("Display cycle completed successfully")
         except Exception as e:
             logger.error(f"Error during display cycle: {e}")
-            self.display.clear()
+            await self.display.clear()
 
     async def run_continuous(self, interval: Optional[int] = None):
         """Run continuous display loop"""
@@ -352,7 +352,7 @@ class StatsDisplay:
                 await asyncio.sleep(update_interval)
         except KeyboardInterrupt:
             logger.info("Received shutdown signal, cleaning up...")
-            self.display.clear()
+            await self.display.clear()
             # Re-enable Pi LEDs on shutdown if they were managed
             if self._disable_pi_leds and self._was_sleeping:
                 logger.info("Re-enabling Pi onboard LEDs on shutdown")
@@ -365,5 +365,5 @@ class StatsDisplay:
             logger.info("Shutdown complete")
         except Exception as e:
             logger.error(f"Fatal error in continuous loop: {e}")
-            self.display.clear()
+            await self.display.clear()
             raise
