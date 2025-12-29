@@ -160,30 +160,33 @@
 <!-- CO2 Sensors Row - Aranet4 Style Display -->
 {% if aranet4_available or (co2 and co2.available) %}
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 fade-in">
-    <!-- Office CO2 Card - Aranet4 Style -->
-    <div class="bg-sense-card rounded-xl border border-sense-border overflow-hidden hover:border-green-500/50 transition-colors">
+    <!-- Dynamic CO2 Cards - Aranet4 Style -->
+    {% if co2 and co2 is mapping %}
+        {% for sensor_label, sensor_data in co2.items() %}
+            {% if sensor_label != 'available' and sensor_data is mapping %}
+    <div class="bg-sense-card rounded-xl border border-sense-border overflow-hidden hover:border-green-500/50 transition-colors" id="co2-card-{{ sensor_label | replace(' ', '-') | lower }}">
         <!-- Header with location -->
         <div class="px-4 py-2 bg-gray-800/50 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <span class="text-lg">🏢</span>
-                <span class="font-medium text-gray-300">Office</span>
+                <span class="text-lg">📊</span>
+                <span class="font-medium text-gray-300">{{ sensor_label }}</span>
             </div>
-            {% if co2 and co2.office %}
+            {% if sensor_data and not sensor_data.get('error') %}
             <span class="w-2 h-2 bg-green-500 rounded-full status-glow text-green-500"></span>
             {% else %}
             <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
             {% endif %}
         </div>
 
-        {% if co2 and co2.office %}
-        {% set co2_level = co2.office.co2 %}
+        {% if sensor_data and sensor_data.co2 %}
+        {% set co2_level = sensor_data.co2 %}
         <!-- Top row: Temp and Humidity like Aranet4 display -->
         <div class="flex justify-between px-4 py-2 text-sm border-b border-gray-700/50">
             <div class="flex items-center gap-1">
-                <span class="text-orange-400">{{ co2.office.temperature }}°C</span>
+                <span id="co2-{{ sensor_label | replace(' ', '-') | lower }}-temp" class="text-orange-400">{{ sensor_data.temperature }}°C</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-blue-400">{{ co2.office.humidity }}%</span>
+                <span id="co2-{{ sensor_label | replace(' ', '-') | lower }}-humidity" class="text-blue-400">{{ sensor_data.humidity }}%</span>
                 <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/>
                 </svg>
@@ -192,7 +195,7 @@
 
         <!-- Large CO2 Display -->
         <div class="px-4 py-6 text-center">
-            <div class="text-6xl font-bold tracking-tight
+            <div id="co2-{{ sensor_label | replace(' ', '-') | lower }}-value" class="text-6xl font-bold tracking-tight
                 {% if co2_level < 1000 %}text-green-400
                 {% elif co2_level < 1500 %}text-yellow-400
                 {% else %}text-red-400{% endif %}">
@@ -221,67 +224,8 @@
         </div>
         {% endif %}
     </div>
-
-    <!-- Bedroom CO2 Card - Aranet4 Style -->
-    <div class="bg-sense-card rounded-xl border border-sense-border overflow-hidden hover:border-purple-500/50 transition-colors">
-        <!-- Header with location -->
-        <div class="px-4 py-2 bg-gray-800/50 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <span class="text-lg">🛏️</span>
-                <span class="font-medium text-gray-300">Bedroom</span>
-            </div>
-            {% if co2 and co2.bedroom %}
-            <span class="w-2 h-2 bg-green-500 rounded-full status-glow text-green-500"></span>
-            {% else %}
-            <span class="w-2 h-2 bg-gray-500 rounded-full"></span>
             {% endif %}
-        </div>
-
-        {% if co2 and co2.bedroom %}
-        {% set co2_level = co2.bedroom.co2 %}
-        <!-- Top row: Temp and Humidity like Aranet4 display -->
-        <div class="flex justify-between px-4 py-2 text-sm border-b border-gray-700/50">
-            <div class="flex items-center gap-1">
-                <span class="text-orange-400">{{ co2.bedroom.temperature }}°C</span>
-            </div>
-            <div class="flex items-center gap-1">
-                <span class="text-blue-400">{{ co2.bedroom.humidity }}%</span>
-                <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zm0 18c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/>
-                </svg>
-            </div>
-        </div>
-
-        <!-- Large CO2 Display -->
-        <div class="px-4 py-6 text-center">
-            <div class="text-6xl font-bold tracking-tight
-                {% if co2_level < 1000 %}text-green-400
-                {% elif co2_level < 1500 %}text-yellow-400
-                {% else %}text-red-400{% endif %}">
-                {{ co2_level }}
-            </div>
-            <div class="text-gray-500 text-sm mt-1">CO₂ ppm</div>
-        </div>
-
-        <!-- Aranet4-style color bar indicator -->
-        <div class="flex h-3">
-            <div class="flex-1 bg-green-500 {% if co2_level < 1000 %}opacity-100{% else %}opacity-30{% endif %}"></div>
-            <div class="flex-1 bg-yellow-500 {% if co2_level >= 1000 and co2_level < 1500 %}opacity-100{% else %}opacity-30{% endif %}"></div>
-            <div class="flex-1 bg-red-500 {% if co2_level >= 1500 %}opacity-100{% else %}opacity-30{% endif %}"></div>
-        </div>
-        {% else %}
-        <!-- Offline state -->
-        <div class="px-4 py-8 text-center">
-            <div class="text-5xl font-bold text-gray-600">---</div>
-            <div class="text-gray-500 text-sm mt-1">CO₂ ppm</div>
-            <div class="text-gray-600 text-xs mt-3">Not configured or offline</div>
-        </div>
-        <div class="flex h-3">
-            <div class="flex-1 bg-gray-600"></div>
-            <div class="flex-1 bg-gray-600"></div>
-            <div class="flex-1 bg-gray-600"></div>
-        </div>
-        {% endif %}
-    </div>
+        {% endfor %}
+    {% endif %}
 </div>
 {% endif %}
