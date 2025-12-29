@@ -12,7 +12,10 @@ import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from .datasources.base import DataSource
 
 logger = logging.getLogger(__name__)
 
@@ -57,22 +60,22 @@ class DataCache:
         self._lock = asyncio.Lock()
         self._polling_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
-        self._data_sources: dict[str, Callable] = {}
+        self._data_sources: dict[str, DataSource] = {}
 
         logger.info(
             f"DataCache initialized with {cache_ttl}s TTL and {poll_interval}s poll interval"
         )
 
-    def register_source(self, key: str, fetch_func: Callable) -> None:
+    def register_data_source(self, source: "DataSource") -> None:
         """
         Register a data source for background polling.
 
         Args:
-            key: Cache key for this data source
-            fetch_func: Async callable that fetches fresh data (no arguments)
+            source: DataSource object to register
         """
-        self._data_sources[key] = fetch_func
-        logger.info(f"Registered data source: {key}")
+        metadata = source.get_metadata()
+        self._data_sources[metadata.source_id] = source
+        logger.info(f"Registered data source: {metadata.name} (id={metadata.source_id})")
 
     async def get(self, key: str, default: Any = None) -> Any:
         """
@@ -146,21 +149,29 @@ class DataCache:
                 "data_ages": ages,
             }
 
-    async def _poll_data_source(self, key: str, fetch_func: Callable) -> None:
+    async def _poll_data_source(self, source: "DataSource") -> None:
         """
-        Poll a single data source and update cache.
+        Poll a data source and update cache.
 
         Args:
-            key: Cache key
-            fetch_func: Async function to fetch data
+            source: DataSource object to poll
         """
+        metadata = source.get_metadata()
+        key = metadata.source_id
+
         try:
-            logger.debug(f"Polling data source: {key}")
-            data = await fetch_func()
+            logger.debug(f"Polling data source: {metadata.name}")
+            readings = await source.fetch_readings()
+
+            # Convert readings to dict format
+            data = {}
+            for reading in readings:
+                data[reading.sensor_id] = reading.value
+
             await self.set(key, data)
-            logger.debug(f"Successfully polled: {key}")
+            logger.debug(f"Successfully polled: {metadata.name} ({len(readings)} readings)")
         except Exception as e:
-            logger.error(f"Error polling {key}: {e}", exc_info=True)
+            logger.error(f"Error polling {metadata.name}: {e}", exc_info=True)
 
     async def _polling_loop(self) -> None:
         """Background polling loop that fetches fresh data periodically."""
@@ -169,13 +180,12 @@ class DataCache:
         while not self._stop_event.is_set():
             cycle_start = time.time()
 
-            # Poll all registered data sources
-            sources = list(self._data_sources.items())
-
-            for key, fetch_func in sources:
+            # Poll all data sources
+            data_sources = list(self._data_sources.values())
+            for source in data_sources:
                 if self._stop_event.is_set():
                     break
-                await self._poll_data_source(key, fetch_func)
+                await self._poll_data_source(source)
 
             # Wait for next poll interval
             elapsed = time.time() - cycle_start
@@ -199,9 +209,9 @@ class DataCache:
         logger.info("Background polling task started")
 
         # Do an immediate poll to populate cache
-        sources = list(self._data_sources.items())
-        for key, fetch_func in sources:
-            await self._poll_data_source(key, fetch_func)
+        data_sources = list(self._data_sources.values())
+        for source in data_sources:
+            await self._poll_data_source(source)
 
     async def stop_polling(self) -> None:
         """Stop the background polling task."""
