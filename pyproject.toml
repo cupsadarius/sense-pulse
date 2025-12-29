@@ -16,7 +16,8 @@ dependencies = [
     "jinja2==3.1.4",
     "python-multipart==0.0.12",  # Required for FastAPI form parsing
     "aranet4==2.3.0",  # Aranet4 CO2 sensor support (uses bleak internally)
-    "passlib[bcrypt]==1.7.4",  # Password hashing for authentication
+    "passlib==1.7.4",  # Password hashing for authentication
+    "bcrypt==4.2.1",  # Bcrypt backend for passlib (4.x compatible with passlib)
     "tenacity==9.0.0",  # Retry logic for network calls
     # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
@@ -115,3 +116,4 @@ addopts = "-ra -q --strict-markers --cov=sense_pulse --cov-report=term-missing -
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
