@@ -211,6 +211,9 @@ async def dashboard_websocket(websocket: WebSocket):
     try:
         while True:
             # Gather all dashboard data
+            # Reload config to get latest changes
+            _, _, _, config = get_services()
+
             data = {
                 "tailscale": cache.get("tailscale", {}),
                 "pihole": cache.get("pihole", {}),
@@ -225,6 +228,8 @@ async def dashboard_websocket(websocket: WebSocket):
                 "config": {
                     "show_icons": config.display.show_icons,
                     "rotation": config.display.rotation,
+                    "web_rotation_offset": config.display.web_rotation_offset,
+                    "disable_pi_leds": config.sleep.disable_pi_leds,
                 }
             }
 
@@ -315,9 +320,9 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
         return {"status": "error", "message": str(e)}
 
 
-@router.post("/api/config/display/rotation", response_class=HTMLResponse)
-async def set_rotation(request: Request):
-    """Set display rotation (HTMX endpoint)"""
+@router.post("/api/config/display/rotation")
+async def set_rotation(request: Request) -> Dict[str, Any]:
+    """Set display rotation"""
     form = await request.form()
     rotation = int(form.get("rotation", 0))
 
@@ -326,70 +331,79 @@ async def set_rotation(request: Request):
         rotation = 0
 
     # Update config
-    await update_config(ConfigUpdate(
+    result = await update_config(ConfigUpdate(
         display=DisplayConfigUpdate(rotation=rotation)
     ))
 
     # Also update hardware if available
     hardware.set_rotation(rotation)
 
-    # Return updated HTML partial
+    # Return JSON with updated config
     _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
+    return {
+        **result,
+        "config": {
+            "rotation": config.display.rotation,
+            "show_icons": config.display.show_icons,
+            "web_rotation_offset": config.display.web_rotation_offset,
+            "disable_pi_leds": config.sleep.disable_pi_leds,
+        }
+    }
 
 
-@router.post("/api/config/display/icons", response_class=HTMLResponse)
-async def toggle_icons(request: Request):
-    """Toggle show_icons setting (HTMX endpoint)"""
+@router.post("/api/config/display/icons")
+async def toggle_icons(request: Request) -> Dict[str, Any]:
+    """Toggle show_icons setting"""
     _, _, _, config = get_services()
 
     # Toggle current value
     new_value = not config.display.show_icons
 
-    await update_config(ConfigUpdate(
+    result = await update_config(ConfigUpdate(
         display=DisplayConfigUpdate(show_icons=new_value)
     ))
 
-    # Re-fetch config after update and return HTML partial
+    # Re-fetch config after update
     _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
+    return {
+        **result,
+        "config": {
+            "rotation": config.display.rotation,
+            "show_icons": config.display.show_icons,
+            "web_rotation_offset": config.display.web_rotation_offset,
+            "disable_pi_leds": config.sleep.disable_pi_leds,
+        }
+    }
 
 
-@router.post("/api/config/sleep/pi-leds", response_class=HTMLResponse)
-async def toggle_pi_leds(request: Request):
-    """Toggle disable_pi_leds setting (HTMX endpoint)"""
+@router.post("/api/config/sleep/pi-leds")
+async def toggle_pi_leds(request: Request) -> Dict[str, Any]:
+    """Toggle disable_pi_leds setting"""
     _, _, _, config = get_services()
 
     # Toggle current value
     new_value = not config.sleep.disable_pi_leds
 
-    await update_config(ConfigUpdate(
+    result = await update_config(ConfigUpdate(
         sleep=SleepConfigUpdate(disable_pi_leds=new_value)
     ))
 
-    # Re-fetch config after update and return HTML partial
+    # Re-fetch config after update
     _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
+    return {
+        **result,
+        "config": {
+            "rotation": config.display.rotation,
+            "show_icons": config.display.show_icons,
+            "web_rotation_offset": config.display.web_rotation_offset,
+            "disable_pi_leds": config.sleep.disable_pi_leds,
+        }
+    }
 
 
-@router.post("/api/config/display/web-offset", response_class=HTMLResponse)
-async def set_web_offset(request: Request):
-    """Set web preview rotation offset (HTMX endpoint)"""
+@router.post("/api/config/display/web-offset")
+async def set_web_offset(request: Request) -> Dict[str, Any]:
+    """Set web preview rotation offset"""
     form = await request.form()
     offset = int(form.get("web_offset", 90))
 
@@ -398,31 +412,21 @@ async def set_web_offset(request: Request):
         offset = 90
 
     # Update config
-    await update_config(ConfigUpdate(
+    result = await update_config(ConfigUpdate(
         display=DisplayConfigUpdate(web_rotation_offset=offset)
     ))
 
-    # Return updated HTML partial
+    # Return JSON with updated config
     _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
-
-
-@router.get("/api/config/display/controls", response_class=HTMLResponse)
-async def get_display_controls(request: Request):
-    """HTMX partial: display controls panel"""
-    _, _, _, config = get_services()
-    templates = request.app.state.templates
-
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
+    return {
+        **result,
+        "config": {
+            "rotation": config.display.rotation,
+            "show_icons": config.display.show_icons,
+            "web_rotation_offset": config.display.web_rotation_offset,
+            "disable_pi_leds": config.sleep.disable_pi_leds,
+        }
+    }
 
 
 # ============================================================================
