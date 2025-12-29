@@ -1,5 +1,57 @@
 # Changelog
 
+## Version 0.8.1 - Aranet4 Enhancements and Web Display Fixes
+
+### Bug Fixes
+
+**Aranet4 Display Rendering**
+- Fixed issue where Aranet sensor data was only shown in web client but not on physical display
+- Display now checks for cached data instead of sensor configuration status
+- Ensures consistent behavior between web and physical display
+
+**Web Grid Icon Rotation**
+- Fixed double-rotation bug in web LED matrix preview
+- Icons now display with correct orientation matching physical display
+- Web preview only applies offset rotation, not physical rotation (which is already applied by Sense HAT)
+
+### Enhancements
+
+**Complete Aranet4 Sensor Display**
+- Physical display now shows temperature, CO2, and humidity from Aranet4 sensors
+- Previously only showed CO2 levels
+- All three metrics displayed with appropriate icons and colors
+- Dynamically handles any configured sensor labels (office, bedroom, etc.)
+
+### Technical Changes
+
+**Controller Updates:**
+- `display_co2_levels()` renamed conceptually to display all Aranet data (temp, CO2, humidity)
+- Method now iterates dynamically over all sensors in cache
+- Removed hardcoded sensor labels (office/bedroom)
+- Uses existing thermometer and water_drop icons for temp/humidity
+
+**Web Template Updates:**
+- Fixed `rotateIndex()` function to only apply web offset rotation
+- Removed double-rotation issue where physical rotation was added to already-rotated pixels
+- Added comment explaining rotation logic for future maintenance
+
+### Files Changed
+
+- `src/sense_pulse/controller.py` - Enhanced Aranet display, fixed cache check
+- `src/sense_pulse/web/templates/index.html` - Fixed icon rotation calculation
+
+### Migration from v0.8.0
+
+No configuration changes required! Simply restart the service:
+
+```bash
+sudo systemctl restart sense-pulse
+```
+
+The display will now show temperature, CO2, and humidity from Aranet sensors, and the web preview will display icons with correct rotation.
+
+---
+
 ## Version 0.8.0 - WebSocket Real-Time Dashboard
 
 ### Major Changes

@@ -229,46 +229,67 @@ class StatsDisplay:
             return "co2_poor"
 
     def display_co2_levels(self):
-        """Display CO2 levels from Aranet4 sensors (from cache)"""
-        if not hardware.is_aranet4_available():
+        """Display Aranet4 sensor data (temperature, CO2, humidity) from cache"""
+        co2_data = self.cache.get("co2", {})
+        if not co2_data:
             return
 
-        logger.info("Displaying CO2 levels...")
-        co2_data = self.cache.get("co2", {})
+        logger.info("Displaying Aranet4 sensor data...")
 
-        # Display office sensor
-        if co2_data.get("office"):
-            co2 = co2_data["office"]["co2"]
-            color = self._get_co2_color(co2)
-            if self.show_icons:
-                icon = self._get_co2_icon(co2)
-                self.display.show_icon_with_text(
-                    icon,
-                    f"Office: {co2}ppm",
-                    text_color=color,
-                )
-            else:
-                self.display.show_text(
-                    f"Office CO2: {co2}ppm",
-                    color=color,
-                )
+        # Display all sensors dynamically
+        for sensor_label, sensor_data in co2_data.items():
+            # Skip the 'available' key if present
+            if sensor_label == "available" or not isinstance(sensor_data, dict):
+                continue
 
-        # Display bedroom sensor
-        if co2_data.get("bedroom"):
-            co2 = co2_data["bedroom"]["co2"]
-            color = self._get_co2_color(co2)
-            if self.show_icons:
-                icon = self._get_co2_icon(co2)
-                self.display.show_icon_with_text(
-                    icon,
-                    f"Bedroom: {co2}ppm",
-                    text_color=color,
-                )
-            else:
-                self.display.show_text(
-                    f"Bedroom CO2: {co2}ppm",
-                    color=color,
-                )
+            # Extract sensor readings
+            temperature = sensor_data.get("temperature")
+            co2 = sensor_data.get("co2")
+            humidity = sensor_data.get("humidity")
+
+            # Display temperature
+            if temperature is not None:
+                if self.show_icons:
+                    self.display.show_icon_with_text(
+                        "thermometer",
+                        f"{sensor_label}: {temperature}°C",
+                        text_color=(255, 100, 0),
+                    )
+                else:
+                    self.display.show_text(
+                        f"{sensor_label} Temp: {temperature}°C",
+                        color=(255, 100, 0),
+                    )
+
+            # Display CO2
+            if co2 is not None:
+                color = self._get_co2_color(co2)
+                if self.show_icons:
+                    icon = self._get_co2_icon(co2)
+                    self.display.show_icon_with_text(
+                        icon,
+                        f"{sensor_label}: {co2}ppm",
+                        text_color=color,
+                    )
+                else:
+                    self.display.show_text(
+                        f"{sensor_label} CO2: {co2}ppm",
+                        color=color,
+                    )
+
+            # Display humidity
+            if humidity is not None:
+                if self.show_icons:
+                    self.display.show_icon_with_text(
+                        "water_drop",
+                        f"{sensor_label}: {humidity}%",
+                        text_color=(0, 100, 255),
+                    )
+                else:
+                    self.display.show_text(
+                        f"{sensor_label} Humidity: {humidity}%",
+                        color=(0, 100, 255),
+                    )
 
     def run_cycle(self):
         """Run one complete display cycle"""
