@@ -236,28 +236,6 @@ async def dashboard_websocket(websocket: WebSocket):
         pass
 
 
-@router.websocket("/ws/matrix")
-async def matrix_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time LED matrix state updates (legacy - use /ws/dashboard)"""
-    await websocket.accept()
-    try:
-        while True:
-            # Get current matrix state and send to client
-            matrix_state = hardware.get_matrix_state()
-            await websocket.send_json(matrix_state)
-            await asyncio.sleep(0.05)  # Update every 50ms (~20 FPS) for smooth scrolling
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
-
-
-@router.get("/api/matrix")
-async def get_matrix() -> Dict[str, Any]:
-    """Get current LED matrix state (polling alternative to WebSocket)"""
-    return hardware.get_matrix_state()
-
-
 # ============================================================================
 # Configuration API
 # ============================================================================

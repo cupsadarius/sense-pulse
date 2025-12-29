@@ -1,5 +1,109 @@
 # Changelog
 
+## Version 0.8.0 - WebSocket Real-Time Dashboard
+
+### Major Changes
+
+**Removed HTMX - Pure WebSocket Architecture**
+- Completely removed HTMX dependency from the project
+- All dashboard updates now stream via WebSocket at 500ms intervals
+- Zero HTTP polling overhead after initial page load
+- Single unified `/ws/dashboard` endpoint for all data
+
+**Real-Time Updates**
+- Dashboard updates every 500ms (10x faster than previous 5-second polling)
+- LED matrix preview included in the same WebSocket stream
+- Smooth progress bar animations for CPU and memory usage
+- Live timestamp updates showing exact last update time
+
+**Simplified Frontend**
+- Vanilla JavaScript for DOM updates (no framework dependencies)
+- Direct element manipulation via added IDs to status cards
+- Maintained server-side Jinja2 rendering for initial page load
+- Graceful WebSocket reconnection with visual status indicator
+
+### Technical Changes
+
+**Removed Endpoints:**
+- `/ws/matrix` - Replaced by unified `/ws/dashboard`
+- `/api/matrix` - No longer needed (data in WebSocket)
+
+**New Endpoints:**
+- `/ws/dashboard` - Unified WebSocket streaming all sensor data + LED matrix
+
+**WebSocket Data Structure:**
+```json
+{
+  "tailscale": {...},
+  "pihole": {...},
+  "system": {...},
+  "sensors": {...},
+  "co2": {...},
+  "matrix": {
+    "pixels": [...],
+    "mode": "...",
+    "rotation": 0,
+    "web_offset": 90
+  },
+  "hardware": {...},
+  "config": {...}
+}
+```
+
+**Template Updates:**
+- Removed all `hx-*` attributes from templates
+- Added element IDs for JavaScript DOM updates
+- Button actions converted to vanilla `fetch()` calls
+- Initial render includes cached data from server
+
+**Routes Changes:**
+- `index()` route now passes all cached data for initial render
+- Dashboard WebSocket sends complete state every 500ms
+- Removed legacy compatibility endpoints
+
+### Files Changed
+
+- `src/sense_pulse/web/routes.py` - WebSocket endpoint, removed legacy endpoints
+- `src/sense_pulse/web/templates/base.html` - Removed HTMX script
+- `src/sense_pulse/web/templates/index.html` - Pure WebSocket JavaScript
+- `src/sense_pulse/web/templates/partials/status_cards.html` - Added element IDs
+- `README.md` - Updated documentation for WebSocket architecture
+
+### Performance Improvements
+
+**Before (HTMX Polling):**
+- HTTP GET request every 5 seconds
+- Server renders HTML partial
+- DOM replacement overhead
+- Network latency per request
+
+**After (WebSocket Streaming):**
+- Single persistent WebSocket connection
+- JSON data every 500ms
+- Direct DOM element updates
+- Zero HTTP overhead after connection
+
+### Migration from v0.7.0
+
+No configuration changes required! Simply restart the service:
+
+```bash
+sudo systemctl restart sense-pulse
+```
+
+The dashboard will automatically connect to the new `/ws/dashboard` endpoint.
+
+### Benefits
+
+1. **10x Faster Updates**: 500ms vs 5s refresh rate
+2. **Zero Polling Overhead**: Single WebSocket connection
+3. **Simpler Stack**: No HTMX dependency
+4. **Better UX**: Smooth real-time feel with instant updates
+5. **Lower Bandwidth**: JSON vs HTML reduces data transfer
+6. **Unified Architecture**: One WebSocket for all dashboard data
+
+---
+
 ## Version 0.7.0 - Data Caching with Background Polling
 
 ### New Features
