@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-import requests
+import httpx
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -28,27 +28,38 @@ class PiHoleStats:
         self.host = host.rstrip("/")
         self.password = password
         self._session_id: Optional[str] = None
+        self._client: Optional[httpx.AsyncClient] = None
         logger.info(f"Initialized Pi-hole stats fetcher for: {self.host}")
 
+    async def _ensure_client(self) -> httpx.AsyncClient:
+        """Ensure HTTP client is initialized"""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=5.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close HTTP client"""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
     @retry(
-        retry=retry_if_exception_type(
-            (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
-        ),
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    def _authenticate(self) -> bool:
+    async def _authenticate(self) -> bool:
         """Authenticate with Pi-hole and get session ID (with retries)"""
         if not self.password:
             logger.debug("No password configured, trying unauthenticated access")
             return True
 
         try:
-            response = requests.post(
+            client = await self._ensure_client()
+            response = await client.post(
                 f"{self.host}/api/auth",
                 json={"password": self.password},
-                timeout=5,
             )
             response.raise_for_status()
             data = response.json()
@@ -61,10 +72,10 @@ class PiHoleStats:
                 logger.error("Pi-hole authentication failed: invalid credentials")
                 return False
 
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
             logger.warning(f"Pi-hole authentication connection error (will retry): {e}")
             raise
-        except requests.exceptions.RequestException as e:
+        except httpx.HTTPStatusError as e:
             logger.error(f"Pi-hole authentication failed: {e}")
             return False
 
@@ -76,53 +87,51 @@ class PiHoleStats:
         return headers
 
     @retry(
-        retry=retry_if_exception_type(
-            (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
-        ),
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.TimeoutException)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    def fetch_stats(self) -> Optional[dict]:
+    async def fetch_stats(self) -> Optional[dict]:
         """Fetch current Pi-hole stats from API (with retries)"""
         # Try to authenticate if we have a password and no session
-        if self.password and not self._session_id and not self._authenticate():
+        if self.password and not self._session_id and not await self._authenticate():
             return None
 
         try:
             logger.debug("Fetching Pi-hole stats...")
-            response = requests.get(
+            client = await self._ensure_client()
+            response = await client.get(
                 f"{self.host}/api/stats/summary",
                 headers=self._get_headers(),
-                timeout=5,
             )
             response.raise_for_status()
             data = response.json()
             logger.debug("Successfully fetched Pi-hole stats")
             return data
 
-        except requests.exceptions.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
                 # Session expired, try to re-authenticate
                 logger.debug("Session expired, re-authenticating...")
                 self._session_id = None
-                if self._authenticate():
-                    return self.fetch_stats()
+                if await self._authenticate():
+                    return await self.fetch_stats()
             logger.error(f"Failed to fetch Pi-hole stats: {e}")
             return None
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
             logger.warning(f"Pi-hole stats connection error (will retry): {e}")
             raise
-        except requests.exceptions.RequestException as e:
+        except httpx.HTTPError as e:
             logger.error(f"Failed to fetch Pi-hole stats: {e}")
             return None
         except Exception as e:
             logger.error(f"Unexpected error fetching Pi-hole stats: {e}")
             return None
 
-    def get_summary(self) -> dict[str, float]:
+    async def get_summary(self) -> dict[str, float]:
         """Get summarized Pi-hole stats"""
-        stats = self.fetch_stats()
+        stats = await self.fetch_stats()
         if not stats:
             logger.warning("No Pi-hole stats available, returning defaults")
             return {
