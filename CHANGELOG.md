@@ -1,5 +1,100 @@
 # Changelog
 
+## Version 0.9.0 - Unified DataSource Interface (Breaking Changes)
+
+### Major Refactoring
+
+**Unified DataSource Interface**
+- Introduced standardized `DataSource` abstract base class for all data sources
+- All data sources (Pi-hole, Tailscale, System Stats, Sense HAT, Aranet4) now implement consistent interface
+- Single `MockDataSource` class for testing all sources
+- Improved type safety with `SensorReading` and `DataSourceMetadata` classes
+
+### Breaking Changes
+
+⚠️ **API Changes**
+- Cache keys renamed for clarity:
+  - `"sensors"` → `"sensehat"` (Sense HAT onboard sensors)
+  - `"co2"` → `"aranet4"` (Aranet4 CO2 sensors)
+- Removed `cache.register_source(key, callable)` - use `cache.register_data_source(source)` instead
+- All DataSource objects must implement 5 required methods:
+  - `initialize()` - Setup and authentication
+  - `fetch_readings()` - Fetch fresh data (no internal caching)
+  - `get_metadata()` - Return source configuration
+  - `health_check()` - Verify availability
+  - `shutdown()` - Clean up resources
+
+### New Features
+
+**DataSource Architecture:**
+- `src/sense_pulse/datasources/base.py` - Core interfaces
+- `src/sense_pulse/datasources/pihole_source.py` - Pi-hole wrapper
+- `src/sense_pulse/datasources/tailscale_source.py` - Tailscale wrapper
+- `src/sense_pulse/datasources/system_source.py` - System metrics wrapper
+- `src/sense_pulse/datasources/sensehat_source.py` - Sense HAT wrapper
+- `src/sense_pulse/datasources/aranet4_source.py` - Aranet4 wrapper
+- `src/sense_pulse/datasources/registry.py` - Source management
+
+**Testing Improvements:**
+- `tests/mock_datasource.py` - Reusable mock for all tests
+- `tests/test_datasources.py` - Comprehensive test suite (17 tests)
+- 73% cache coverage, improved testability across board
+
+### Migration Guide
+
+**If you're using the cache API directly:**
+
+```python
+# OLD - No longer works
+cache.register_source("custom", my_fetch_function)
+
+# NEW - Implement DataSource interface
+from sense_pulse.datasources import DataSource, DataSourceMetadata, SensorReading
+
+class CustomDataSource(DataSource):
+    async def initialize(self): ...
+    async def fetch_readings(self): ...
+    def get_metadata(self): ...
+    async def health_check(self): ...
+    async def shutdown(self): ...
+
+cache.register_data_source(CustomDataSource())
+```
+
+**If you're accessing cache data:**
+
+```python
+# OLD
+sensors = await cache.get("sensors")
+co2_data = await cache.get("co2")
+
+# NEW
+sensors = await cache.get("sensehat")
+co2_data = await cache.get("aranet4")
+```
+
+### Files Changed
+
+- `src/sense_pulse/cache.py` - Removed legacy support, DataSource-only
+- `src/sense_pulse/web/app.py` - Initialize all DataSource objects
+- `src/sense_pulse/web/routes.py` - Updated cache keys throughout
+- `src/sense_pulse/datasources/*` - New unified architecture
+- `tests/test_datasources.py` - New comprehensive tests
+
+### Upgrade Instructions
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Restart service
+sudo systemctl restart sense-pulse
+```
+
+**Note:** This is a breaking change. If you have custom code accessing the cache or registering data sources, you'll need to update it according to the migration guide above.
+
+---
+
 ## Version 0.8.1 - Aranet4 Enhancements and Web Display Fixes
 
 ### Bug Fixes
