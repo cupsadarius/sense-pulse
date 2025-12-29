@@ -73,11 +73,16 @@ def get_services():
         # Initialize hardware settings from config
         hardware.set_web_rotation_offset(_config.display.web_rotation_offset)
         # Initialize Aranet4 sensors from config
+        sensors_config = [
+            {
+                "label": sensor.label,
+                "mac_address": sensor.mac_address,
+                "enabled": sensor.enabled,
+            }
+            for sensor in _config.aranet4.sensors
+        ]
         hardware.init_aranet4_sensors(
-            office_mac=_config.aranet4.office.mac_address,
-            bedroom_mac=_config.aranet4.bedroom.mac_address,
-            office_enabled=_config.aranet4.office.enabled,
-            bedroom_enabled=_config.aranet4.bedroom.enabled,
+            sensors=sensors_config,
             timeout=_config.aranet4.timeout,
             cache_duration=_config.aranet4.cache_duration,
         )
@@ -202,18 +207,14 @@ async def health_check():
 
 @router.websocket("/ws/dashboard")
 async def dashboard_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time dashboard updates (sensor data + matrix)"""
+    """WebSocket endpoint for real-time dashboard updates (sensor data only)"""
     await websocket.accept()
     get_services()  # Ensure services are initialized
     cache = get_cache()
-    _, _, _, config = get_services()
 
     try:
         while True:
-            # Gather all dashboard data
-            # Reload config to get latest changes
-            _, _, _, config = get_services()
-
+            # Gather all sensor data
             data = {
                 "tailscale": cache.get("tailscale", {}),
                 "pihole": cache.get("pihole", {}),
@@ -225,12 +226,6 @@ async def dashboard_websocket(websocket: WebSocket):
                     "sense_hat_available": hardware.is_sense_hat_available(),
                     "aranet4_available": hardware.is_aranet4_available(),
                 },
-                "config": {
-                    "show_icons": config.display.show_icons,
-                    "rotation": config.display.rotation,
-                    "web_rotation_offset": config.display.web_rotation_offset,
-                    "disable_pi_leds": config.sleep.disable_pi_leds,
-                }
             }
 
             await websocket.send_json(data)
@@ -479,22 +474,19 @@ async def get_aranet4_data() -> Dict[str, Any]:
     return cache.get("co2", {})
 
 
-@router.post("/api/aranet4/config/{sensor_name}", response_class=HTMLResponse)
-async def update_aranet4_sensor(request: Request, sensor_name: str):
-    """Update Aranet4 sensor configuration (HTMX endpoint)"""
+@router.post("/api/aranet4/config")
+async def update_aranet4_config(request: Request) -> Dict[str, Any]:
+    """Update all Aranet4 sensor configurations"""
     global _config
 
-    if sensor_name not in ["office", "bedroom"]:
-        return HTMLResponse(content="Invalid sensor name", status_code=400)
-
-    form = await request.form()
-    mac_address = form.get("mac_address", "")
-    enabled = form.get("enabled", "off") == "on"
-
     if _config_path is None or not _config_path.exists():
-        return HTMLResponse(content="No config file found", status_code=500)
+        return {"status": "error", "message": "No config file found"}
 
     try:
+        # Parse JSON body with list of sensors
+        body = await request.json()
+        sensors = body.get("sensors", [])
+
         # Load current config file
         with open(_config_path) as f:
             config_data = yaml.safe_load(f) or {}
@@ -502,12 +494,9 @@ async def update_aranet4_sensor(request: Request, sensor_name: str):
         # Ensure aranet4 section exists
         if "aranet4" not in config_data:
             config_data["aranet4"] = {}
-        if sensor_name not in config_data["aranet4"]:
-            config_data["aranet4"][sensor_name] = {}
 
-        # Update sensor config
-        config_data["aranet4"][sensor_name]["mac_address"] = mac_address
-        config_data["aranet4"][sensor_name]["enabled"] = enabled
+        # Update sensors list
+        config_data["aranet4"]["sensors"] = sensors
 
         # Write back to file
         with open(_config_path, "w") as f:
@@ -516,27 +505,24 @@ async def update_aranet4_sensor(request: Request, sensor_name: str):
         # Reload config
         _config = reload_config()
 
-        # Update hardware sensor
+        # Update hardware sensors
         timeout = _config.aranet4.timeout
         cache_duration = _config.aranet4.cache_duration
-        hardware.update_aranet4_sensor(
-            sensor_name=sensor_name,
-            mac_address=mac_address,
-            enabled=enabled,
+        hardware.update_aranet4_sensors(
+            sensors=sensors,
             timeout=timeout,
             cache_duration=cache_duration,
         )
 
-        # Return updated controls
-        templates = request.app.state.templates
-        return templates.TemplateResponse("partials/aranet4_controls.html", {
-            "request": request,
-            "config": _config,
-            "aranet4_status": hardware.get_aranet4_status(),
-        })
+        # Return success with updated config
+        return {
+            "status": "success",
+            "message": f"Updated {len(sensors)} sensor(s)",
+            "sensors": sensors,
+        }
 
     except Exception as e:
-        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+        return {"status": "error", "message": str(e)}
 
 
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
