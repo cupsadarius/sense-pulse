@@ -263,7 +263,7 @@ async def get_config() -> Dict[str, Any]:
 
 
 @router.post("/api/config")
-async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
+async def update_config_endpoint(request: Request) -> Dict[str, Any]:
     """Update configuration and persist to config.yaml"""
     global _config
 
@@ -271,36 +271,53 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
         return {"status": "error", "message": "No config file found"}
 
     try:
+        # Parse JSON body
+        body = await request.json()
+
         # Load current config file
         with open(_config_path) as f:
             config_data = yaml.safe_load(f) or {}
 
-        # Apply updates
-        if updates.display:
+        # Apply updates from JSON body
+        if "display" in body:
             if "display" not in config_data:
                 config_data["display"] = {}
-            if updates.display.rotation is not None:
-                config_data["display"]["rotation"] = updates.display.rotation
-            if updates.display.show_icons is not None:
-                config_data["display"]["show_icons"] = updates.display.show_icons
-            if updates.display.scroll_speed is not None:
-                config_data["display"]["scroll_speed"] = updates.display.scroll_speed
-            if updates.display.icon_duration is not None:
-                config_data["display"]["icon_duration"] = updates.display.icon_duration
-            if updates.display.web_rotation_offset is not None:
-                config_data["display"]["web_rotation_offset"] = updates.display.web_rotation_offset
-                # Also update hardware immediately
-                hardware.set_web_rotation_offset(updates.display.web_rotation_offset)
+            display_updates = body["display"]
 
-        if updates.sleep:
+            if "rotation" in display_updates:
+                rotation = int(display_updates["rotation"])
+                if rotation in [0, 90, 180, 270]:
+                    config_data["display"]["rotation"] = rotation
+                    hardware.set_rotation(rotation)
+
+            if "show_icons" in display_updates:
+                config_data["display"]["show_icons"] = bool(display_updates["show_icons"])
+
+            if "scroll_speed" in display_updates:
+                config_data["display"]["scroll_speed"] = display_updates["scroll_speed"]
+
+            if "icon_duration" in display_updates:
+                config_data["display"]["icon_duration"] = display_updates["icon_duration"]
+
+            if "web_rotation_offset" in display_updates:
+                offset = int(display_updates["web_rotation_offset"])
+                if offset in [0, 90, 180, 270]:
+                    config_data["display"]["web_rotation_offset"] = offset
+                    hardware.set_web_rotation_offset(offset)
+
+        if "sleep" in body:
             if "sleep" not in config_data:
                 config_data["sleep"] = {}
-            if updates.sleep.start_hour is not None:
-                config_data["sleep"]["start_hour"] = updates.sleep.start_hour
-            if updates.sleep.end_hour is not None:
-                config_data["sleep"]["end_hour"] = updates.sleep.end_hour
-            if updates.sleep.disable_pi_leds is not None:
-                config_data["sleep"]["disable_pi_leds"] = updates.sleep.disable_pi_leds
+            sleep_updates = body["sleep"]
+
+            if "start_hour" in sleep_updates:
+                config_data["sleep"]["start_hour"] = sleep_updates["start_hour"]
+
+            if "end_hour" in sleep_updates:
+                config_data["sleep"]["end_hour"] = sleep_updates["end_hour"]
+
+            if "disable_pi_leds" in sleep_updates:
+                config_data["sleep"]["disable_pi_leds"] = bool(sleep_updates["disable_pi_leds"])
 
         # Write back to file
         with open(_config_path, "w") as f:
@@ -309,119 +326,19 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
         # Reload config
         _config = reload_config()
 
-        return {"status": "ok", "message": "Configuration updated"}
+        # Return success with full config state
+        return {
+            "status": "success",
+            "config": {
+                "rotation": _config.display.rotation,
+                "show_icons": _config.display.show_icons,
+                "web_rotation_offset": _config.display.web_rotation_offset,
+                "disable_pi_leds": _config.sleep.disable_pi_leds,
+            }
+        }
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-
-@router.post("/api/config/display/rotation")
-async def set_rotation(request: Request) -> Dict[str, Any]:
-    """Set display rotation"""
-    form = await request.form()
-    rotation = int(form.get("rotation", 0))
-
-    # Validate rotation value
-    if rotation not in [0, 90, 180, 270]:
-        rotation = 0
-
-    # Update config
-    result = await update_config(ConfigUpdate(
-        display=DisplayConfigUpdate(rotation=rotation)
-    ))
-
-    # Also update hardware if available
-    hardware.set_rotation(rotation)
-
-    # Return JSON with updated config
-    _, _, _, config = get_services()
-    return {
-        **result,
-        "config": {
-            "rotation": config.display.rotation,
-            "show_icons": config.display.show_icons,
-            "web_rotation_offset": config.display.web_rotation_offset,
-            "disable_pi_leds": config.sleep.disable_pi_leds,
-        }
-    }
-
-
-@router.post("/api/config/display/icons")
-async def toggle_icons(request: Request) -> Dict[str, Any]:
-    """Toggle show_icons setting"""
-    _, _, _, config = get_services()
-
-    # Toggle current value
-    new_value = not config.display.show_icons
-
-    result = await update_config(ConfigUpdate(
-        display=DisplayConfigUpdate(show_icons=new_value)
-    ))
-
-    # Re-fetch config after update
-    _, _, _, config = get_services()
-    return {
-        **result,
-        "config": {
-            "rotation": config.display.rotation,
-            "show_icons": config.display.show_icons,
-            "web_rotation_offset": config.display.web_rotation_offset,
-            "disable_pi_leds": config.sleep.disable_pi_leds,
-        }
-    }
-
-
-@router.post("/api/config/sleep/pi-leds")
-async def toggle_pi_leds(request: Request) -> Dict[str, Any]:
-    """Toggle disable_pi_leds setting"""
-    _, _, _, config = get_services()
-
-    # Toggle current value
-    new_value = not config.sleep.disable_pi_leds
-
-    result = await update_config(ConfigUpdate(
-        sleep=SleepConfigUpdate(disable_pi_leds=new_value)
-    ))
-
-    # Re-fetch config after update
-    _, _, _, config = get_services()
-    return {
-        **result,
-        "config": {
-            "rotation": config.display.rotation,
-            "show_icons": config.display.show_icons,
-            "web_rotation_offset": config.display.web_rotation_offset,
-            "disable_pi_leds": config.sleep.disable_pi_leds,
-        }
-    }
-
-
-@router.post("/api/config/display/web-offset")
-async def set_web_offset(request: Request) -> Dict[str, Any]:
-    """Set web preview rotation offset"""
-    form = await request.form()
-    offset = int(form.get("web_offset", 90))
-
-    # Validate offset value
-    if offset not in [0, 90, 180, 270]:
-        offset = 90
-
-    # Update config
-    result = await update_config(ConfigUpdate(
-        display=DisplayConfigUpdate(web_rotation_offset=offset)
-    ))
-
-    # Return JSON with updated config
-    _, _, _, config = get_services()
-    return {
-        **result,
-        "config": {
-            "rotation": config.display.rotation,
-            "show_icons": config.display.show_icons,
-            "web_rotation_offset": config.display.web_rotation_offset,
-            "disable_pi_leds": config.sleep.disable_pi_leds,
-        }
-    }
 
 
 # ============================================================================

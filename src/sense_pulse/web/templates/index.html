@@ -349,92 +349,89 @@
             }
         }
 
+        // Unified config update function
+        async function updateConfig(updates) {
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error('Failed to update config:', error);
+                return { status: 'error', message: error.message };
+            }
+        }
+
         // Form handlers for configuration changes
         window.toggleIcons = async function() {
-            try {
-                const response = await fetch('/api/config/display/icons', { method: 'POST' });
-                const result = await response.json();
+            // Get current state from DOM
+            const toggle = document.getElementById('toggle-icons');
+            const isEnabled = toggle.classList.contains('bg-green-500');
 
-                if (result.status === 'success' && result.config) {
-                    const showIcons = result.config.show_icons;
-                    const toggle = document.getElementById('toggle-icons');
-                    const slider = document.getElementById('toggle-icons-slider');
+            const result = await updateConfig({
+                display: { show_icons: !isEnabled }
+            });
 
-                    if (showIcons) {
-                        toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-green-500';
-                        slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6';
-                    } else {
-                        toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-600';
-                        slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-1';
-                    }
+            if (result.status === 'success' && result.config) {
+                const showIcons = result.config.show_icons;
+                const slider = document.getElementById('toggle-icons-slider');
+
+                if (showIcons) {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-green-500';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6';
+                } else {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-600';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-1';
                 }
-            } catch (error) {
-                console.error('Failed to toggle icons:', error);
             }
         };
 
         window.togglePiLeds = async function() {
-            try {
-                const response = await fetch('/api/config/sleep/pi-leds', { method: 'POST' });
-                const result = await response.json();
+            // Get current state from DOM
+            const toggle = document.getElementById('toggle-pi-leds');
+            const isEnabled = toggle.classList.contains('bg-green-500');
 
-                if (result.status === 'success' && result.config) {
-                    const disablePiLeds = result.config.disable_pi_leds;
-                    const toggle = document.getElementById('toggle-pi-leds');
-                    const slider = document.getElementById('toggle-pi-leds-slider');
+            const result = await updateConfig({
+                sleep: { disable_pi_leds: !isEnabled }
+            });
 
-                    if (disablePiLeds) {
-                        toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-green-500';
-                        slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6';
-                    } else {
-                        toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-600';
-                        slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-1';
-                    }
+            if (result.status === 'success' && result.config) {
+                const disablePiLeds = result.config.disable_pi_leds;
+                const slider = document.getElementById('toggle-pi-leds-slider');
+
+                if (disablePiLeds) {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-green-500';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6';
+                } else {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-600';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-1';
                 }
-            } catch (error) {
-                console.error('Failed to toggle Pi LEDs:', error);
             }
         };
 
         window.changeRotation = async function(rotation) {
-            try {
-                const formData = new FormData();
-                formData.append('rotation', rotation);
+            const result = await updateConfig({
+                display: { rotation: parseInt(rotation) }
+            });
 
-                const response = await fetch('/api/config/display/rotation', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-
-                if (result.status === 'success' && result.config) {
-                    const rotationDisplay = document.getElementById('rotation-display');
-                    if (rotationDisplay) {
-                        rotationDisplay.textContent = `Physical display: ${result.config.rotation}°`;
-                    }
+            if (result.status === 'success' && result.config) {
+                const rotationDisplay = document.getElementById('rotation-display');
+                if (rotationDisplay) {
+                    rotationDisplay.textContent = `Physical display: ${result.config.rotation}°`;
                 }
-            } catch (error) {
-                console.error('Failed to change rotation:', error);
             }
         };
 
         window.changeWebOffset = async function(webOffset) {
-            try {
-                const formData = new FormData();
-                formData.append('web_offset', webOffset);
+            const result = await updateConfig({
+                display: { web_rotation_offset: parseInt(webOffset) }
+            });
 
-                const response = await fetch('/api/config/display/web-offset', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-
-                if (result.status === 'success' && result.config) {
-                    // Web offset change is applied immediately via the matrix rotation logic
-                    console.log('Web offset updated to:', result.config.web_rotation_offset);
-                }
-            } catch (error) {
-                console.error('Failed to change web offset:', error);
+            if (result.status === 'success' && result.config) {
+                console.log('Web offset updated to:', result.config.web_rotation_offset);
             }
         };
 
