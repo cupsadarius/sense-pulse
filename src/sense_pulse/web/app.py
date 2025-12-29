@@ -8,26 +8,64 @@ from fastapi.templating import Jinja2Templates
 
 from sense_pulse import hardware
 from sense_pulse.cache import get_cache
-from sense_pulse.web.routes import get_services, router
+from sense_pulse.config import load_config
+from sense_pulse.datasources import (
+    Aranet4DataSource,
+    PiHoleDataSource,
+    SenseHatDataSource,
+    SystemStatsDataSource,
+    TailscaleDataSource,
+)
+from sense_pulse.web.routes import router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown"""
-    # Startup: Initialize cache and register data sources
-    pihole, tailscale, system, _ = get_services()
+    # Load configuration
+    config = load_config()
+
+    # Initialize hardware settings
+    hardware.set_web_rotation_offset(config.display.web_rotation_offset)
+
+    # Create data source instances
+    data_sources = [
+        PiHoleDataSource(config.pihole),
+        TailscaleDataSource(config.tailscale),
+        SystemStatsDataSource(),
+        SenseHatDataSource(),
+        Aranet4DataSource(config.aranet4),
+    ]
+
+    # Initialize all data sources
+    for source in data_sources:
+        try:
+            await source.initialize()
+        except Exception as e:
+            # Log error but continue with other sources
+            import logging
+
+            logging.error(f"Error initializing data source: {e}")
+
+    # Register data sources with cache
     cache = await get_cache()
-    cache.register_source("tailscale", tailscale.get_status_summary)
-    cache.register_source("pihole", pihole.get_summary)
-    cache.register_source("system", system.get_stats)
-    cache.register_source("sensors", hardware.get_sensor_data)
-    cache.register_source("co2", hardware.get_aranet4_data)
+    for source in data_sources:
+        cache.register_data_source(source)
+
+    # Start cache polling
     await cache.start_polling()
 
     yield  # Application runs here
 
-    # Shutdown: Stop cache polling
+    # Shutdown: Stop data sources and cache polling
     await cache.stop_polling()
+    for source in data_sources:
+        try:
+            await source.shutdown()
+        except Exception as e:
+            import logging
+
+            logging.error(f"Error shutting down data source: {e}")
 
 
 def create_app() -> FastAPI:
