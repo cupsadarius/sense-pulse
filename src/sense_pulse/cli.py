@@ -35,6 +35,7 @@ def setup_logging(level: str, log_file: Optional[str]) -> None:
 def run_web_server(host: str, port: int, log_level: str) -> None:
     """Run the web server in a background thread"""
     import uvicorn
+
     from sense_pulse.web.app import create_app
 
     app = create_app()
@@ -110,8 +111,8 @@ def main() -> int:
     args = parser.parse_args()
 
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
-    from sense_pulse.config import load_config
     from sense_pulse.cache import initialize_cache
+    from sense_pulse.config import load_config
 
     # Load configuration
     config = load_config(args.config)
@@ -134,6 +135,7 @@ def main() -> int:
         # Web server only mode
         if args.web_only:
             import uvicorn
+
             from sense_pulse.web.app import create_app
 
             logger.info(f"Starting web server on {args.web_host}:{args.web_port}")

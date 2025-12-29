@@ -11,7 +11,6 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -134,9 +133,7 @@ class DataCache:
         """
         with self._lock:
             total = len(self._cache)
-            expired = sum(
-                1 for c in self._cache.values() if c.is_expired(self.cache_ttl)
-            )
+            expired = sum(1 for c in self._cache.values() if c.is_expired(self.cache_ttl))
             ages = {k: c.age for k, c in self._cache.items()}
 
             return {
@@ -187,9 +184,7 @@ class DataCache:
             wait_time = max(0, self.poll_interval - elapsed)
 
             if wait_time > 0:
-                logger.debug(
-                    f"Polling cycle completed in {elapsed:.2f}s, waiting {wait_time:.2f}s"
-                )
+                logger.debug(f"Polling cycle completed in {elapsed:.2f}s, waiting {wait_time:.2f}s")
                 self._stop_event.wait(wait_time)
 
         logger.info("Background polling loop stopped")

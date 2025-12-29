@@ -3,8 +3,6 @@
 import time
 from unittest.mock import Mock
 
-import pytest
-
 from sense_pulse.cache import CachedData, DataCache, get_cache, initialize_cache
 
 

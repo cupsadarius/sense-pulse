@@ -65,6 +65,7 @@ class WebConfig:
 @dataclass
 class AuthConfig:
     """Authentication configuration for web dashboard"""
+
     enabled: bool = False
     username: str = "admin"
     password_hash: str = ""  # Bcrypt hash of password
@@ -73,6 +74,7 @@ class AuthConfig:
 @dataclass
 class Aranet4SensorConfig:
     """Configuration for a single Aranet4 sensor"""
+
     label: str = ""
     mac_address: str = ""
     enabled: bool = False
@@ -81,6 +83,7 @@ class Aranet4SensorConfig:
 @dataclass
 class Aranet4Config:
     """Configuration for Aranet4 CO2 sensors"""
+
     sensors: list = field(default_factory=list)  # List of Aranet4SensorConfig
     timeout: int = 10  # Connection timeout in seconds
     cache_duration: int = 60  # Cache readings for this many seconds
@@ -109,10 +112,7 @@ def find_config_file() -> Optional[Path]:
 
 def load_config(config_path: Optional[str] = None) -> Config:
     """Load configuration from YAML file"""
-    if config_path:
-        path = Path(config_path)
-    else:
-        path = find_config_file()
+    path = Path(config_path) if config_path else find_config_file()
 
     if path is None or not path.exists():
         logger.warning("No config file found, using defaults")
@@ -135,18 +135,22 @@ def load_config(config_path: Optional[str] = None) -> Config:
     else:
         if "office" in aranet4_data and aranet4_data["office"].get("mac_address"):
             office = aranet4_data["office"]
-            sensors.append(Aranet4SensorConfig(
-                label=office.get("label", "Office"),
-                mac_address=office.get("mac_address", ""),
-                enabled=office.get("enabled", False),
-            ))
+            sensors.append(
+                Aranet4SensorConfig(
+                    label=office.get("label", "Office"),
+                    mac_address=office.get("mac_address", ""),
+                    enabled=office.get("enabled", False),
+                )
+            )
         if "bedroom" in aranet4_data and aranet4_data["bedroom"].get("mac_address"):
             bedroom = aranet4_data["bedroom"]
-            sensors.append(Aranet4SensorConfig(
-                label=bedroom.get("label", "Bedroom"),
-                mac_address=bedroom.get("mac_address", ""),
-                enabled=bedroom.get("enabled", False),
-            ))
+            sensors.append(
+                Aranet4SensorConfig(
+                    label=bedroom.get("label", "Bedroom"),
+                    mac_address=bedroom.get("mac_address", ""),
+                    enabled=bedroom.get("enabled", False),
+                )
+            )
 
     aranet4_config = Aranet4Config(
         sensors=sensors,

@@ -3,21 +3,14 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 import yaml
 
 from sense_pulse.config import (
-    Aranet4Config,
     Aranet4SensorConfig,
     AuthConfig,
     Config,
     DisplayConfig,
-    LoggingConfig,
     PiholeConfig,
-    SleepConfig,
-    TailscaleConfig,
-    UpdateConfig,
-    WebConfig,
     find_config_file,
     load_config,
 )
@@ -49,9 +42,7 @@ class TestConfigDataclasses:
 
     def test_aranet4_sensor_config(self):
         """Test Aranet4SensorConfig"""
-        sensor = Aranet4SensorConfig(
-            label="Office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True
-        )
+        sensor = Aranet4SensorConfig(label="Office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True)
         assert sensor.label == "Office"
         assert sensor.mac_address == "AA:BB:CC:DD:EE:FF"
         assert sensor.enabled is True

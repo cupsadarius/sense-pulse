@@ -1,8 +1,9 @@
 """FastAPI application for Sense Pulse web interface"""
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
 
 from sense_pulse.web.routes import router
 

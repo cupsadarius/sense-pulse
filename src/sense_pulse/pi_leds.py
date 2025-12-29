@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ LED_PATHS = {
 }
 
 # Store original trigger values to restore later
-_original_triggers: Dict[str, str] = {}
+_original_triggers: dict[str, str] = {}
 
 
 def _find_led_path(led_name: str) -> Optional[Path]:
@@ -71,7 +71,7 @@ def is_pi_led_available() -> bool:
     return pwr_path is not None or act_path is not None
 
 
-def disable_led(led_name: str) -> Dict[str, str]:
+def disable_led(led_name: str) -> dict[str, str]:
     """
     Disable a Pi onboard LED by setting brightness to 0.
 
@@ -106,7 +106,7 @@ def disable_led(led_name: str) -> Dict[str, str]:
         return {"status": "error", "message": f"Cannot set brightness for {led_name}"}
 
 
-def enable_led(led_name: str) -> Dict[str, str]:
+def enable_led(led_name: str) -> dict[str, str]:
     """
     Re-enable a Pi onboard LED by restoring its original trigger.
 
@@ -142,7 +142,7 @@ def enable_led(led_name: str) -> Dict[str, str]:
     return {"status": "error", "message": f"Cannot restore trigger for {led_name}"}
 
 
-def disable_all_leds() -> Dict[str, Dict[str, str]]:
+def disable_all_leds() -> dict[str, dict[str, str]]:
     """Disable both PWR and ACT LEDs"""
     return {
         "pwr": disable_led("pwr"),
@@ -150,7 +150,7 @@ def disable_all_leds() -> Dict[str, Dict[str, str]]:
     }
 
 
-def enable_all_leds() -> Dict[str, Dict[str, str]]:
+def enable_all_leds() -> dict[str, dict[str, str]]:
     """Re-enable both PWR and ACT LEDs"""
     return {
         "pwr": enable_led("pwr"),
@@ -158,7 +158,7 @@ def enable_all_leds() -> Dict[str, Dict[str, str]]:
     }
 
 
-def get_led_status() -> Dict[str, Dict[str, any]]:
+def get_led_status() -> dict[str, dict[str, any]]:
     """Get current status of Pi onboard LEDs"""
     status = {}
     for led_name in ["pwr", "act"]:
