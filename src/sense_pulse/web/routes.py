@@ -105,10 +105,19 @@ async def index(request: Request):
     """Render main dashboard"""
     templates = request.app.state.templates
     _, _, _, config = get_services()
+    cache = get_cache()
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "sense_hat_available": hardware.is_sense_hat_available(),
+        "aranet4_available": hardware.is_aranet4_available(),
         "config": config,
+        "tailscale": cache.get("tailscale", {}),
+        "pihole": cache.get("pihole", {}),
+        "system": cache.get("system", {}),
+        "sensors": cache.get("sensors", {}),
+        "co2": cache.get("co2", {}),
+        "aranet4_status": hardware.get_aranet4_status(),
     })
 
 
@@ -188,12 +197,48 @@ async def health_check():
 
 
 # ============================================================================
-# LED Matrix WebSocket
+# WebSocket Endpoints
 # ============================================================================
+
+@router.websocket("/ws/dashboard")
+async def dashboard_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time dashboard updates (sensor data + matrix)"""
+    await websocket.accept()
+    get_services()  # Ensure services are initialized
+    cache = get_cache()
+    _, _, _, config = get_services()
+
+    try:
+        while True:
+            # Gather all dashboard data
+            data = {
+                "tailscale": cache.get("tailscale", {}),
+                "pihole": cache.get("pihole", {}),
+                "system": cache.get("system", {}),
+                "sensors": cache.get("sensors", {}),
+                "co2": cache.get("co2", {}),
+                "matrix": hardware.get_matrix_state(),
+                "hardware": {
+                    "sense_hat_available": hardware.is_sense_hat_available(),
+                    "aranet4_available": hardware.is_aranet4_available(),
+                },
+                "config": {
+                    "show_icons": config.display.show_icons,
+                    "rotation": config.display.rotation,
+                }
+            }
+
+            await websocket.send_json(data)
+            await asyncio.sleep(0.5)  # Update every 500ms for smooth matrix + real-time data
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+
 
 @router.websocket("/ws/matrix")
 async def matrix_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time LED matrix state updates"""
+    """WebSocket endpoint for real-time LED matrix state updates (legacy - use /ws/dashboard)"""
     await websocket.accept()
     try:
         while True:
