@@ -417,7 +417,7 @@ async def get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
     return {
         "status": hardware.get_aranet4_status(),
-        "data": hardware.get_aranet4_data(),
+        "data": await hardware.get_aranet4_data(),
         "available": hardware.is_aranet4_available(),
     }
 
