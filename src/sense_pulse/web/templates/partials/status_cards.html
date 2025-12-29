@@ -150,6 +150,10 @@
                 </div>
             </div>
             <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-400">Load Avg</span>
+                <span id="sys-load" class="text-lg font-semibold text-green-400">{{ system.load_1min|default(0) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
                 <span class="text-sm text-gray-400">CPU Temp</span>
                 <span id="sys-temp" class="text-lg font-semibold text-purple-400">{{ system.cpu_temp|default(0) }}°C</span>
             </div>
