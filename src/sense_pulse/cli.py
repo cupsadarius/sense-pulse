@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import sys
 from typing import Optional
@@ -178,10 +179,8 @@ async def async_main() -> int:
         # Cancel web server if it's running
         if web_server_task:
             web_server_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await web_server_task
-            except asyncio.CancelledError:
-                pass
 
         return 0
 
