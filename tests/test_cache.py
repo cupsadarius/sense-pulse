@@ -2,8 +2,11 @@
 
 import asyncio
 import time
+from datetime import datetime
 
 from sense_pulse.cache import CachedData, DataCache, get_cache, initialize_cache
+from tests.mock_datasource import MockDataSource
+from sense_pulse.datasources.base import SensorReading
 
 
 class TestCachedData:
@@ -58,35 +61,34 @@ class TestDataCache:
         assert "key2" in all_data
         assert all_data["key1"] == "value1"
 
-    def test_register_source(self):
+    async def test_register_source(self):
         """Test registering a data source"""
         cache = DataCache()
+        source = MockDataSource(source_id="test_source", name="Test Source")
+        await source.initialize()
 
-        def mock_func():
-            return {"test": "data"}
-
-        cache.register_source("test_source", mock_func)
+        cache.register_data_source(source)
         assert "test_source" in cache._data_sources
 
     async def test_poll_data_source(self):
         """Test polling a single data source"""
         cache = DataCache()
+        readings = [SensorReading("test", "data", None, datetime.now())]
+        source = MockDataSource(source_id="test_key", readings=readings)
+        await source.initialize()
 
-        async def mock_func():
-            return {"test": "data"}
-
-        await cache._poll_data_source("test_key", mock_func)
-        assert await cache.get("test_key") == {"test": "data"}
+        await cache._poll_data_source(source)
+        result = await cache.get("test_key")
+        assert result == {"test": "data"}
 
     async def test_poll_data_source_error(self):
         """Test polling handles errors gracefully"""
         cache = DataCache()
-
-        async def mock_func():
-            raise Exception("Test error")
+        source = MockDataSource(source_id="test_key", fail_on_fetch=True)
+        await source.initialize()
 
         # Should not raise, but log error
-        await cache._poll_data_source("test_key", mock_func)
+        await cache._poll_data_source(source)
 
         # Data should not be cached
         assert await cache.get("test_key") is None
@@ -141,18 +143,15 @@ class TestCachePolling:
     async def test_start_and_stop_polling(self):
         """Test starting and stopping background polling"""
         cache = DataCache(poll_interval=0.5)
-        call_count = {"value": 0}
+        source = MockDataSource(source_id="test_source", name="Test Source")
+        await source.initialize()
 
-        async def mock_func():
-            call_count["value"] += 1
-            return {"test": "data"}
-
-        cache.register_source("test_source", mock_func)
+        cache.register_data_source(source)
         await cache.start_polling()
 
         # Should do immediate poll
         await asyncio.sleep(0.1)
-        assert call_count["value"] > 0
+        assert source.get_fetch_count() > 0
 
         await cache.stop_polling()
 
@@ -163,13 +162,10 @@ class TestCachePolling:
     async def test_polling_updates_cache(self):
         """Test that polling updates cache periodically"""
         cache = DataCache(cache_ttl=10, poll_interval=0.2)
-        counter = {"value": 0}
+        source = MockDataSource(source_id="counter", name="Counter Source")
+        await source.initialize()
 
-        async def mock_func():
-            counter["value"] += 1
-            return {"count": counter["value"]}
-
-        cache.register_source("counter", mock_func)
+        cache.register_data_source(source)
         await cache.start_polling()
 
         # Wait for multiple polls
@@ -180,16 +176,15 @@ class TestCachePolling:
         # Should have polled multiple times
         data = await cache.get("counter")
         assert data is not None
-        assert data["count"] >= 2  # At least immediate poll + 1 interval
+        assert source.get_fetch_count() >= 2  # At least immediate poll + 1 interval
 
     async def test_start_polling_when_already_running(self):
         """Test that starting polling twice doesn't create duplicate tasks"""
         cache = DataCache(poll_interval=1.0)
+        source = MockDataSource(source_id="test", name="Test Source")
+        await source.initialize()
 
-        async def mock_func():
-            return {}
-
-        cache.register_source("test", mock_func)
+        cache.register_data_source(source)
         await cache.start_polling()
         await cache.start_polling()  # Should be no-op
 
