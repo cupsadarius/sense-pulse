@@ -8,6 +8,7 @@ This module provides a centralized caching layer that:
 """
 
 import asyncio
+import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
@@ -182,10 +183,8 @@ class DataCache:
 
             if wait_time > 0:
                 logger.debug(f"Polling cycle completed in {elapsed:.2f}s, waiting {wait_time:.2f}s")
-                try:
+                with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(self._stop_event.wait(), timeout=wait_time)
-                except asyncio.TimeoutError:
-                    pass  # Normal timeout, continue polling
 
         logger.info("Background polling loop stopped")
 
@@ -219,10 +218,8 @@ class DataCache:
         except asyncio.TimeoutError:
             logger.warning("Polling task did not stop gracefully, cancelling")
             self._polling_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._polling_task
-            except asyncio.CancelledError:
-                pass
 
     async def clear(self) -> None:
         """Clear all cached data."""

@@ -1,6 +1,7 @@
 """Aranet4 CO2 sensor communication via aranet4 package scan"""
 
 import asyncio
+import contextlib
 import logging
 import threading
 import time
@@ -172,10 +173,8 @@ async def _polling_loop():
             logger.error(f"Aranet4 polling error: {e}")
 
         # Wait for next poll interval
-        try:
+        with contextlib.suppress(asyncio.TimeoutError):
             await asyncio.wait_for(_polling_stop_event.wait(), timeout=_poll_interval)
-        except asyncio.TimeoutError:
-            pass  # Normal timeout, continue polling
 
     logger.info("Aranet4 background polling stopped")
 
@@ -210,10 +209,8 @@ async def stop_polling() -> None:
             await asyncio.wait_for(_polling_task, timeout=5)
         except asyncio.TimeoutError:
             _polling_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await _polling_task
-            except asyncio.CancelledError:
-                pass
     _polling_task = None
 
 
