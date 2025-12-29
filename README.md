@@ -5,7 +5,7 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 ## Features
 
 - **Data Caching**: 60-second cache with 30-second background polling for instant API responses
-- **Web Dashboard**: Real-time status page at port 8080 with live updates
+- **Web Dashboard**: Real-time WebSocket-powered dashboard at port 8080 with 500ms updates
 - **Visual Icons**: 8x8 pixel art icons for each stat (can be toggled off for text-only)
 - **Tailscale Status**: Shows connection status and count of online devices in your Tailnet
 - **Pi-hole Stats**: Queries today, ads blocked, block percentage
@@ -39,11 +39,12 @@ Sense Pulse includes a web-based status dashboard accessible from any browser. T
 
 ### Features
 
-- **Real-time Updates**: Status cards refresh every 5 seconds via HTMX
-- **Live LED Matrix Preview**: Real-time WebSocket feed of the 8x8 LED display (~20 FPS)
+- **Real-time WebSocket Updates**: All sensor data streams via WebSocket at 500ms intervals
+- **Live LED Matrix Preview**: Real-time 8x8 LED display preview with smooth animations
 - **Configuration Controls**: Toggle icons, change rotation from the browser
 - **Graceful Degradation**: Works without Sense HAT hardware (sensor data shows as unavailable)
 - **Dark Theme**: Beautiful dark UI with Tailwind CSS
+- **Zero Polling Overhead**: Single WebSocket connection for all dashboard data
 
 ### Quick Start
 
@@ -74,10 +75,9 @@ Then open `http://<your-pi-ip>:8080` in your browser.
 | `/health` | GET | Health check |
 | `/api/status` | GET | All status data as JSON |
 | `/api/sensors` | GET | Sensor readings |
-| `/api/matrix` | GET | Current LED matrix state |
 | `/api/config` | GET | Current configuration |
 | `/api/config` | POST | Update configuration |
-| `/ws/matrix` | WebSocket | Real-time LED matrix updates |
+| `/ws/dashboard` | WebSocket | Real-time dashboard updates (all sensor data + LED matrix) |
 
 ### Running as a Service
 

@@ -37,20 +37,9 @@
 
     <main class="max-w-7xl mx-auto px-4 py-8">
         <!-- Status Grid -->
-        <div id="status-cards"
-             hx-get="/api/status/cards"
-             hx-trigger="load, every 5s"
-             hx-swap="innerHTML">
-            <!-- Loading skeleton -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {% for i in range(4) %}
-                <div class="bg-sense-card rounded-xl border border-sense-border p-6 animate-pulse">
-                    <div class="h-12 bg-gray-700 rounded w-12 mb-4"></div>
-                    <div class="h-4 bg-gray-700 rounded w-1/2 mb-2"></div>
-                    <div class="h-6 bg-gray-700 rounded w-3/4"></div>
-                </div>
-                {% endfor %}
-            </div>
+        <div id="status-cards">
+            <!-- Initial server-rendered content will be replaced by WebSocket updates -->
+            {% include "partials/status_cards.html" %}
         </div>
 
         <!-- LED Matrix Preview -->
@@ -85,32 +74,16 @@
             <!-- Display Controls -->
             <div class="bg-sense-card rounded-xl border border-sense-border p-6">
                 <h2 class="text-lg font-semibold mb-4">Display Controls</h2>
-                <div id="display-controls"
-                     hx-get="/api/config/display/controls"
-                     hx-trigger="load"
-                     hx-swap="innerHTML">
-                    <!-- Loading state -->
-                    <div class="space-y-4 animate-pulse">
-                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
-                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
-                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
-                    </div>
+                <div id="display-controls">
+                    {% include "partials/display_controls.html" %}
                 </div>
             </div>
 
             <!-- Aranet4 CO2 Sensors -->
             <div class="bg-sense-card rounded-xl border border-sense-border p-6">
                 <h2 class="text-lg font-semibold mb-4">CO2 Sensors</h2>
-                <div id="aranet4-controls"
-                     hx-get="/api/aranet4/controls"
-                     hx-trigger="load"
-                     hx-swap="innerHTML">
-                    <!-- Loading state -->
-                    <div class="space-y-4 animate-pulse">
-                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
-                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
-                        <div class="h-16 bg-gray-800/50 rounded-lg"></div>
-                    </div>
+                <div id="aranet4-controls">
+                    {% include "partials/aranet4_controls.html" %}
                 </div>
             </div>
         </div>
@@ -145,13 +118,11 @@
                 </div>
                 <div class="mt-4 flex gap-2">
                     <button class="flex-1 px-4 py-2 bg-yellow-500/10 text-yellow-400 rounded-lg hover:bg-yellow-500/20 transition-colors text-sm font-medium"
-                            hx-post="/api/service/restart"
-                            hx-swap="none">
+                            onclick="fetch('/api/service/restart', {method: 'POST'})">
                         Restart Display
                     </button>
                     <button class="flex-1 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
-                            hx-post="/api/display/clear"
-                            hx-swap="none">
+                            onclick="fetch('/api/display/clear', {method: 'POST'})">
                         Clear Matrix
                     </button>
                 </div>
@@ -162,7 +133,7 @@
     <!-- Footer -->
     <footer class="border-t border-sense-border mt-12 py-6">
         <div class="max-w-7xl mx-auto px-4 flex items-center justify-between text-sm text-gray-400">
-            <span>Sense Pulse v0.4.0</span>
+            <span>Sense Pulse v0.8.0</span>
             <a href="https://github.com/cupsadarius/sense-pulse" class="hover:text-white transition-colors">
                 GitHub
             </a>
@@ -170,15 +141,7 @@
     </footer>
 
     <script>
-        // Update last updated timestamp on HTMX swap
-        document.body.addEventListener('htmx:afterSwap', function(evt) {
-            if (evt.detail.target.id === 'status-cards') {
-                document.getElementById('last-update').textContent = 'just now';
-            }
-        });
-
-        // WebSocket for LED Matrix real-time updates
-        // Use window to persist across any potential script re-runs
+        // WebSocket state management
         if (!window.sensePulseWS) {
             window.sensePulseWS = {
                 ws: null,
@@ -201,6 +164,11 @@
             }
         }
 
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+        }
+
         function rgbToHex(r, g, b) {
             return '#' + [r, g, b].map(x => {
                 const hex = x.toString(16);
@@ -209,7 +177,6 @@
         }
 
         function rotateIndex(i, rotation, webOffset) {
-            // Rotate pixel index based on display rotation + configurable web offset
             const effectiveRotation = (rotation + webOffset) % 360;
             const row = Math.floor(i / 8);
             const col = i % 8;
@@ -220,31 +187,29 @@
                     return (7 - row) * 8 + (7 - col);
                 case 270:
                     return (7 - col) * 8 + row;
-                default: // 0 or invalid
+                default:
                     return i;
             }
         }
 
-        function updateLEDMatrix(data) {
-            const pixels = data.pixels;
-            const mode = data.mode;
-            const rotation = data.rotation || 0;
-            const webOffset = data.web_offset !== undefined ? data.web_offset : 90;
+        function updateLEDMatrix(matrixData) {
+            const pixels = matrixData.pixels;
+            const mode = matrixData.mode;
+            const rotation = matrixData.rotation || 0;
+            const webOffset = matrixData.web_offset !== undefined ? matrixData.web_offset : 90;
 
-            // Update mode display
             const modeEl = document.getElementById('matrix-mode');
             if (modeEl) {
                 modeEl.textContent = mode || 'idle';
             }
 
-            // Update each LED (apply rotation + web offset from config)
             for (let i = 0; i < 64; i++) {
                 const rotatedIndex = rotateIndex(i, rotation, webOffset);
                 const led = document.getElementById('led-' + rotatedIndex);
                 if (led && pixels && pixels[i]) {
                     const [r, g, b] = pixels[i];
                     if (r === 0 && g === 0 && b === 0) {
-                        led.style.backgroundColor = '#1f2937'; // gray-800
+                        led.style.backgroundColor = '#1f2937';
                         led.style.boxShadow = 'none';
                     } else {
                         const color = rgbToHex(r, g, b);
@@ -255,8 +220,222 @@
             }
         }
 
+        function updateStatusCards(data) {
+            // Update Tailscale card
+            const tailscale = data.tailscale || {};
+            const tsStatus = document.getElementById('ts-status');
+            const tsIndicator = document.getElementById('ts-indicator');
+            const tsDevices = document.getElementById('ts-devices');
+
+            if (tsStatus) {
+                if (tailscale.connected) {
+                    tsStatus.textContent = 'Connected';
+                    tsStatus.className = 'text-lg font-bold text-green-400';
+                    if (tsIndicator) {
+                        tsIndicator.className = 'w-3 h-3 bg-green-500 rounded-full status-glow text-green-500';
+                    }
+                } else {
+                    tsStatus.textContent = 'Disconnected';
+                    tsStatus.className = 'text-lg font-bold text-red-400';
+                    if (tsIndicator) {
+                        tsIndicator.className = 'w-3 h-3 bg-red-500 rounded-full';
+                    }
+                }
+            }
+            if (tsDevices) {
+                tsDevices.textContent = tailscale.device_count || '0';
+            }
+
+            // Update Pi-hole card
+            const pihole = data.pihole || {};
+            const phQueries = document.getElementById('ph-queries');
+            const phBlocked = document.getElementById('ph-blocked');
+            const phRate = document.getElementById('ph-rate');
+
+            if (phQueries) {
+                phQueries.textContent = (pihole.queries_today || 0).toLocaleString();
+            }
+            if (phBlocked) {
+                phBlocked.textContent = (pihole.ads_blocked_today || 0).toLocaleString();
+            }
+            if (phRate) {
+                phRate.textContent = (pihole.ads_percentage_today || 0).toFixed(1) + '%';
+            }
+
+            // Update Sensors card
+            const sensors = data.sensors || {};
+            const sensTemp = document.getElementById('sens-temp');
+            const sensHumidity = document.getElementById('sens-humidity');
+            const sensPressure = document.getElementById('sens-pressure');
+
+            if (sensTemp) {
+                sensTemp.textContent = sensors.temperature ? sensors.temperature.toFixed(1) + '°C' : 'N/A';
+            }
+            if (sensHumidity) {
+                sensHumidity.textContent = sensors.humidity ? sensors.humidity.toFixed(1) + '%' : 'N/A';
+            }
+            if (sensPressure) {
+                sensPressure.textContent = sensors.pressure ? sensors.pressure.toFixed(0) + ' hPa' : 'N/A';
+            }
+
+            // Update System card
+            const system = data.system || {};
+            const sysCpu = document.getElementById('sys-cpu');
+            const sysCpuBar = document.getElementById('sys-cpu-bar');
+            const sysMemory = document.getElementById('sys-memory');
+            const sysMemoryBar = document.getElementById('sys-memory-bar');
+            const sysTemp = document.getElementById('sys-temp');
+
+            if (sysCpu) {
+                const cpuPercent = system.cpu_percent || 0;
+                sysCpu.textContent = cpuPercent.toFixed(1) + '%';
+                if (sysCpuBar) {
+                    sysCpuBar.style.width = cpuPercent + '%';
+                }
+            }
+            if (sysMemory) {
+                const memPercent = system.memory_percent || 0;
+                sysMemory.textContent = memPercent.toFixed(1) + '%';
+                if (sysMemoryBar) {
+                    sysMemoryBar.style.width = memPercent + '%';
+                }
+            }
+            if (sysTemp) {
+                sysTemp.textContent = system.cpu_temp ? system.cpu_temp.toFixed(1) + '°C' : 'N/A';
+            }
+
+            // Update CO2 cards if present
+            const co2 = data.co2 || {};
+            if (co2.office) {
+                const officeStatus = document.getElementById('co2-office-status');
+                const officeCo2 = document.getElementById('co2-office-value');
+                const officeTemp = document.getElementById('co2-office-temp');
+                const officeHumidity = document.getElementById('co2-office-humidity');
+
+                if (officeStatus && officeCo2) {
+                    if (co2.office.error) {
+                        officeStatus.textContent = 'Error';
+                        officeStatus.className = 'text-lg font-bold text-red-400';
+                        officeCo2.textContent = 'N/A';
+                    } else {
+                        officeStatus.textContent = 'Active';
+                        officeStatus.className = 'text-lg font-bold text-green-400';
+                        officeCo2.textContent = co2.office.co2 || 'N/A';
+                        if (officeTemp) officeTemp.textContent = (co2.office.temperature || 0).toFixed(1) + '°C';
+                        if (officeHumidity) officeHumidity.textContent = (co2.office.humidity || 0).toFixed(0) + '%';
+                    }
+                }
+            }
+
+            if (co2.bedroom) {
+                const bedroomStatus = document.getElementById('co2-bedroom-status');
+                const bedroomCo2 = document.getElementById('co2-bedroom-value');
+                const bedroomTemp = document.getElementById('co2-bedroom-temp');
+                const bedroomHumidity = document.getElementById('co2-bedroom-humidity');
+
+                if (bedroomStatus && bedroomCo2) {
+                    if (co2.bedroom.error) {
+                        bedroomStatus.textContent = 'Error';
+                        bedroomStatus.className = 'text-lg font-bold text-red-400';
+                        bedroomCo2.textContent = 'N/A';
+                    } else {
+                        bedroomStatus.textContent = 'Active';
+                        bedroomStatus.className = 'text-lg font-bold text-green-400';
+                        bedroomCo2.textContent = co2.bedroom.co2 || 'N/A';
+                        if (bedroomTemp) bedroomTemp.textContent = (co2.bedroom.temperature || 0).toFixed(1) + '°C';
+                        if (bedroomHumidity) bedroomHumidity.textContent = (co2.bedroom.humidity || 0).toFixed(0) + '%';
+                    }
+                }
+            }
+        }
+
+        // Unified config update function
+        async function updateConfig(updates) {
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error('Failed to update config:', error);
+                return { status: 'error', message: error.message };
+            }
+        }
+
+        // Form handlers for configuration changes
+        window.toggleIcons = async function() {
+            // Get current state from DOM
+            const toggle = document.getElementById('toggle-icons');
+            const isEnabled = toggle.classList.contains('bg-green-500');
+
+            const result = await updateConfig({
+                display: { show_icons: !isEnabled }
+            });
+
+            if (result.status === 'success' && result.config) {
+                const showIcons = result.config.show_icons;
+                const slider = document.getElementById('toggle-icons-slider');
+
+                if (showIcons) {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-green-500';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6';
+                } else {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-600';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-1';
+                }
+            }
+        };
+
+        window.togglePiLeds = async function() {
+            // Get current state from DOM
+            const toggle = document.getElementById('toggle-pi-leds');
+            const isEnabled = toggle.classList.contains('bg-green-500');
+
+            const result = await updateConfig({
+                sleep: { disable_pi_leds: !isEnabled }
+            });
+
+            if (result.status === 'success' && result.config) {
+                const disablePiLeds = result.config.disable_pi_leds;
+                const slider = document.getElementById('toggle-pi-leds-slider');
+
+                if (disablePiLeds) {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-green-500';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-6';
+                } else {
+                    toggle.className = 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-600';
+                    slider.className = 'inline-block h-4 w-4 transform rounded-full bg-white transition translate-x-1';
+                }
+            }
+        };
+
+        window.changeRotation = async function(rotation) {
+            const result = await updateConfig({
+                display: { rotation: parseInt(rotation) }
+            });
+
+            if (result.status === 'success' && result.config) {
+                const rotationDisplay = document.getElementById('rotation-display');
+                if (rotationDisplay) {
+                    rotationDisplay.textContent = `Physical display: ${result.config.rotation}°`;
+                }
+            }
+        };
+
+        window.changeWebOffset = async function(webOffset) {
+            const result = await updateConfig({
+                display: { web_rotation_offset: parseInt(webOffset) }
+            });
+
+            if (result.status === 'success' && result.config) {
+                console.log('Web offset updated to:', result.config.web_rotation_offset);
+            }
+        };
+
         function connectWebSocket() {
-            // Don't create a new connection if one already exists and is open/connecting
             if (window.sensePulseWS.ws &&
                 (window.sensePulseWS.ws.readyState === WebSocket.OPEN ||
                  window.sensePulseWS.ws.readyState === WebSocket.CONNECTING)) {
@@ -264,7 +443,7 @@
             }
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = protocol + '//' + window.location.host + '/ws/matrix';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/dashboard';
 
             window.sensePulseWS.ws = new WebSocket(wsUrl);
 
@@ -280,7 +459,17 @@
             window.sensePulseWS.ws.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
-                    updateLEDMatrix(data);
+
+                    // Update LED matrix
+                    if (data.matrix) {
+                        updateLEDMatrix(data.matrix);
+                    }
+
+                    // Update status cards
+                    updateStatusCards(data);
+
+                    // Update timestamp
+                    updateLastUpdateTime();
                 } catch (e) {
                     console.error('Failed to parse WebSocket message:', e);
                 }
@@ -289,7 +478,6 @@
             window.sensePulseWS.ws.onclose = function() {
                 console.log('WebSocket disconnected');
                 updateWSStatus(false);
-                // Reconnect after 2 seconds
                 window.sensePulseWS.reconnectTimeout = setTimeout(connectWebSocket, 2000);
             };
 
@@ -299,7 +487,6 @@
             };
         }
 
-        // Start WebSocket connection only if not already initialized
         if (!window.sensePulseWS.initialized) {
             window.sensePulseWS.initialized = true;
             connectWebSocket();
