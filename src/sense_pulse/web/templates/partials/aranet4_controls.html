@@ -1,3 +1,97 @@
+<style>
+    /* Toggle Switch Styles */
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #4b5563;
+        transition: 0.3s;
+        border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+        background-color: #10b981;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+
+    .toggle-switch input:focus + .toggle-slider {
+        box-shadow: 0 0 1px #10b981;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 640px) {
+        .sensor-item > div:first-child {
+            flex-wrap: nowrap;
+            gap: 0.5rem;
+        }
+
+        .sensor-item .sensor-label {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .toggle-switch {
+            width: 52px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .toggle-slider:before {
+            height: 22px;
+            width: 22px;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        /* Improve button touch targets on mobile */
+        .sensor-item button {
+            min-width: 40px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Better spacing for mobile */
+        .sensor-item {
+            padding: 0.75rem !important;
+        }
+    }
+</style>
+
 <div class="space-y-4">
     <!-- Scan for Devices Button -->
     <div class="p-3 bg-gray-800/50 rounded-lg">
@@ -36,13 +130,16 @@
                                placeholder="Sensor Label"
                                class="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm sensor-label"
                                data-index="{{ loop.index0 }}">
-                        <label class="flex items-center gap-2 px-3 py-2 bg-gray-600 rounded cursor-pointer">
-                            <input type="checkbox"
-                                   class="w-4 h-4 rounded border-gray-500 text-green-500 focus:ring-green-500 sensor-enabled"
-                                   data-index="{{ loop.index0 }}"
-                                   {% if sensor.enabled %}checked{% endif %}>
-                            <span class="text-sm">Enable</span>
-                        </label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-300">Enable</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox"
+                                       class="sensor-enabled"
+                                       data-index="{{ loop.index0 }}"
+                                       {% if sensor.enabled %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                         <button onclick="window.removeSensor({{ loop.index0 }})"
                                 class="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,13 +262,16 @@
                            placeholder="Sensor Label"
                            class="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm sensor-label"
                            data-index="${index}">
-                    <label class="flex items-center gap-2 px-3 py-2 bg-gray-600 rounded cursor-pointer">
-                        <input type="checkbox"
-                               class="w-4 h-4 rounded border-gray-500 text-green-500 focus:ring-green-500 sensor-enabled"
-                               data-index="${index}"
-                               checked>
-                        <span class="text-sm">Enable</span>
-                    </label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-300">Enable</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox"
+                                   class="sensor-enabled"
+                                   data-index="${index}"
+                                   checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
                     <button onclick="window.removeSensor(${index})"
                             class="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
