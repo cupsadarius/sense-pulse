@@ -5,13 +5,11 @@
             <p class="font-medium">Show Icons</p>
             <p class="text-sm text-gray-400">Display 8x8 pixel art before text</p>
         </div>
-        <button hx-post="/api/config/display/icons"
-                hx-target="#display-controls"
-                hx-swap="innerHTML"
-                hx-trigger="click"
+        <button id="toggle-icons"
+                onclick="window.toggleIcons()"
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors
                        {% if config.display.show_icons %}bg-green-500{% else %}bg-gray-600{% endif %}">
-            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition
+            <span id="toggle-icons-slider" class="inline-block h-4 w-4 transform rounded-full bg-white transition
                          {% if config.display.show_icons %}translate-x-6{% else %}translate-x-1{% endif %}"></span>
         </button>
     </div>
@@ -33,13 +31,11 @@
             <p class="font-medium">Disable Pi LEDs</p>
             <p class="text-sm text-gray-400">Turn off red/green board LEDs during sleep</p>
         </div>
-        <button hx-post="/api/config/sleep/pi-leds"
-                hx-target="#display-controls"
-                hx-swap="innerHTML"
-                hx-trigger="click"
+        <button id="toggle-pi-leds"
+                onclick="window.togglePiLeds()"
                 class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors
                        {% if config.sleep.disable_pi_leds %}bg-green-500{% else %}bg-gray-600{% endif %}">
-            <span class="inline-block h-4 w-4 transform rounded-full bg-white transition
+            <span id="toggle-pi-leds-slider" class="inline-block h-4 w-4 transform rounded-full bg-white transition
                          {% if config.sleep.disable_pi_leds %}translate-x-6{% else %}translate-x-1{% endif %}"></span>
         </button>
     </div>
@@ -48,20 +44,16 @@
     <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
         <div>
             <p class="font-medium">Display Rotation</p>
-            <p class="text-sm text-gray-400">Physical display: {{ config.display.rotation }}°</p>
+            <p id="rotation-display" class="text-sm text-gray-400">Physical display: {{ config.display.rotation }}°</p>
         </div>
-        <form hx-post="/api/config/display/rotation"
-              hx-target="#display-controls"
-              hx-swap="innerHTML"
-              hx-trigger="change">
-            <select name="rotation"
-                    class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm cursor-pointer hover:border-gray-500 transition-colors">
-                <option value="0" {% if config.display.rotation == 0 %}selected{% endif %}>0°</option>
-                <option value="90" {% if config.display.rotation == 90 %}selected{% endif %}>90°</option>
-                <option value="180" {% if config.display.rotation == 180 %}selected{% endif %}>180°</option>
-                <option value="270" {% if config.display.rotation == 270 %}selected{% endif %}>270°</option>
-            </select>
-        </form>
+        <select id="rotation-select"
+                onchange="window.changeRotation(this.value)"
+                class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm cursor-pointer hover:border-gray-500 transition-colors">
+            <option value="0" {% if config.display.rotation == 0 %}selected{% endif %}>0°</option>
+            <option value="90" {% if config.display.rotation == 90 %}selected{% endif %}>90°</option>
+            <option value="180" {% if config.display.rotation == 180 %}selected{% endif %}>180°</option>
+            <option value="270" {% if config.display.rotation == 270 %}selected{% endif %}>270°</option>
+        </select>
     </div>
 
     <!-- Web Preview Offset -->
@@ -70,17 +62,13 @@
             <p class="font-medium">Web Preview Offset</p>
             <p class="text-sm text-gray-400">Adjust to match physical display</p>
         </div>
-        <form hx-post="/api/config/display/web-offset"
-              hx-target="#display-controls"
-              hx-swap="innerHTML"
-              hx-trigger="change">
-            <select name="web_offset"
-                    class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm cursor-pointer hover:border-gray-500 transition-colors">
-                <option value="0" {% if config.display.web_rotation_offset == 0 %}selected{% endif %}>0°</option>
-                <option value="90" {% if config.display.web_rotation_offset == 90 %}selected{% endif %}>90°</option>
-                <option value="180" {% if config.display.web_rotation_offset == 180 %}selected{% endif %}>180°</option>
-                <option value="270" {% if config.display.web_rotation_offset == 270 %}selected{% endif %}>270°</option>
-            </select>
-        </form>
+        <select id="web-offset-select"
+                onchange="window.changeWebOffset(this.value)"
+                class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-sm cursor-pointer hover:border-gray-500 transition-colors">
+            <option value="0" {% if config.display.web_rotation_offset == 0 %}selected{% endif %}>0°</option>
+            <option value="90" {% if config.display.web_rotation_offset == 90 %}selected{% endif %}>90°</option>
+            <option value="180" {% if config.display.web_rotation_offset == 180 %}selected{% endif %}>180°</option>
+            <option value="270" {% if config.display.web_rotation_offset == 270 %}selected{% endif %}>270°</option>
+        </select>
     </div>
 </div>

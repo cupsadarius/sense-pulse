@@ -4,10 +4,10 @@
         <div class="flex items-center justify-between mb-3">
             <div>
                 <p class="font-medium">Aranet4 CO2 Sensors</p>
-                <p class="text-sm text-gray-400">Bluetooth LE CO2 monitors</p>
+                <p class="text-sm text-gray-400">Scan and configure Bluetooth LE sensors</p>
             </div>
             <button id="scan-aranet4-btn"
-                    onclick="scanAranet4Devices()"
+                    onclick="window.scanAranet4Devices()"
                     class="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors text-sm font-medium flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -15,6 +15,7 @@
                 Scan for Devices
             </button>
         </div>
+
         <!-- Scan Results (populated by JavaScript) -->
         <div id="aranet4-scan-results" class="hidden mt-3 p-3 bg-gray-700/50 rounded-lg">
             <p class="text-sm text-gray-400 mb-2">Found devices:</p>
@@ -22,97 +23,78 @@
         </div>
     </div>
 
-    <!-- Office Sensor Config -->
+    <!-- Configured Sensors List -->
     <div class="p-3 bg-gray-800/50 rounded-lg">
-        <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-                <span class="text-green-400">🏢</span>
-                <div>
-                    <p class="font-medium">Office Sensor</p>
-                    <p class="text-xs text-gray-500">
-                        {% if config.aranet4.office.enabled and config.aranet4.office.mac_address %}
-                        {{ config.aranet4.office.mac_address }}
+        <p class="font-medium mb-3">Configured Sensors</p>
+        <div id="sensors-list" class="space-y-3">
+            {% if config.aranet4.sensors %}
+                {% for sensor in config.aranet4.sensors %}
+                <div class="sensor-item p-3 bg-gray-700/50 rounded-lg" data-index="{{ loop.index0 }}">
+                    <div class="flex items-center gap-3 mb-2">
+                        <input type="text"
+                               value="{{ sensor.label }}"
+                               placeholder="Sensor Label"
+                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm sensor-label"
+                               data-index="{{ loop.index0 }}">
+                        <label class="flex items-center gap-2 px-3 py-2 bg-gray-600 rounded cursor-pointer">
+                            <input type="checkbox"
+                                   class="w-4 h-4 rounded border-gray-500 text-green-500 focus:ring-green-500 sensor-enabled"
+                                   data-index="{{ loop.index0 }}"
+                                   {% if sensor.enabled %}checked{% endif %}>
+                            <span class="text-sm">Enable</span>
+                        </label>
+                        <button onclick="window.removeSensor({{ loop.index0 }})"
+                                class="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400">MAC:</span>
+                        <input type="text"
+                               value="{{ sensor.mac_address }}"
+                               placeholder="AA:BB:CC:DD:EE:FF"
+                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs sensor-mac"
+                               data-index="{{ loop.index0 }}">
+                        {% set status = aranet4_status.get(sensor.label, {}) %}
+                        {% if status and status.connected %}
+                        <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
                         {% else %}
-                        Not configured
+                        <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
                         {% endif %}
-                    </p>
+                    </div>
                 </div>
-            </div>
-            {% if aranet4_status.office and aranet4_status.office.connected %}
-            <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
+                {% endfor %}
             {% else %}
-            <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
+                <p class="text-sm text-gray-400 text-center py-4">No sensors configured. Scan to find devices.</p>
             {% endif %}
         </div>
-        <form id="office-sensor-form" class="space-y-2">
-            <div class="flex gap-2">
-                <select name="mac_address" id="office-mac-select"
-                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-gray-500 transition-colors">
-                    <option value="">Select device...</option>
-                    {% if config.aranet4.office.mac_address %}
-                    <option value="{{ config.aranet4.office.mac_address }}" selected>{{ config.aranet4.office.mac_address }}</option>
-                    {% endif %}
-                </select>
-                <label class="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded-lg cursor-pointer">
-                    <input type="checkbox" name="enabled" id="office-enabled" {% if config.aranet4.office.enabled %}checked{% endif %}
-                           class="w-4 h-4 rounded border-gray-600 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800">
-                    <span class="text-sm">Enable</span>
-                </label>
-            </div>
-            <button type="button" id="office-save-btn" onclick="saveSensorConfig('office')"
-                    class="w-full px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
-                Save Office Sensor
-            </button>
-        </form>
+
+        <!-- Add Sensor Button -->
+        <button onclick="window.addSensor()"
+                class="w-full mt-3 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Sensor
+        </button>
     </div>
 
-    <!-- Bedroom Sensor Config -->
-    <div class="p-3 bg-gray-800/50 rounded-lg">
-        <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-                <span class="text-purple-400">🛏️</span>
-                <div>
-                    <p class="font-medium">Bedroom Sensor</p>
-                    <p class="text-xs text-gray-500">
-                        {% if config.aranet4.bedroom.enabled and config.aranet4.bedroom.mac_address %}
-                        {{ config.aranet4.bedroom.mac_address }}
-                        {% else %}
-                        Not configured
-                        {% endif %}
-                    </p>
-                </div>
-            </div>
-            {% if aranet4_status.bedroom and aranet4_status.bedroom.connected %}
-            <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
-            {% else %}
-            <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
-            {% endif %}
-        </div>
-        <form id="bedroom-sensor-form" class="space-y-2">
-            <div class="flex gap-2">
-                <select name="mac_address" id="bedroom-mac-select"
-                        class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-gray-500 transition-colors">
-                    <option value="">Select device...</option>
-                    {% if config.aranet4.bedroom.mac_address %}
-                    <option value="{{ config.aranet4.bedroom.mac_address }}" selected>{{ config.aranet4.bedroom.mac_address }}</option>
-                    {% endif %}
-                </select>
-                <label class="flex items-center gap-2 px-3 py-2 bg-gray-700 rounded-lg cursor-pointer">
-                    <input type="checkbox" name="enabled" id="bedroom-enabled" {% if config.aranet4.bedroom.enabled %}checked{% endif %}
-                           class="w-4 h-4 rounded border-gray-600 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-800">
-                    <span class="text-sm">Enable</span>
-                </label>
-            </div>
-            <button type="button" id="bedroom-save-btn" onclick="saveSensorConfig('bedroom')"
-                    class="w-full px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors text-sm font-medium">
-                Save Bedroom Sensor
-            </button>
-        </form>
-    </div>
+    <!-- Save All Button -->
+    <button id="save-all-btn" onclick="window.saveAllSensors()"
+            class="w-full px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
+        Save All Sensors
+    </button>
 </div>
 
 <script>
-    async function scanAranet4Devices() {
+    // Store sensors in memory
+    if (!window.aranet4Sensors) {
+        window.aranet4Sensors = {{ config.aranet4.sensors | tojson }};
+    }
+
+    window.scanAranet4Devices = async function() {
         const btn = document.getElementById('scan-aranet4-btn');
         const resultsDiv = document.getElementById('aranet4-scan-results');
         const deviceList = document.getElementById('aranet4-device-list');
@@ -140,16 +122,10 @@
                             <p class="text-sm font-medium">${device.name}</p>
                             <p class="text-xs text-gray-400">${device.address}</p>
                         </div>
-                        <div class="flex gap-2">
-                            <button onclick="selectDevice('office', '${device.address}')"
-                                    class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30">
-                                Office
-                            </button>
-                            <button onclick="selectDevice('bedroom', '${device.address}')"
-                                    class="px-2 py-1 bg-purple-500/20 text-purple-400 rounded text-xs hover:bg-purple-500/30">
-                                Bedroom
-                            </button>
-                        </div>
+                        <button onclick="window.selectScannedDevice('${device.address}', '${device.name}')"
+                                class="px-3 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30">
+                            Add
+                        </button>
                     </div>
                 `).join('');
             } else {
@@ -170,70 +146,106 @@
                 Scan for Devices
             `;
         }
-    }
+    };
 
-    function selectDevice(sensor, address) {
-        const selectId = sensor + '-mac-select';
-        const select = document.getElementById(selectId);
+    window.selectScannedDevice = function(mac, name) {
+        // Add sensor with scanned device
+        window.addSensor(mac, name);
+    };
 
-        // Add option if not exists
-        let optionExists = false;
-        for (let option of select.options) {
-            if (option.value === address) {
-                optionExists = true;
-                option.selected = true;
-                break;
+    window.addSensor = function(mac = '', label = '') {
+        const sensorsList = document.getElementById('sensors-list');
+        const index = sensorsList.querySelectorAll('.sensor-item').length;
+
+        const sensorHtml = `
+            <div class="sensor-item p-3 bg-gray-700/50 rounded-lg" data-index="${index}">
+                <div class="flex items-center gap-3 mb-2">
+                    <input type="text"
+                           value="${label}"
+                           placeholder="Sensor Label"
+                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm sensor-label"
+                           data-index="${index}">
+                    <label class="flex items-center gap-2 px-3 py-2 bg-gray-600 rounded cursor-pointer">
+                        <input type="checkbox"
+                               class="w-4 h-4 rounded border-gray-500 text-green-500 focus:ring-green-500 sensor-enabled"
+                               data-index="${index}"
+                               checked>
+                        <span class="text-sm">Enable</span>
+                    </label>
+                    <button onclick="window.removeSensor(${index})"
+                            class="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400">MAC:</span>
+                    <input type="text"
+                           value="${mac}"
+                           placeholder="AA:BB:CC:DD:EE:FF"
+                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs sensor-mac"
+                           data-index="${index}">
+                    <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
+                </div>
+            </div>
+        `;
+
+        sensorsList.insertAdjacentHTML('beforeend', sensorHtml);
+    };
+
+    window.removeSensor = function(index) {
+        const sensor = document.querySelector(`.sensor-item[data-index="${index}"]`);
+        if (sensor) {
+            sensor.remove();
+        }
+    };
+
+    window.saveAllSensors = async function() {
+        const btn = document.getElementById('save-all-btn');
+        const originalText = btn.textContent;
+
+        // Collect all sensors
+        const sensors = [];
+        document.querySelectorAll('.sensor-item').forEach((item, idx) => {
+            const label = item.querySelector('.sensor-label').value.trim();
+            const mac = item.querySelector('.sensor-mac').value.trim();
+            const enabled = item.querySelector('.sensor-enabled').checked;
+
+            if (label && mac) {
+                sensors.push({ label, mac_address: mac, enabled });
             }
-        }
-
-        if (!optionExists) {
-            const newOption = document.createElement('option');
-            newOption.value = address;
-            newOption.text = address;
-            newOption.selected = true;
-            select.add(newOption);
-        }
-    }
-
-    async function saveSensorConfig(sensor) {
-        const btn = document.getElementById(sensor + '-save-btn');
-        const select = document.getElementById(sensor + '-mac-select');
-        const enabledCheckbox = document.getElementById(sensor + '-enabled');
-
-        const macAddress = select.value;
-        const enabled = enabledCheckbox.checked;
+        });
 
         // Show loading state
-        const originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = 'Saving...';
 
         try {
-            const formData = new FormData();
-            formData.append('mac_address', macAddress);
-            if (enabled) {
-                formData.append('enabled', 'on');
-            }
-
-            const response = await fetch('/api/aranet4/config/' + sensor, {
+            const response = await fetch('/api/aranet4/config', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sensors })
             });
 
-            if (response.ok) {
-                // Reload the controls panel to show updated state
-                const controlsDiv = document.getElementById('aranet4-controls');
-                const html = await response.text();
-                controlsDiv.innerHTML = html;
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                btn.className = 'w-full px-4 py-2 bg-green-500 text-white rounded-lg transition-colors text-sm font-medium';
+                btn.textContent = '✓ Saved!';
+                setTimeout(() => {
+                    btn.className = 'w-full px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium';
+                    btn.textContent = originalText;
+                }, 2000);
             } else {
-                const text = await response.text();
-                alert('Failed to save: ' + text);
+                alert('Failed to save: ' + result.message);
+                btn.textContent = originalText;
             }
         } catch (error) {
-            alert('Error saving config: ' + error.message);
+            alert('Error saving sensors: ' + error.message);
+            btn.textContent = originalText;
         } finally {
             btn.disabled = false;
-            btn.textContent = originalText;
         }
-    }
+    };
 </script>
