@@ -261,37 +261,6 @@ async def sensors_websocket(websocket: WebSocket):
         pass
 
 
-@router.websocket("/ws/dashboard")
-async def dashboard_websocket(websocket: WebSocket):
-    """Legacy WebSocket endpoint for backward compatibility (deprecated)"""
-    await websocket.accept()
-    get_services()  # Ensure services are initialized
-    cache = get_cache()
-
-    try:
-        while True:
-            # Gather all data (kept for backward compatibility)
-            data = {
-                "tailscale": cache.get("tailscale", {}),
-                "pihole": cache.get("pihole", {}),
-                "system": cache.get("system", {}),
-                "sensors": cache.get("sensors", {}),
-                "co2": cache.get("co2", {}),
-                "matrix": hardware.get_matrix_state(),
-                "hardware": {
-                    "sense_hat_available": hardware.is_sense_hat_available(),
-                    "aranet4_available": hardware.is_aranet4_available(),
-                },
-            }
-
-            await websocket.send_json(data)
-            await asyncio.sleep(0.5)  # Update every 500ms for smooth matrix + real-time data
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
-
-
 # ============================================================================
 # Configuration API
 # ============================================================================
