@@ -108,15 +108,20 @@ def reload_config():
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """Render main dashboard"""
+    from dataclasses import asdict
     templates = request.app.state.templates
     _, _, _, config = get_services()
     cache = get_cache()
+
+    # Convert aranet4 sensors to dicts for JSON serialization
+    aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
 
     return templates.TemplateResponse("index.html", {
         "request": request,
         "sense_hat_available": hardware.is_sense_hat_available(),
         "aranet4_available": hardware.is_aranet4_available(),
         "config": config,
+        "aranet4_sensors": aranet4_sensors_dict,
         "tailscale": cache.get("tailscale", {}),
         "pihole": cache.get("pihole", {}),
         "system": cache.get("system", {}),
@@ -445,11 +450,16 @@ async def update_aranet4_config(request: Request) -> Dict[str, Any]:
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
 async def get_aranet4_controls(request: Request):
     """HTMX partial: Aranet4 sensor controls panel"""
+    from dataclasses import asdict
     _, _, _, config = get_services()
     templates = request.app.state.templates
+
+    # Convert aranet4 sensors to dicts for JSON serialization
+    aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
 
     return templates.TemplateResponse("partials/aranet4_controls.html", {
         "request": request,
         "config": config,
+        "aranet4_sensors": aranet4_sensors_dict,
         "aranet4_status": hardware.get_aranet4_status(),
     })

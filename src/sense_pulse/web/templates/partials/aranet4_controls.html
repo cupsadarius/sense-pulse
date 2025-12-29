@@ -27,8 +27,8 @@
     <div class="p-3 bg-gray-800/50 rounded-lg">
         <p class="font-medium mb-3">Configured Sensors</p>
         <div id="sensors-list" class="space-y-3">
-            {% if config.aranet4.sensors %}
-                {% for sensor in config.aranet4.sensors %}
+            {% if aranet4_sensors %}
+                {% for sensor in aranet4_sensors %}
                 <div class="sensor-item p-3 bg-gray-700/50 rounded-lg" data-index="{{ loop.index0 }}">
                     <div class="flex items-center gap-3 mb-2">
                         <input type="text"
@@ -91,7 +91,7 @@
 <script>
     // Store sensors in memory
     if (!window.aranet4Sensors) {
-        window.aranet4Sensors = {{ config.aranet4.sensors | tojson }};
+        window.aranet4Sensors = {{ aranet4_sensors | tojson }};
     }
 
     window.scanAranet4Devices = async function() {
