@@ -4,7 +4,14 @@ import json
 import logging
 import subprocess
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +26,19 @@ class TailscaleStatus:
         Args:
             cache_duration: Seconds to cache status data
         """
-        self._cached_data: Optional[Dict] = None
+        self._cached_data: Optional[dict] = None
         self._last_fetch: float = 0
         self._cache_duration = cache_duration
         logger.info(f"Initialized Tailscale status checker (cache: {cache_duration}s)")
 
-    def _fetch_status(self) -> Optional[Dict]:
-        """Fetch Tailscale status data with caching"""
+    @retry(
+        retry=retry_if_exception_type(subprocess.TimeoutExpired),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
+    def _fetch_status(self) -> Optional[dict]:
+        """Fetch Tailscale status data with caching (with retries)"""
         current_time = time.time()
 
         # Return cached data if still valid
@@ -52,9 +65,9 @@ class TailscaleStatus:
                 logger.debug("Tailscale command failed or not connected")
                 return None
 
-        except subprocess.TimeoutExpired:
-            logger.warning("Tailscale status check timed out")
-            return None
+        except subprocess.TimeoutExpired as e:
+            logger.warning(f"Tailscale status check timed out (will retry): {e}")
+            raise
         except FileNotFoundError:
             logger.error("Tailscale command not found - is it installed?")
             return None
@@ -85,7 +98,7 @@ class TailscaleStatus:
         logger.debug(f"Tailscale: {online_count} devices online out of {len(peers)} total peers")
         return online_count
 
-    def get_status_summary(self) -> Dict[str, Any]:
+    def get_status_summary(self) -> dict[str, Any]:
         """Get comprehensive Tailscale status summary"""
         return {
             "connected": self.is_connected(),

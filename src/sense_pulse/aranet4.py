@@ -4,7 +4,14 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Optional
+
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Aranet4Reading:
     """Data class for Aranet4 sensor readings"""
+
     co2: int  # ppm
     temperature: float  # Celsius
     humidity: int  # %
@@ -21,7 +29,7 @@ class Aranet4Reading:
     ago: int  # Seconds since last measurement
     timestamp: float  # When this reading was cached
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
         return {
             "co2": self.co2,
@@ -79,14 +87,15 @@ class Aranet4Sensor:
         reading = self.get_cached_reading()
         return reading.co2 if reading else None
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get sensor status including last reading and any errors"""
         with self._lock:
             reading = self._cached_reading
             return {
                 "name": self.name,
                 "mac_address": self.mac_address,
-                "connected": reading is not None and (time.time() - reading.timestamp) < self.cache_duration,
+                "connected": reading is not None
+                and (time.time() - reading.timestamp) < self.cache_duration,
                 "last_reading": reading.to_dict() if reading else None,
                 "cache_age": int(time.time() - reading.timestamp) if reading else None,
                 "last_error": self._last_error,
@@ -96,18 +105,24 @@ class Aranet4Sensor:
 # Background polling thread
 _polling_thread: Optional[threading.Thread] = None
 _polling_stop_event = threading.Event()
-_sensors_to_poll: List[Aranet4Sensor] = []
+_sensors_to_poll: list[Aranet4Sensor] = []
 _poll_interval = 30  # seconds
 _scan_duration = 8  # seconds for BLE scan
 
 
-def _do_scan() -> Dict[str, Aranet4Reading]:
-    """Run aranet4 package scan and return readings by MAC address"""
+@retry(
+    retry=retry_if_exception_type(Exception),
+    stop=stop_after_attempt(2),  # Only 1 retry for BLE to avoid long delays
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True,
+)
+def _do_scan() -> dict[str, Aranet4Reading]:
+    """Run aranet4 package scan and return readings by MAC address (with retries)"""
     try:
         import aranet4
 
         logger.info("Aranet4: Running BLE scan...")
-        readings: Dict[str, Aranet4Reading] = {}
+        readings: dict[str, Aranet4Reading] = {}
 
         def on_detect(advertisement):
             if advertisement.readings:
@@ -132,8 +147,8 @@ def _do_scan() -> Dict[str, Aranet4Reading]:
         logger.error("Aranet4: aranet4 package not installed")
         return {}
     except Exception as e:
-        logger.error(f"Aranet4: Scan error: {e}")
-        return {}
+        logger.warning(f"Aranet4: Scan error (may retry): {e}")
+        raise
 
 
 def _polling_loop():
@@ -192,20 +207,20 @@ def stop_polling() -> None:
     _polling_thread = None
 
 
-def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
+def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
     """Scan for Aranet4 devices in range using aranet4 package."""
     try:
         import aranet4
 
         logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
 
-        found_devices: List[Dict[str, Any]] = []
+        found_devices: list[dict[str, Any]] = []
         seen_addresses: set = set()
 
         def on_detect(advertisement):
             if advertisement.device.address not in seen_addresses:
                 seen_addresses.add(advertisement.device.address)
-                device_info: Dict[str, Any] = {
+                device_info: dict[str, Any] = {
                     "name": advertisement.device.name or "Aranet4",
                     "address": advertisement.device.address.upper(),
                     "rssi": advertisement.rssi,
@@ -230,6 +245,6 @@ def scan_for_aranet4_devices(duration: int = 10) -> List[Dict[str, Any]]:
         return []
 
 
-def scan_for_aranet4_sync(duration: int = 10) -> List[Dict[str, Any]]:
+def scan_for_aranet4_sync(duration: int = 10) -> list[dict[str, Any]]:
     """Synchronous scan for Aranet4 devices"""
     return scan_for_aranet4_devices(duration)
