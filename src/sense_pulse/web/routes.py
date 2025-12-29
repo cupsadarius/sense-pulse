@@ -210,9 +210,34 @@ async def health_check():
 # WebSocket Endpoints
 # ============================================================================
 
-@router.websocket("/ws/dashboard")
-async def dashboard_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time dashboard updates (sensor data only)"""
+@router.websocket("/ws/grid")
+async def grid_websocket(websocket: WebSocket):
+    """WebSocket endpoint for LED matrix and hardware status (fast updates)"""
+    await websocket.accept()
+    get_services()  # Ensure services are initialized
+
+    try:
+        while True:
+            # Send only grid/matrix data for smooth animation
+            data = {
+                "matrix": hardware.get_matrix_state(),
+                "hardware": {
+                    "sense_hat_available": hardware.is_sense_hat_available(),
+                    "aranet4_available": hardware.is_aranet4_available(),
+                },
+            }
+
+            await websocket.send_json(data)
+            await asyncio.sleep(0.5)  # Update every 500ms for smooth matrix animation
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+
+
+@router.websocket("/ws/sensors")
+async def sensors_websocket(websocket: WebSocket):
+    """WebSocket endpoint for sensor data (slower updates - 30s)"""
     await websocket.accept()
     get_services()  # Ensure services are initialized
     cache = get_cache()
@@ -220,6 +245,32 @@ async def dashboard_websocket(websocket: WebSocket):
     try:
         while True:
             # Gather all sensor data
+            data = {
+                "tailscale": cache.get("tailscale", {}),
+                "pihole": cache.get("pihole", {}),
+                "system": cache.get("system", {}),
+                "sensors": cache.get("sensors", {}),
+                "co2": cache.get("co2", {}),
+            }
+
+            await websocket.send_json(data)
+            await asyncio.sleep(30)  # Update every 30s since sensor data updates slowly
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+
+
+@router.websocket("/ws/dashboard")
+async def dashboard_websocket(websocket: WebSocket):
+    """Legacy WebSocket endpoint for backward compatibility (deprecated)"""
+    await websocket.accept()
+    get_services()  # Ensure services are initialized
+    cache = get_cache()
+
+    try:
+        while True:
+            # Gather all data (kept for backward compatibility)
             data = {
                 "tailscale": cache.get("tailscale", {}),
                 "pihole": cache.get("pihole", {}),
