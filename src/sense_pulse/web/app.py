@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             # Log error but continue with other sources
             import logging
+
             logging.error(f"Error initializing data source: {e}")
 
     # Register data sources with cache
@@ -63,6 +64,7 @@ async def lifespan(app: FastAPI):
             await source.shutdown()
         except Exception as e:
             import logging
+
             logging.error(f"Error shutting down data source: {e}")
 
 
