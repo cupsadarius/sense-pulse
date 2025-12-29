@@ -177,7 +177,9 @@
         }
 
         function rotateIndex(i, rotation, webOffset) {
-            const effectiveRotation = (rotation + webOffset) % 360;
+            // Pixels from get_pixels() are already rotated by the physical rotation setting,
+            // so we only apply the web offset to adjust the viewing angle
+            const effectiveRotation = webOffset % 360;
             const row = Math.floor(i / 8);
             const col = i % 8;
             switch (effectiveRotation) {
