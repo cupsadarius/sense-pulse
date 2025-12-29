@@ -6,6 +6,13 @@ import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,8 +108,14 @@ _poll_interval = 30  # seconds
 _scan_duration = 8  # seconds for BLE scan
 
 
+@retry(
+    retry=retry_if_exception_type(Exception),
+    stop=stop_after_attempt(2),  # Only 1 retry for BLE to avoid long delays
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True,
+)
 def _do_scan() -> Dict[str, Aranet4Reading]:
-    """Run aranet4 package scan and return readings by MAC address"""
+    """Run aranet4 package scan and return readings by MAC address (with retries)"""
     try:
         import aranet4
 
@@ -132,8 +145,8 @@ def _do_scan() -> Dict[str, Aranet4Reading]:
         logger.error("Aranet4: aranet4 package not installed")
         return {}
     except Exception as e:
-        logger.error(f"Aranet4: Scan error: {e}")
-        return {}
+        logger.warning(f"Aranet4: Scan error (may retry): {e}")
+        raise
 
 
 def _polling_loop():
