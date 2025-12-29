@@ -1,5 +1,7 @@
 """Aranet4 CO2 sensor communication via aranet4 package scan"""
 
+import asyncio
+import contextlib
 import logging
 import threading
 import time
@@ -102,9 +104,9 @@ class Aranet4Sensor:
             }
 
 
-# Background polling thread
-_polling_thread: Optional[threading.Thread] = None
-_polling_stop_event = threading.Event()
+# Background polling task
+_polling_task: Optional[asyncio.Task] = None
+_polling_stop_event = asyncio.Event()
 _sensors_to_poll: list[Aranet4Sensor] = []
 _poll_interval = 30  # seconds
 _scan_duration = 8  # seconds for BLE scan
@@ -151,14 +153,14 @@ def _do_scan() -> dict[str, Aranet4Reading]:
         raise
 
 
-def _polling_loop():
-    """Background thread that scans for all sensors at once"""
+async def _polling_loop():
+    """Background task that scans for all sensors at once"""
     logger.info("Aranet4 background polling started")
 
     while not _polling_stop_event.is_set():
         try:
-            # Single scan gets all devices
-            readings = _do_scan()
+            # Single scan gets all devices (run in thread pool to avoid blocking)
+            readings = await asyncio.to_thread(_do_scan)
 
             # Update each registered sensor with its reading
             for sensor in _sensors_to_poll:
@@ -171,24 +173,24 @@ def _polling_loop():
             logger.error(f"Aranet4 polling error: {e}")
 
         # Wait for next poll interval
-        _polling_stop_event.wait(_poll_interval)
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(_polling_stop_event.wait(), timeout=_poll_interval)
 
     logger.info("Aranet4 background polling stopped")
 
 
 def register_sensor(sensor: Aranet4Sensor) -> None:
     """Register a sensor for background polling"""
-    global _polling_thread
+    global _polling_task
 
     if sensor not in _sensors_to_poll:
         _sensors_to_poll.append(sensor)
         logger.info(f"Registered Aranet4 sensor: {sensor.name} ({sensor.mac_address})")
 
-    # Start polling thread if not running
-    if _polling_thread is None or not _polling_thread.is_alive():
+    # Start polling task if not running
+    if _polling_task is None or _polling_task.done():
         _polling_stop_event.clear()
-        _polling_thread = threading.Thread(target=_polling_loop, daemon=True)
-        _polling_thread.start()
+        _polling_task = asyncio.create_task(_polling_loop())
 
 
 def unregister_sensor(sensor: Aranet4Sensor) -> None:
@@ -198,13 +200,18 @@ def unregister_sensor(sensor: Aranet4Sensor) -> None:
         logger.info(f"Unregistered Aranet4 sensor: {sensor.name}")
 
 
-def stop_polling() -> None:
-    """Stop the background polling thread"""
-    global _polling_thread
+async def stop_polling() -> None:
+    """Stop the background polling task"""
+    global _polling_task
     _polling_stop_event.set()
-    if _polling_thread and _polling_thread.is_alive():
-        _polling_thread.join(timeout=5)
-    _polling_thread = None
+    if _polling_task and not _polling_task.done():
+        try:
+            await asyncio.wait_for(_polling_task, timeout=5)
+        except asyncio.TimeoutError:
+            _polling_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await _polling_task
+    _polling_task = None
 
 
 def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:

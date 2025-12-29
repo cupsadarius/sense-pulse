@@ -1,5 +1,6 @@
 """Hardware abstraction - graceful degradation when Sense HAT unavailable"""
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -60,8 +61,8 @@ def get_sense_hat() -> Optional["SenseHat"]:
     return _sense_hat
 
 
-def get_sensor_data() -> dict[str, Any]:
-    """Get sensor readings, returns None values if hardware unavailable"""
+def _get_sensor_data_sync() -> dict[str, Any]:
+    """Synchronous version - get sensor readings, returns None values if hardware unavailable"""
     _init_sense_hat()
 
     if not _sense_hat_available or _sense_hat is None:
@@ -90,8 +91,13 @@ def get_sensor_data() -> dict[str, Any]:
         }
 
 
-def clear_display() -> dict[str, str]:
-    """Clear LED matrix if available"""
+async def get_sensor_data() -> dict[str, Any]:
+    """Get sensor readings (async wrapper), returns None values if hardware unavailable"""
+    return await asyncio.to_thread(_get_sensor_data_sync)
+
+
+def _clear_display_sync() -> dict[str, str]:
+    """Synchronous version - clear LED matrix if available"""
     global _current_display_mode
     _init_sense_hat()
 
@@ -107,8 +113,13 @@ def clear_display() -> dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def set_pixels(pixels: list[list[int]], mode: str = "custom") -> dict[str, str]:
-    """Set LED matrix pixels if available"""
+async def clear_display() -> dict[str, str]:
+    """Clear LED matrix if available (async wrapper)"""
+    return await asyncio.to_thread(_clear_display_sync)
+
+
+def _set_pixels_sync(pixels: list[list[int]], mode: str = "custom") -> dict[str, str]:
+    """Synchronous version - set LED matrix pixels if available"""
     global _current_display_mode
     _init_sense_hat()
 
@@ -124,8 +135,13 @@ def set_pixels(pixels: list[list[int]], mode: str = "custom") -> dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def set_rotation(rotation: int) -> dict[str, str]:
-    """Set LED matrix rotation if available"""
+async def set_pixels(pixels: list[list[int]], mode: str = "custom") -> dict[str, str]:
+    """Set LED matrix pixels if available (async wrapper)"""
+    return await asyncio.to_thread(_set_pixels_sync, pixels, mode)
+
+
+def _set_rotation_sync(rotation: int) -> dict[str, str]:
+    """Synchronous version - set LED matrix rotation if available"""
     global _current_rotation
     _init_sense_hat()
 
@@ -141,8 +157,13 @@ def set_rotation(rotation: int) -> dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def get_matrix_state() -> dict[str, Any]:
-    """Get current LED matrix state for web preview (reads directly from hardware)"""
+async def set_rotation(rotation: int) -> dict[str, str]:
+    """Set LED matrix rotation if available (async wrapper)"""
+    return await asyncio.to_thread(_set_rotation_sync, rotation)
+
+
+def _get_matrix_state_sync() -> dict[str, Any]:
+    """Synchronous version - get current LED matrix state for web preview"""
     _init_sense_hat()
 
     if _sense_hat_available and _sense_hat is not None:
@@ -167,6 +188,11 @@ def get_matrix_state() -> dict[str, Any]:
         "web_offset": _web_rotation_offset,
         "available": False,
     }
+
+
+async def get_matrix_state() -> dict[str, Any]:
+    """Get current LED matrix state for web preview (async wrapper)"""
+    return await asyncio.to_thread(_get_matrix_state_sync)
 
 
 def set_web_rotation_offset(offset: int) -> None:

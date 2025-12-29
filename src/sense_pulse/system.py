@@ -1,5 +1,6 @@
 """System statistics (CPU, memory, load)"""
 
+import asyncio
 import logging
 import os
 
@@ -11,9 +12,9 @@ logger = logging.getLogger(__name__)
 class SystemStats:
     """Provides system resource statistics"""
 
-    def get_stats(self) -> dict[str, float]:
+    def _get_stats_sync(self) -> dict[str, float]:
         """
-        Get current system statistics.
+        Synchronous version of get_stats (runs in thread pool).
 
         Returns:
             Dict with cpu_percent, memory_percent, load_1min, and cpu_temp
@@ -54,3 +55,13 @@ class SystemStats:
                 "load_1min": 0.0,
                 "cpu_temp": 0.0,
             }
+
+    async def get_stats(self) -> dict[str, float]:
+        """
+        Get current system statistics (async wrapper).
+
+        Returns:
+            Dict with cpu_percent, memory_percent, load_1min, and cpu_temp
+        """
+        # Run blocking psutil calls in thread pool to avoid blocking event loop
+        return await asyncio.to_thread(self._get_stats_sync)

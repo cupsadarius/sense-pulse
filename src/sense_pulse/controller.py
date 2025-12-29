@@ -1,7 +1,7 @@
 """Main controller for stats display"""
 
+import asyncio
 import logging
-import time
 from typing import Optional
 
 from sense_pulse import hardware
@@ -31,7 +31,7 @@ class StatsDisplay:
 
         self.config = config
         self.show_icons = config.display.show_icons
-        self.cache = get_cache()
+        self.cache = None  # Will be initialized in async_init()
 
         self.pihole = PiHoleStats(config.pihole.host, config.pihole.password)
         self.tailscale = TailscaleStatus(config.tailscale.cache_duration)
@@ -50,6 +50,25 @@ class StatsDisplay:
         self._was_sleeping = False
         self._disable_pi_leds = config.sleep.disable_pi_leds
 
+        # Store sensor config for async init
+        self._sensors_config = [
+            {
+                "label": sensor.label,
+                "mac_address": sensor.mac_address,
+                "enabled": sensor.enabled,
+            }
+            for sensor in config.aranet4.sensors
+        ]
+        self._aranet4_timeout = config.aranet4.timeout
+        self._aranet4_cache_duration = config.aranet4.cache_duration
+
+        logger.info("StatsDisplay initialized (async_init required)")
+
+    async def async_init(self) -> None:
+        """Complete async initialization (call this after __init__)"""
+        # Get global cache instance
+        self.cache = await get_cache()
+
         # Register data sources with cache for background polling
         self.cache.register_source("tailscale", self.tailscale.get_status_summary)
         self.cache.register_source("pihole", self.pihole.get_summary)
@@ -58,26 +77,21 @@ class StatsDisplay:
         self.cache.register_source("co2", hardware.get_aranet4_data)
 
         # Initialize Aranet4 CO2 sensors
-        sensors_config = [
-            {
-                "label": sensor.label,
-                "mac_address": sensor.mac_address,
-                "enabled": sensor.enabled,
-            }
-            for sensor in config.aranet4.sensors
-        ]
         hardware.init_aranet4_sensors(
-            sensors=sensors_config,
-            timeout=config.aranet4.timeout,
-            cache_duration=config.aranet4.cache_duration,
+            sensors=self._sensors_config,
+            timeout=self._aranet4_timeout,
+            cache_duration=self._aranet4_cache_duration,
         )
 
-        logger.info("StatsDisplay initialized successfully")
+        # Start cache polling
+        await self.cache.start_polling()
 
-    def display_tailscale_status(self):
+        logger.info("StatsDisplay async initialization completed")
+
+    async def display_tailscale_status(self):
         """Display Tailscale connection status and device count (from cache)"""
         logger.info("Displaying Tailscale status...")
-        status = self.cache.get("tailscale", {})
+        status = await self.cache.get("tailscale", {})
 
         is_connected = status["connected"]
 
@@ -105,10 +119,10 @@ class StatsDisplay:
                     color=(0, 200, 255),
                 )
 
-    def display_pihole_stats(self):
+    async def display_pihole_stats(self):
         """Display Pi-hole statistics (from cache)"""
         logger.info("Displaying Pi-hole stats...")
-        stats = self.cache.get("pihole", {})
+        stats = await self.cache.get("pihole", {})
 
         if self.show_icons:
             self.display.show_icon_with_text(
@@ -140,10 +154,10 @@ class StatsDisplay:
                 color=(255, 165, 0),
             )
 
-    def display_sensor_data(self):
+    async def display_sensor_data(self):
         """Display Sense HAT sensor data (from cache)"""
         logger.info("Displaying sensor data...")
-        sensors = self.cache.get("sensors", {})
+        sensors = await self.cache.get("sensors", {})
 
         if self.show_icons:
             self.display.show_icon_with_text(
@@ -175,10 +189,10 @@ class StatsDisplay:
                 color=(200, 200, 200),
             )
 
-    def display_system_stats(self):
+    async def display_system_stats(self):
         """Display system resource statistics (from cache)"""
         logger.info("Displaying system stats...")
-        stats = self.cache.get("system", {})
+        stats = await self.cache.get("system", {})
 
         if self.show_icons:
             self.display.show_icon_with_text(
@@ -228,9 +242,9 @@ class StatsDisplay:
         else:
             return "co2_poor"
 
-    def display_co2_levels(self):
+    async def display_co2_levels(self):
         """Display Aranet4 sensor data (temperature, CO2, humidity) from cache"""
-        co2_data = self.cache.get("co2", {})
+        co2_data = await self.cache.get("co2", {})
         if not co2_data:
             return
 
@@ -291,7 +305,7 @@ class StatsDisplay:
                         color=(0, 100, 255),
                     )
 
-    def run_cycle(self):
+    async def run_cycle(self):
         """Run one complete display cycle"""
         is_sleeping = self.sleep_schedule.is_sleep_time()
 
@@ -316,26 +330,26 @@ class StatsDisplay:
         logger.info("Starting display cycle...")
 
         try:
-            self.display_tailscale_status()
-            self.display_pihole_stats()
-            self.display_sensor_data()
-            self.display_co2_levels()
-            self.display_system_stats()
+            await self.display_tailscale_status()
+            await self.display_pihole_stats()
+            await self.display_sensor_data()
+            await self.display_co2_levels()
+            await self.display_system_stats()
             logger.info("Display cycle completed successfully")
         except Exception as e:
             logger.error(f"Error during display cycle: {e}")
             self.display.clear()
 
-    def run_continuous(self, interval: Optional[int] = None):
+    async def run_continuous(self, interval: Optional[int] = None):
         """Run continuous display loop"""
         update_interval = interval or self.config.update.interval
         logger.info(f"Starting continuous display with {update_interval}s interval...")
 
         try:
             while True:
-                self.run_cycle()
+                await self.run_cycle()
                 logger.debug(f"Waiting {update_interval} seconds before next cycle...")
-                time.sleep(update_interval)
+                await asyncio.sleep(update_interval)
         except KeyboardInterrupt:
             logger.info("Received shutdown signal, cleaning up...")
             self.display.clear()
@@ -343,6 +357,11 @@ class StatsDisplay:
             if self._disable_pi_leds and self._was_sleeping:
                 logger.info("Re-enabling Pi onboard LEDs on shutdown")
                 enable_all_leds()
+            # Stop cache polling
+            if self.cache:
+                await self.cache.stop_polling()
+            # Close HTTP clients
+            await self.pihole.close()
             logger.info("Shutdown complete")
         except Exception as e:
             logger.error(f"Fatal error in continuous loop: {e}")

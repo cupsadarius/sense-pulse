@@ -97,14 +97,6 @@ def get_services():
         )
         set_auth_config(auth_config)
 
-        # Register data sources with cache for background polling
-        cache = get_cache()
-        cache.register_source("tailscale", _tailscale.get_status_summary)
-        cache.register_source("pihole", _pihole.get_summary)
-        cache.register_source("system", _system.get_stats)
-        cache.register_source("sensors", hardware.get_sensor_data)
-        cache.register_source("co2", hardware.get_aranet4_data)
-
     return _pihole, _tailscale, _system, _config
 
 
@@ -120,7 +112,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
     """Render main dashboard (requires authentication)"""
     templates = request.app.state.templates
     _, _, _, config = get_services()
-    cache = get_cache()
+    cache = await get_cache()
 
     # Convert aranet4 sensors to dicts for JSON serialization
     aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
@@ -133,11 +125,11 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "aranet4_available": hardware.is_aranet4_available(),
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
-            "tailscale": cache.get("tailscale", {}),
-            "pihole": cache.get("pihole", {}),
-            "system": cache.get("system", {}),
-            "sensors": cache.get("sensors", {}),
-            "co2": cache.get("co2", {}),
+            "tailscale": await cache.get("tailscale", {}),
+            "pihole": await cache.get("pihole", {}),
+            "system": await cache.get("system", {}),
+            "sensors": await cache.get("sensors", {}),
+            "co2": await cache.get("co2", {}),
             "aranet4_status": hardware.get_aranet4_status(),
         },
     )
@@ -147,14 +139,14 @@ async def index(request: Request, username: str = Depends(require_auth)):
 async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get all status data as JSON (from cache) - requires authentication"""
     _, _, _, config = get_services()
-    cache = get_cache()
+    cache = await get_cache()
 
     return {
-        "tailscale": cache.get("tailscale", {}),
-        "pihole": cache.get("pihole", {}),
-        "system": cache.get("system", {}),
-        "sensors": cache.get("sensors", {}),
-        "co2": cache.get("co2", {}),
+        "tailscale": await cache.get("tailscale", {}),
+        "pihole": await cache.get("pihole", {}),
+        "system": await cache.get("system", {}),
+        "sensors": await cache.get("sensors", {}),
+        "co2": await cache.get("co2", {}),
         "hardware": {
             "sense_hat_available": hardware.is_sense_hat_available(),
             "aranet4_available": hardware.is_aranet4_available(),
@@ -171,8 +163,8 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
 @router.get("/api/sensors")
 async def get_sensors() -> dict[str, Any]:
     """Get Sense HAT sensor readings (from cache)"""
-    cache = get_cache()
-    return cache.get("sensors", {})
+    cache = await get_cache()
+    return await cache.get("sensors", {})
 
 
 @router.get("/api/status/cards", response_class=HTMLResponse)
@@ -180,17 +172,17 @@ async def get_status_cards(request: Request):
     """HTMX partial: status cards grid (from cache)"""
     _, _, _, config = get_services()
     templates = request.app.state.templates
-    cache = get_cache()
+    cache = await get_cache()
 
     return templates.TemplateResponse(
         "partials/status_cards.html",
         {
             "request": request,
-            "tailscale": cache.get("tailscale", {}),
-            "pihole": cache.get("pihole", {}),
-            "system": cache.get("system", {}),
-            "sensors": cache.get("sensors", {}),
-            "co2": cache.get("co2", {}),
+            "tailscale": await cache.get("tailscale", {}),
+            "pihole": await cache.get("pihole", {}),
+            "system": await cache.get("system", {}),
+            "sensors": await cache.get("sensors", {}),
+            "co2": await cache.get("co2", {}),
             "sense_hat_available": hardware.is_sense_hat_available(),
             "aranet4_available": hardware.is_aranet4_available(),
             "config": config,
@@ -201,7 +193,7 @@ async def get_status_cards(request: Request):
 @router.post("/api/display/clear")
 async def clear_display(username: str = Depends(require_auth)):
     """Clear the LED matrix (no-op if Sense HAT unavailable) - requires authentication"""
-    return hardware.clear_display()
+    return await hardware.clear_display()
 
 
 @router.get("/api/hardware/status")
@@ -236,7 +228,7 @@ async def grid_websocket(websocket: WebSocket):
         while True:
             # Send only grid/matrix data for smooth animation
             data = {
-                "matrix": hardware.get_matrix_state(),
+                "matrix": await hardware.get_matrix_state(),
                 "hardware": {
                     "sense_hat_available": hardware.is_sense_hat_available(),
                     "aranet4_available": hardware.is_aranet4_available(),
@@ -256,17 +248,17 @@ async def sensors_websocket(websocket: WebSocket):
     """WebSocket endpoint for sensor data (slower updates - 30s)"""
     await websocket.accept()
     get_services()  # Ensure services are initialized
-    cache = get_cache()
+    cache = await get_cache()
 
     try:
         while True:
             # Gather all sensor data
             data = {
-                "tailscale": cache.get("tailscale", {}),
-                "pihole": cache.get("pihole", {}),
-                "system": cache.get("system", {}),
-                "sensors": cache.get("sensors", {}),
-                "co2": cache.get("co2", {}),
+                "tailscale": await cache.get("tailscale", {}),
+                "pihole": await cache.get("pihole", {}),
+                "system": await cache.get("system", {}),
+                "sensors": await cache.get("sensors", {}),
+                "co2": await cache.get("co2", {}),
             }
 
             await websocket.send_json(data)
@@ -332,7 +324,7 @@ async def update_config_endpoint(
                 rotation = int(display_updates["rotation"])
                 if rotation in [0, 90, 180, 270]:
                     config_data["display"]["rotation"] = rotation
-                    hardware.set_rotation(rotation)
+                    await hardware.set_rotation(rotation)
 
             if "show_icons" in display_updates:
                 config_data["display"]["show_icons"] = bool(display_updates["show_icons"])
@@ -433,8 +425,8 @@ async def get_aranet4_status() -> dict[str, Any]:
 @router.get("/api/aranet4/data")
 async def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor readings from Aranet4 devices (from cache)"""
-    cache = get_cache()
-    return cache.get("co2", {})
+    cache = await get_cache()
+    return await cache.get("co2", {})
 
 
 @router.post("/api/aranet4/config")
