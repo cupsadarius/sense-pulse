@@ -1,7 +1,7 @@
 """Sense HAT LED display and sensor handling"""
 
+import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ class SenseHatDisplay:
             self.sense: Optional[SenseHat] = hardware.get_sense_hat()
             if self.sense is None:
                 raise RuntimeError("Sense HAT not available")
-            hardware.set_rotation(rotation)
+            hardware._set_rotation_sync(rotation)
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
             self.icon_duration = icon_duration
@@ -78,7 +78,7 @@ class SenseHatDisplay:
         except Exception as e:
             logger.error(f"Failed to display text: {e}")
 
-    def show_icon(
+    async def show_icon(
         self, icon_pixels: list[list[int]], duration: Optional[float] = None, mode: str = "icon"
     ):
         """
@@ -93,12 +93,12 @@ class SenseHatDisplay:
             display_time = duration if duration is not None else self.icon_duration
             logger.debug("Displaying icon")
             # Use hardware module for matrix operations (handles state tracking)
-            hardware.set_pixels(icon_pixels, mode)
-            time.sleep(display_time)
+            await hardware.set_pixels(icon_pixels, mode)
+            await asyncio.sleep(display_time)
         except Exception as e:
             logger.error(f"Failed to display icon: {e}")
 
-    def show_icon_with_text(
+    async def show_icon_with_text(
         self,
         icon_name: str,
         text: str,
@@ -118,15 +118,15 @@ class SenseHatDisplay:
         """
         icon = icons.get_icon(icon_name)
         if icon:
-            self.show_icon(icon, duration=icon_duration, mode=icon_name)
+            await self.show_icon(icon, duration=icon_duration, mode=icon_name)
         # Update mode to show we're scrolling text
         hardware.set_display_mode("scrolling")
         self.show_text(text, color=text_color, scroll_speed=scroll_speed)
 
-    def clear(self):
+    async def clear(self):
         """Clear the LED display"""
         try:
             # Use hardware module for matrix operations (handles state tracking)
-            hardware.clear_display()
+            await hardware.clear_display()
         except Exception as e:
             logger.error(f"Failed to clear display: {e}")
