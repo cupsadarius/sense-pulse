@@ -108,6 +108,7 @@ class Aranet4Sensor:
 _polling_task: Optional[asyncio.Task] = None
 _polling_stop_event = asyncio.Event()
 _scan_lock = threading.Lock()  # Prevent concurrent BLE scans (works across async/threads)
+_task_lock = threading.Lock()  # Prevent multiple polling tasks from being created
 _last_scan_time: float = 0  # Track last scan time for cooldown
 _scan_cooldown = 5  # Minimum seconds between scans
 _sensors_to_poll: list[Aranet4Sensor] = []
@@ -218,17 +219,20 @@ def register_sensor(sensor: Aranet4Sensor) -> None:
     else:
         logger.debug(f"Aranet4 sensor already registered: {sensor.name}")
 
-    # Start polling task if not running
-    if _polling_task is None:
-        logger.info("Starting new Aranet4 polling task (no previous task)")
-        _polling_stop_event.clear()
-        _polling_task = asyncio.create_task(_polling_loop())
-    elif _polling_task.done():
-        logger.warning(f"Previous Aranet4 polling task finished (done={_polling_task.done()}), starting new one")
-        _polling_stop_event.clear()
-        _polling_task = asyncio.create_task(_polling_loop())
-    else:
-        logger.debug("Aranet4 polling task already running")
+    # Start polling task if not running (thread-safe check)
+    with _task_lock:
+        if _polling_task is None:
+            logger.info("Starting new Aranet4 polling task (no previous task)")
+            _polling_stop_event.clear()
+            _polling_task = asyncio.create_task(_polling_loop())
+        elif _polling_task.done():
+            logger.warning(
+                f"Previous Aranet4 polling task finished (done={_polling_task.done()}), starting new one"
+            )
+            _polling_stop_event.clear()
+            _polling_task = asyncio.create_task(_polling_loop())
+        else:
+            logger.debug("Aranet4 polling task already running")
 
 
 def unregister_sensor(sensor: Aranet4Sensor) -> None:
