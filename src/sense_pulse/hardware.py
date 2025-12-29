@@ -299,7 +299,7 @@ def update_aranet4_sensors(
         return {"status": "error", "message": str(e)}
 
 
-def get_aranet4_data() -> dict[str, Any]:
+async def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor data from cache only (does not trigger BLE)"""
     result = {}
 
