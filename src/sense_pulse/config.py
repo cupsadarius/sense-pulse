@@ -65,6 +65,7 @@ class WebConfig:
 @dataclass
 class Aranet4SensorConfig:
     """Configuration for a single Aranet4 sensor"""
+    label: str = ""
     mac_address: str = ""
     enabled: bool = False
 
@@ -72,8 +73,7 @@ class Aranet4SensorConfig:
 @dataclass
 class Aranet4Config:
     """Configuration for Aranet4 CO2 sensors"""
-    office: Aranet4SensorConfig = field(default_factory=Aranet4SensorConfig)
-    bedroom: Aranet4SensorConfig = field(default_factory=Aranet4SensorConfig)
+    sensors: list = field(default_factory=list)  # List of Aranet4SensorConfig
     timeout: int = 10  # Connection timeout in seconds
     cache_duration: int = 60  # Cache readings for this many seconds
 
@@ -114,11 +114,33 @@ def load_config(config_path: Optional[str] = None) -> Config:
     with open(path) as f:
         data = yaml.safe_load(f) or {}
 
-    # Parse Aranet4 config with nested sensor configs
+    # Parse Aranet4 config with sensor list (migrate old office/bedroom format)
     aranet4_data = data.get("aranet4", {})
+    sensors = []
+
+    # New format: sensors list
+    if "sensors" in aranet4_data:
+        for sensor_data in aranet4_data["sensors"]:
+            sensors.append(Aranet4SensorConfig(**sensor_data))
+    # Old format migration: office/bedroom
+    else:
+        if "office" in aranet4_data and aranet4_data["office"].get("mac_address"):
+            office = aranet4_data["office"]
+            sensors.append(Aranet4SensorConfig(
+                label=office.get("label", "Office"),
+                mac_address=office.get("mac_address", ""),
+                enabled=office.get("enabled", False),
+            ))
+        if "bedroom" in aranet4_data and aranet4_data["bedroom"].get("mac_address"):
+            bedroom = aranet4_data["bedroom"]
+            sensors.append(Aranet4SensorConfig(
+                label=bedroom.get("label", "Bedroom"),
+                mac_address=bedroom.get("mac_address", ""),
+                enabled=bedroom.get("enabled", False),
+            ))
+
     aranet4_config = Aranet4Config(
-        office=Aranet4SensorConfig(**aranet4_data.get("office", {})),
-        bedroom=Aranet4SensorConfig(**aranet4_data.get("bedroom", {})),
+        sensors=sensors,
         timeout=aranet4_data.get("timeout", 10),
         cache_duration=aranet4_data.get("cache_duration", 60),
     )

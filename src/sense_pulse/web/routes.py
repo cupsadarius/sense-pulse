@@ -73,11 +73,16 @@ def get_services():
         # Initialize hardware settings from config
         hardware.set_web_rotation_offset(_config.display.web_rotation_offset)
         # Initialize Aranet4 sensors from config
+        sensors_config = [
+            {
+                "label": sensor.label,
+                "mac_address": sensor.mac_address,
+                "enabled": sensor.enabled,
+            }
+            for sensor in _config.aranet4.sensors
+        ]
         hardware.init_aranet4_sensors(
-            office_mac=_config.aranet4.office.mac_address,
-            bedroom_mac=_config.aranet4.bedroom.mac_address,
-            office_enabled=_config.aranet4.office.enabled,
-            bedroom_enabled=_config.aranet4.bedroom.enabled,
+            sensors=sensors_config,
             timeout=_config.aranet4.timeout,
             cache_duration=_config.aranet4.cache_duration,
         )
@@ -105,10 +110,19 @@ async def index(request: Request):
     """Render main dashboard"""
     templates = request.app.state.templates
     _, _, _, config = get_services()
+    cache = get_cache()
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "sense_hat_available": hardware.is_sense_hat_available(),
+        "aranet4_available": hardware.is_aranet4_available(),
         "config": config,
+        "tailscale": cache.get("tailscale", {}),
+        "pihole": cache.get("pihole", {}),
+        "system": cache.get("system", {}),
+        "sensors": cache.get("sensors", {}),
+        "co2": cache.get("co2", {}),
+        "aranet4_status": hardware.get_aranet4_status(),
     })
 
 
@@ -188,29 +202,38 @@ async def health_check():
 
 
 # ============================================================================
-# LED Matrix WebSocket
+# WebSocket Endpoints
 # ============================================================================
 
-@router.websocket("/ws/matrix")
-async def matrix_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time LED matrix state updates"""
+@router.websocket("/ws/dashboard")
+async def dashboard_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time dashboard updates (sensor data only)"""
     await websocket.accept()
+    get_services()  # Ensure services are initialized
+    cache = get_cache()
+
     try:
         while True:
-            # Get current matrix state and send to client
-            matrix_state = hardware.get_matrix_state()
-            await websocket.send_json(matrix_state)
-            await asyncio.sleep(0.05)  # Update every 50ms (~20 FPS) for smooth scrolling
+            # Gather all sensor data
+            data = {
+                "tailscale": cache.get("tailscale", {}),
+                "pihole": cache.get("pihole", {}),
+                "system": cache.get("system", {}),
+                "sensors": cache.get("sensors", {}),
+                "co2": cache.get("co2", {}),
+                "matrix": hardware.get_matrix_state(),
+                "hardware": {
+                    "sense_hat_available": hardware.is_sense_hat_available(),
+                    "aranet4_available": hardware.is_aranet4_available(),
+                },
+            }
+
+            await websocket.send_json(data)
+            await asyncio.sleep(0.5)  # Update every 500ms for smooth matrix + real-time data
     except WebSocketDisconnect:
         pass
     except Exception:
         pass
-
-
-@router.get("/api/matrix")
-async def get_matrix() -> Dict[str, Any]:
-    """Get current LED matrix state (polling alternative to WebSocket)"""
-    return hardware.get_matrix_state()
 
 
 # ============================================================================
@@ -240,7 +263,7 @@ async def get_config() -> Dict[str, Any]:
 
 
 @router.post("/api/config")
-async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
+async def update_config_endpoint(request: Request) -> Dict[str, Any]:
     """Update configuration and persist to config.yaml"""
     global _config
 
@@ -248,36 +271,53 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
         return {"status": "error", "message": "No config file found"}
 
     try:
+        # Parse JSON body
+        body = await request.json()
+
         # Load current config file
         with open(_config_path) as f:
             config_data = yaml.safe_load(f) or {}
 
-        # Apply updates
-        if updates.display:
+        # Apply updates from JSON body
+        if "display" in body:
             if "display" not in config_data:
                 config_data["display"] = {}
-            if updates.display.rotation is not None:
-                config_data["display"]["rotation"] = updates.display.rotation
-            if updates.display.show_icons is not None:
-                config_data["display"]["show_icons"] = updates.display.show_icons
-            if updates.display.scroll_speed is not None:
-                config_data["display"]["scroll_speed"] = updates.display.scroll_speed
-            if updates.display.icon_duration is not None:
-                config_data["display"]["icon_duration"] = updates.display.icon_duration
-            if updates.display.web_rotation_offset is not None:
-                config_data["display"]["web_rotation_offset"] = updates.display.web_rotation_offset
-                # Also update hardware immediately
-                hardware.set_web_rotation_offset(updates.display.web_rotation_offset)
+            display_updates = body["display"]
 
-        if updates.sleep:
+            if "rotation" in display_updates:
+                rotation = int(display_updates["rotation"])
+                if rotation in [0, 90, 180, 270]:
+                    config_data["display"]["rotation"] = rotation
+                    hardware.set_rotation(rotation)
+
+            if "show_icons" in display_updates:
+                config_data["display"]["show_icons"] = bool(display_updates["show_icons"])
+
+            if "scroll_speed" in display_updates:
+                config_data["display"]["scroll_speed"] = display_updates["scroll_speed"]
+
+            if "icon_duration" in display_updates:
+                config_data["display"]["icon_duration"] = display_updates["icon_duration"]
+
+            if "web_rotation_offset" in display_updates:
+                offset = int(display_updates["web_rotation_offset"])
+                if offset in [0, 90, 180, 270]:
+                    config_data["display"]["web_rotation_offset"] = offset
+                    hardware.set_web_rotation_offset(offset)
+
+        if "sleep" in body:
             if "sleep" not in config_data:
                 config_data["sleep"] = {}
-            if updates.sleep.start_hour is not None:
-                config_data["sleep"]["start_hour"] = updates.sleep.start_hour
-            if updates.sleep.end_hour is not None:
-                config_data["sleep"]["end_hour"] = updates.sleep.end_hour
-            if updates.sleep.disable_pi_leds is not None:
-                config_data["sleep"]["disable_pi_leds"] = updates.sleep.disable_pi_leds
+            sleep_updates = body["sleep"]
+
+            if "start_hour" in sleep_updates:
+                config_data["sleep"]["start_hour"] = sleep_updates["start_hour"]
+
+            if "end_hour" in sleep_updates:
+                config_data["sleep"]["end_hour"] = sleep_updates["end_hour"]
+
+            if "disable_pi_leds" in sleep_updates:
+                config_data["sleep"]["disable_pi_leds"] = bool(sleep_updates["disable_pi_leds"])
 
         # Write back to file
         with open(_config_path, "w") as f:
@@ -286,120 +326,19 @@ async def update_config(updates: ConfigUpdate) -> Dict[str, Any]:
         # Reload config
         _config = reload_config()
 
-        return {"status": "ok", "message": "Configuration updated"}
+        # Return success with full config state
+        return {
+            "status": "success",
+            "config": {
+                "rotation": _config.display.rotation,
+                "show_icons": _config.display.show_icons,
+                "web_rotation_offset": _config.display.web_rotation_offset,
+                "disable_pi_leds": _config.sleep.disable_pi_leds,
+            }
+        }
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-
-@router.post("/api/config/display/rotation", response_class=HTMLResponse)
-async def set_rotation(request: Request):
-    """Set display rotation (HTMX endpoint)"""
-    form = await request.form()
-    rotation = int(form.get("rotation", 0))
-
-    # Validate rotation value
-    if rotation not in [0, 90, 180, 270]:
-        rotation = 0
-
-    # Update config
-    await update_config(ConfigUpdate(
-        display=DisplayConfigUpdate(rotation=rotation)
-    ))
-
-    # Also update hardware if available
-    hardware.set_rotation(rotation)
-
-    # Return updated HTML partial
-    _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
-
-
-@router.post("/api/config/display/icons", response_class=HTMLResponse)
-async def toggle_icons(request: Request):
-    """Toggle show_icons setting (HTMX endpoint)"""
-    _, _, _, config = get_services()
-
-    # Toggle current value
-    new_value = not config.display.show_icons
-
-    await update_config(ConfigUpdate(
-        display=DisplayConfigUpdate(show_icons=new_value)
-    ))
-
-    # Re-fetch config after update and return HTML partial
-    _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
-
-
-@router.post("/api/config/sleep/pi-leds", response_class=HTMLResponse)
-async def toggle_pi_leds(request: Request):
-    """Toggle disable_pi_leds setting (HTMX endpoint)"""
-    _, _, _, config = get_services()
-
-    # Toggle current value
-    new_value = not config.sleep.disable_pi_leds
-
-    await update_config(ConfigUpdate(
-        sleep=SleepConfigUpdate(disable_pi_leds=new_value)
-    ))
-
-    # Re-fetch config after update and return HTML partial
-    _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
-
-
-@router.post("/api/config/display/web-offset", response_class=HTMLResponse)
-async def set_web_offset(request: Request):
-    """Set web preview rotation offset (HTMX endpoint)"""
-    form = await request.form()
-    offset = int(form.get("web_offset", 90))
-
-    # Validate offset value
-    if offset not in [0, 90, 180, 270]:
-        offset = 90
-
-    # Update config
-    await update_config(ConfigUpdate(
-        display=DisplayConfigUpdate(web_rotation_offset=offset)
-    ))
-
-    # Return updated HTML partial
-    _, _, _, config = get_services()
-    templates = request.app.state.templates
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
-
-
-@router.get("/api/config/display/controls", response_class=HTMLResponse)
-async def get_display_controls(request: Request):
-    """HTMX partial: display controls panel"""
-    _, _, _, config = get_services()
-    templates = request.app.state.templates
-
-    return templates.TemplateResponse("partials/display_controls.html", {
-        "request": request,
-        "config": config,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-    })
 
 
 # ============================================================================
@@ -452,22 +391,19 @@ async def get_aranet4_data() -> Dict[str, Any]:
     return cache.get("co2", {})
 
 
-@router.post("/api/aranet4/config/{sensor_name}", response_class=HTMLResponse)
-async def update_aranet4_sensor(request: Request, sensor_name: str):
-    """Update Aranet4 sensor configuration (HTMX endpoint)"""
+@router.post("/api/aranet4/config")
+async def update_aranet4_config(request: Request) -> Dict[str, Any]:
+    """Update all Aranet4 sensor configurations"""
     global _config
 
-    if sensor_name not in ["office", "bedroom"]:
-        return HTMLResponse(content="Invalid sensor name", status_code=400)
-
-    form = await request.form()
-    mac_address = form.get("mac_address", "")
-    enabled = form.get("enabled", "off") == "on"
-
     if _config_path is None or not _config_path.exists():
-        return HTMLResponse(content="No config file found", status_code=500)
+        return {"status": "error", "message": "No config file found"}
 
     try:
+        # Parse JSON body with list of sensors
+        body = await request.json()
+        sensors = body.get("sensors", [])
+
         # Load current config file
         with open(_config_path) as f:
             config_data = yaml.safe_load(f) or {}
@@ -475,12 +411,9 @@ async def update_aranet4_sensor(request: Request, sensor_name: str):
         # Ensure aranet4 section exists
         if "aranet4" not in config_data:
             config_data["aranet4"] = {}
-        if sensor_name not in config_data["aranet4"]:
-            config_data["aranet4"][sensor_name] = {}
 
-        # Update sensor config
-        config_data["aranet4"][sensor_name]["mac_address"] = mac_address
-        config_data["aranet4"][sensor_name]["enabled"] = enabled
+        # Update sensors list
+        config_data["aranet4"]["sensors"] = sensors
 
         # Write back to file
         with open(_config_path, "w") as f:
@@ -489,27 +422,24 @@ async def update_aranet4_sensor(request: Request, sensor_name: str):
         # Reload config
         _config = reload_config()
 
-        # Update hardware sensor
+        # Update hardware sensors
         timeout = _config.aranet4.timeout
         cache_duration = _config.aranet4.cache_duration
-        hardware.update_aranet4_sensor(
-            sensor_name=sensor_name,
-            mac_address=mac_address,
-            enabled=enabled,
+        hardware.update_aranet4_sensors(
+            sensors=sensors,
             timeout=timeout,
             cache_duration=cache_duration,
         )
 
-        # Return updated controls
-        templates = request.app.state.templates
-        return templates.TemplateResponse("partials/aranet4_controls.html", {
-            "request": request,
-            "config": _config,
-            "aranet4_status": hardware.get_aranet4_status(),
-        })
+        # Return success with updated config
+        return {
+            "status": "success",
+            "message": f"Updated {len(sensors)} sensor(s)",
+            "sensors": sensors,
+        }
 
     except Exception as e:
-        return HTMLResponse(content=f"Error: {str(e)}", status_code=500)
+        return {"status": "error", "message": str(e)}
 
 
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
