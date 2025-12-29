@@ -304,46 +304,34 @@
                 sysTemp.textContent = system.cpu_temp ? system.cpu_temp.toFixed(1) + '°C' : 'N/A';
             }
 
-            // Update CO2 cards if present
+            // Update CO2 cards for all sensors dynamically
             const co2 = data.co2 || {};
-            if (co2.office) {
-                const officeStatus = document.getElementById('co2-office-status');
-                const officeCo2 = document.getElementById('co2-office-value');
-                const officeTemp = document.getElementById('co2-office-temp');
-                const officeHumidity = document.getElementById('co2-office-humidity');
+            for (const [label, sensorData] of Object.entries(co2)) {
+                if (label === 'available' || !sensorData || typeof sensorData !== 'object') continue;
 
-                if (officeStatus && officeCo2) {
-                    if (co2.office.error) {
-                        officeStatus.textContent = 'Error';
-                        officeStatus.className = 'text-lg font-bold text-red-400';
-                        officeCo2.textContent = 'N/A';
+                const sensorId = label.toLowerCase().replace(/\s+/g, '-');
+                const co2Value = document.getElementById(`co2-${sensorId}-value`);
+                const co2Temp = document.getElementById(`co2-${sensorId}-temp`);
+                const co2Humidity = document.getElementById(`co2-${sensorId}-humidity`);
+
+                if (co2Value) {
+                    if (sensorData.error) {
+                        co2Value.textContent = 'N/A';
+                        co2Value.className = 'text-6xl font-bold tracking-tight text-gray-400';
                     } else {
-                        officeStatus.textContent = 'Active';
-                        officeStatus.className = 'text-lg font-bold text-green-400';
-                        officeCo2.textContent = co2.office.co2 || 'N/A';
-                        if (officeTemp) officeTemp.textContent = (co2.office.temperature || 0).toFixed(1) + '°C';
-                        if (officeHumidity) officeHumidity.textContent = (co2.office.humidity || 0).toFixed(0) + '%';
-                    }
-                }
-            }
+                        const level = sensorData.co2 || 0;
+                        co2Value.textContent = level;
+                        // Update color based on CO2 level
+                        if (level < 1000) {
+                            co2Value.className = 'text-6xl font-bold tracking-tight text-green-400';
+                        } else if (level < 1500) {
+                            co2Value.className = 'text-6xl font-bold tracking-tight text-yellow-400';
+                        } else {
+                            co2Value.className = 'text-6xl font-bold tracking-tight text-red-400';
+                        }
 
-            if (co2.bedroom) {
-                const bedroomStatus = document.getElementById('co2-bedroom-status');
-                const bedroomCo2 = document.getElementById('co2-bedroom-value');
-                const bedroomTemp = document.getElementById('co2-bedroom-temp');
-                const bedroomHumidity = document.getElementById('co2-bedroom-humidity');
-
-                if (bedroomStatus && bedroomCo2) {
-                    if (co2.bedroom.error) {
-                        bedroomStatus.textContent = 'Error';
-                        bedroomStatus.className = 'text-lg font-bold text-red-400';
-                        bedroomCo2.textContent = 'N/A';
-                    } else {
-                        bedroomStatus.textContent = 'Active';
-                        bedroomStatus.className = 'text-lg font-bold text-green-400';
-                        bedroomCo2.textContent = co2.bedroom.co2 || 'N/A';
-                        if (bedroomTemp) bedroomTemp.textContent = (co2.bedroom.temperature || 0).toFixed(1) + '°C';
-                        if (bedroomHumidity) bedroomHumidity.textContent = (co2.bedroom.humidity || 0).toFixed(0) + '%';
+                        if (co2Temp) co2Temp.textContent = (sensorData.temperature || 0).toFixed(1) + '°C';
+                        if (co2Humidity) co2Humidity.textContent = (sensorData.humidity || 0).toFixed(0) + '%';
                     }
                 }
             }
