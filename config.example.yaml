@@ -38,6 +38,12 @@ web:
   host: "0.0.0.0"      # Bind address (0.0.0.0 for all interfaces)
   port: 8080           # Web server port
 
+# Authentication settings (SECURITY: Enable for production!)
+auth:
+  enabled: false       # Enable HTTP Basic Auth for web dashboard
+  username: "admin"    # Username for login
+  password_hash: ""    # Bcrypt hash of password (generate with: uv run python -c "from sense_pulse.web.auth import get_password_hash; print(get_password_hash('your_password'))")
+
 # Aranet4 CO2 sensor settings (Bluetooth LE)
 # Use the web UI to scan for devices and configure sensors
 aranet4:

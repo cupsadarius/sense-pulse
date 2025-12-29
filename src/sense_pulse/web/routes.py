@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 import yaml
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -16,6 +16,7 @@ from sense_pulse.tailscale import TailscaleStatus
 from sense_pulse.system import SystemStats
 from sense_pulse import hardware
 from sense_pulse.cache import get_cache
+from sense_pulse.web.auth import require_auth, set_auth_config, AuthConfig as WebAuthConfig
 
 router = APIRouter()
 
@@ -87,6 +88,14 @@ def get_services():
             cache_duration=_config.aranet4.cache_duration,
         )
 
+        # Initialize auth configuration
+        auth_config = WebAuthConfig(
+            enabled=_config.auth.enabled,
+            username=_config.auth.username,
+            password_hash=_config.auth.password_hash,
+        )
+        set_auth_config(auth_config)
+
         # Register data sources with cache for background polling
         cache = get_cache()
         cache.register_source("tailscale", _tailscale.get_status_summary)
@@ -106,8 +115,8 @@ def reload_config():
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    """Render main dashboard"""
+async def index(request: Request, username: str = Depends(require_auth)):
+    """Render main dashboard (requires authentication)"""
     from dataclasses import asdict
     templates = request.app.state.templates
     _, _, _, config = get_services()
@@ -132,8 +141,8 @@ async def index(request: Request):
 
 
 @router.get("/api/status")
-async def get_status() -> Dict[str, Any]:
-    """Get all status data as JSON (from cache)"""
+async def get_status(username: str = Depends(require_auth)) -> Dict[str, Any]:
+    """Get all status data as JSON (from cache) - requires authentication"""
     _, _, _, config = get_services()
     cache = get_cache()
 
@@ -184,8 +193,8 @@ async def get_status_cards(request: Request):
 
 
 @router.post("/api/display/clear")
-async def clear_display():
-    """Clear the LED matrix (no-op if Sense HAT unavailable)"""
+async def clear_display(username: str = Depends(require_auth)):
+    """Clear the LED matrix (no-op if Sense HAT unavailable) - requires authentication"""
     return hardware.clear_display()
 
 
@@ -266,8 +275,8 @@ async def sensors_websocket(websocket: WebSocket):
 # ============================================================================
 
 @router.get("/api/config")
-async def get_config() -> Dict[str, Any]:
-    """Get current configuration"""
+async def get_config(username: str = Depends(require_auth)) -> Dict[str, Any]:
+    """Get current configuration - requires authentication"""
     _, _, _, config = get_services()
     return {
         "display": {
@@ -288,8 +297,8 @@ async def get_config() -> Dict[str, Any]:
 
 
 @router.post("/api/config")
-async def update_config_endpoint(request: Request) -> Dict[str, Any]:
-    """Update configuration and persist to config.yaml"""
+async def update_config_endpoint(request: Request, username: str = Depends(require_auth)) -> Dict[str, Any]:
+    """Update configuration and persist to config.yaml - requires authentication"""
     global _config
 
     if _config_path is None or not _config_path.exists():
@@ -371,8 +380,8 @@ async def update_config_endpoint(request: Request) -> Dict[str, Any]:
 # ============================================================================
 
 @router.get("/api/aranet4/scan")
-async def scan_aranet4_devices() -> Dict[str, Any]:
-    """Scan for Aranet4 devices via Bluetooth LE"""
+async def scan_aranet4_devices(username: str = Depends(require_auth)) -> Dict[str, Any]:
+    """Scan for Aranet4 devices via Bluetooth LE - requires authentication"""
     import concurrent.futures
 
     try:
@@ -417,8 +426,8 @@ async def get_aranet4_data() -> Dict[str, Any]:
 
 
 @router.post("/api/aranet4/config")
-async def update_aranet4_config(request: Request) -> Dict[str, Any]:
-    """Update all Aranet4 sensor configurations"""
+async def update_aranet4_config(request: Request, username: str = Depends(require_auth)) -> Dict[str, Any]:
+    """Update all Aranet4 sensor configurations - requires authentication"""
     global _config
 
     if _config_path is None or not _config_path.exists():
