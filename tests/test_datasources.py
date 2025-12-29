@@ -200,7 +200,7 @@ class TestCacheIntegration:
         cache.register_data_source(source)
 
         # Manually poll once
-        await cache._poll_datasource_object(source)
+        await cache._poll_data_source(source)
 
         # Check that data is in cache
         data = await cache.get("test")
@@ -262,8 +262,8 @@ class TestCacheIntegration:
         cache.register_data_source(source2)
 
         # Manually trigger polling
-        await cache._poll_datasource_object(source1)
-        await cache._poll_datasource_object(source2)
+        await cache._poll_data_source(source1)
+        await cache._poll_data_source(source2)
 
         # Check both sources are cached
         data1 = await cache.get("source1")
@@ -287,7 +287,7 @@ class TestCacheIntegration:
         cache.register_data_source(source)
 
         # This should not raise an exception
-        await cache._poll_datasource_object(source)
+        await cache._poll_data_source(source)
 
         # Cache should return default value
         data = await cache.get("test", default={})

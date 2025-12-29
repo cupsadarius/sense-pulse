@@ -133,7 +133,7 @@ class Aranet4DataSource(DataSource):
         sensor_list = ", ".join(self._sensors.keys()) if self._sensors else "none"
 
         return DataSourceMetadata(
-            source_id="co2",  # Keep legacy key for backward compatibility
+            source_id="aranet4",
             name="Aranet4 CO2 Sensors",
             description=f"BLE CO2 sensors: {sensor_list} ({sensor_count} configured)",
             refresh_interval=30,
