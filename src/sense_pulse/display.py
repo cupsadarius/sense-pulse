@@ -2,13 +2,12 @@
 
 import logging
 import time
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-from sense_pulse import hardware
-from sense_pulse import icons
+from sense_pulse import hardware, icons
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class SenseHatDisplay:
         """
         try:
             # Use shared SenseHat instance from hardware module
-            self.sense: Optional["SenseHat"] = hardware.get_sense_hat()
+            self.sense: Optional[SenseHat] = hardware.get_sense_hat()
             if self.sense is None:
                 raise RuntimeError("Sense HAT not available")
             hardware.set_rotation(rotation)
@@ -44,7 +43,7 @@ class SenseHatDisplay:
             logger.error(f"Failed to initialize Sense HAT: {e}")
             raise
 
-    def get_sensor_data(self) -> Dict[str, float]:
+    def get_sensor_data(self) -> dict[str, float]:
         """Read all sensor data from Sense HAT"""
         try:
             temp = self.sense.get_temperature()
@@ -68,7 +67,7 @@ class SenseHatDisplay:
     def show_text(
         self,
         text: str,
-        color: Tuple[int, int, int] = (255, 255, 255),
+        color: tuple[int, int, int] = (255, 255, 255),
         scroll_speed: Optional[float] = None,
     ):
         """Display scrolling text on LED matrix"""
@@ -79,7 +78,9 @@ class SenseHatDisplay:
         except Exception as e:
             logger.error(f"Failed to display text: {e}")
 
-    def show_icon(self, icon_pixels: List[List[int]], duration: Optional[float] = None, mode: str = "icon"):
+    def show_icon(
+        self, icon_pixels: list[list[int]], duration: Optional[float] = None, mode: str = "icon"
+    ):
         """
         Display an 8x8 icon on the LED matrix.
 
@@ -101,7 +102,7 @@ class SenseHatDisplay:
         self,
         icon_name: str,
         text: str,
-        text_color: Tuple[int, int, int] = (255, 255, 255),
+        text_color: tuple[int, int, int] = (255, 255, 255),
         icon_duration: Optional[float] = None,
         scroll_speed: Optional[float] = None,
     ):

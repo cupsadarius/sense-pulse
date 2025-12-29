@@ -58,6 +58,7 @@ extend-exclude = '''
   | build
   | dist
 )/
+| src/sense_pulse/icons\.py  # Preserve 8x8 grid formatting
 '''
 
 [tool.ruff]

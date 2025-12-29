@@ -109,8 +109,7 @@ def optional_auth(credentials: Optional[HTTPBasicCredentials] = Depends(security
         return None
 
     # If credentials provided, verify them
-    if credentials:
-        if authenticate_user(credentials.username, credentials.password):
-            return credentials.username
+    if credentials and authenticate_user(credentials.username, credentials.password):
+        return credentials.username
 
     return None

@@ -4,7 +4,7 @@ import json
 import logging
 import subprocess
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from tenacity import (
     retry,
@@ -26,7 +26,7 @@ class TailscaleStatus:
         Args:
             cache_duration: Seconds to cache status data
         """
-        self._cached_data: Optional[Dict] = None
+        self._cached_data: Optional[dict] = None
         self._last_fetch: float = 0
         self._cache_duration = cache_duration
         logger.info(f"Initialized Tailscale status checker (cache: {cache_duration}s)")
@@ -37,7 +37,7 @@ class TailscaleStatus:
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    def _fetch_status(self) -> Optional[Dict]:
+    def _fetch_status(self) -> Optional[dict]:
         """Fetch Tailscale status data with caching (with retries)"""
         current_time = time.time()
 
@@ -98,7 +98,7 @@ class TailscaleStatus:
         logger.debug(f"Tailscale: {online_count} devices online out of {len(peers)} total peers")
         return online_count
 
-    def get_status_summary(self) -> Dict[str, Any]:
+    def get_status_summary(self) -> dict[str, Any]:
         """Get comprehensive Tailscale status summary"""
         return {
             "connected": self.is_connected(),

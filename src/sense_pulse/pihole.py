@@ -1,7 +1,7 @@
 """Pi-hole v6 API statistics fetching"""
 
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 import requests
 from tenacity import (
@@ -68,7 +68,7 @@ class PiHoleStats:
             logger.error(f"Pi-hole authentication failed: {e}")
             return False
 
-    def _get_headers(self) -> Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         """Get request headers with session ID if authenticated"""
         headers = {}
         if self._session_id:
@@ -83,12 +83,11 @@ class PiHoleStats:
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    def fetch_stats(self) -> Optional[Dict]:
+    def fetch_stats(self) -> Optional[dict]:
         """Fetch current Pi-hole stats from API (with retries)"""
         # Try to authenticate if we have a password and no session
-        if self.password and not self._session_id:
-            if not self._authenticate():
-                return None
+        if self.password and not self._session_id and not self._authenticate():
+            return None
 
         try:
             logger.debug("Fetching Pi-hole stats...")
@@ -121,7 +120,7 @@ class PiHoleStats:
             logger.error(f"Unexpected error fetching Pi-hole stats: {e}")
             return None
 
-    def get_summary(self) -> Dict[str, float]:
+    def get_summary(self) -> dict[str, float]:
         """Get summarized Pi-hole stats"""
         stats = self.fetch_stats()
         if not stats:

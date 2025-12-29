@@ -3,20 +3,21 @@
 import asyncio
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 import yaml
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from sense_pulse.config import load_config, find_config_file, Config
-from sense_pulse.pihole import PiHoleStats
-from sense_pulse.tailscale import TailscaleStatus
-from sense_pulse.system import SystemStats
 from sense_pulse import hardware
 from sense_pulse.cache import get_cache
-from sense_pulse.web.auth import require_auth, set_auth_config, AuthConfig as WebAuthConfig
+from sense_pulse.config import Config, find_config_file, load_config
+from sense_pulse.pihole import PiHoleStats
+from sense_pulse.system import SystemStats
+from sense_pulse.tailscale import TailscaleStatus
+from sense_pulse.web.auth import AuthConfig as WebAuthConfig
+from sense_pulse.web.auth import require_auth, set_auth_config
 
 router = APIRouter()
 
@@ -117,7 +118,6 @@ def reload_config():
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, username: str = Depends(require_auth)):
     """Render main dashboard (requires authentication)"""
-    from dataclasses import asdict
     templates = request.app.state.templates
     _, _, _, config = get_services()
     cache = get_cache()
@@ -125,23 +125,26 @@ async def index(request: Request, username: str = Depends(require_auth)):
     # Convert aranet4 sensors to dicts for JSON serialization
     aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "sense_hat_available": hardware.is_sense_hat_available(),
-        "aranet4_available": hardware.is_aranet4_available(),
-        "config": config,
-        "aranet4_sensors": aranet4_sensors_dict,
-        "tailscale": cache.get("tailscale", {}),
-        "pihole": cache.get("pihole", {}),
-        "system": cache.get("system", {}),
-        "sensors": cache.get("sensors", {}),
-        "co2": cache.get("co2", {}),
-        "aranet4_status": hardware.get_aranet4_status(),
-    })
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "sense_hat_available": hardware.is_sense_hat_available(),
+            "aranet4_available": hardware.is_aranet4_available(),
+            "config": config,
+            "aranet4_sensors": aranet4_sensors_dict,
+            "tailscale": cache.get("tailscale", {}),
+            "pihole": cache.get("pihole", {}),
+            "system": cache.get("system", {}),
+            "sensors": cache.get("sensors", {}),
+            "co2": cache.get("co2", {}),
+            "aranet4_status": hardware.get_aranet4_status(),
+        },
+    )
 
 
 @router.get("/api/status")
-async def get_status(username: str = Depends(require_auth)) -> Dict[str, Any]:
+async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get all status data as JSON (from cache) - requires authentication"""
     _, _, _, config = get_services()
     cache = get_cache()
@@ -161,12 +164,12 @@ async def get_status(username: str = Depends(require_auth)) -> Dict[str, Any]:
             "rotation": config.display.rotation,
             "sleep_start": config.sleep.start_hour,
             "sleep_end": config.sleep.end_hour,
-        }
+        },
     }
 
 
 @router.get("/api/sensors")
-async def get_sensors() -> Dict[str, Any]:
+async def get_sensors() -> dict[str, Any]:
     """Get Sense HAT sensor readings (from cache)"""
     cache = get_cache()
     return cache.get("sensors", {})
@@ -179,17 +182,20 @@ async def get_status_cards(request: Request):
     templates = request.app.state.templates
     cache = get_cache()
 
-    return templates.TemplateResponse("partials/status_cards.html", {
-        "request": request,
-        "tailscale": cache.get("tailscale", {}),
-        "pihole": cache.get("pihole", {}),
-        "system": cache.get("system", {}),
-        "sensors": cache.get("sensors", {}),
-        "co2": cache.get("co2", {}),
-        "sense_hat_available": hardware.is_sense_hat_available(),
-        "aranet4_available": hardware.is_aranet4_available(),
-        "config": config,
-    })
+    return templates.TemplateResponse(
+        "partials/status_cards.html",
+        {
+            "request": request,
+            "tailscale": cache.get("tailscale", {}),
+            "pihole": cache.get("pihole", {}),
+            "system": cache.get("system", {}),
+            "sensors": cache.get("sensors", {}),
+            "co2": cache.get("co2", {}),
+            "sense_hat_available": hardware.is_sense_hat_available(),
+            "aranet4_available": hardware.is_aranet4_available(),
+            "config": config,
+        },
+    )
 
 
 @router.post("/api/display/clear")
@@ -218,6 +224,7 @@ async def health_check():
 # ============================================================================
 # WebSocket Endpoints
 # ============================================================================
+
 
 @router.websocket("/ws/grid")
 async def grid_websocket(websocket: WebSocket):
@@ -274,8 +281,9 @@ async def sensors_websocket(websocket: WebSocket):
 # Configuration API
 # ============================================================================
 
+
 @router.get("/api/config")
-async def get_config(username: str = Depends(require_auth)) -> Dict[str, Any]:
+async def get_config(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get current configuration - requires authentication"""
     _, _, _, config = get_services()
     return {
@@ -297,7 +305,9 @@ async def get_config(username: str = Depends(require_auth)) -> Dict[str, Any]:
 
 
 @router.post("/api/config")
-async def update_config_endpoint(request: Request, username: str = Depends(require_auth)) -> Dict[str, Any]:
+async def update_config_endpoint(
+    request: Request, username: str = Depends(require_auth)
+) -> dict[str, Any]:
     """Update configuration and persist to config.yaml - requires authentication"""
     global _config
 
@@ -368,7 +378,7 @@ async def update_config_endpoint(request: Request, username: str = Depends(requi
                 "show_icons": _config.display.show_icons,
                 "web_rotation_offset": _config.display.web_rotation_offset,
                 "disable_pi_leds": _config.sleep.disable_pi_leds,
-            }
+            },
         }
 
     except Exception as e:
@@ -379,8 +389,9 @@ async def update_config_endpoint(request: Request, username: str = Depends(requi
 # Aranet4 CO2 Sensor API
 # ============================================================================
 
+
 @router.get("/api/aranet4/scan")
-async def scan_aranet4_devices(username: str = Depends(require_auth)) -> Dict[str, Any]:
+async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Scan for Aranet4 devices via Bluetooth LE - requires authentication"""
     import concurrent.futures
 
@@ -399,6 +410,7 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> Dict[st
         }
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return {
             "status": "error",
@@ -409,7 +421,7 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> Dict[st
 
 
 @router.get("/api/aranet4/status")
-async def get_aranet4_status() -> Dict[str, Any]:
+async def get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
     return {
         "status": hardware.get_aranet4_status(),
@@ -419,14 +431,16 @@ async def get_aranet4_status() -> Dict[str, Any]:
 
 
 @router.get("/api/aranet4/data")
-async def get_aranet4_data() -> Dict[str, Any]:
+async def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor readings from Aranet4 devices (from cache)"""
     cache = get_cache()
     return cache.get("co2", {})
 
 
 @router.post("/api/aranet4/config")
-async def update_aranet4_config(request: Request, username: str = Depends(require_auth)) -> Dict[str, Any]:
+async def update_aranet4_config(
+    request: Request, username: str = Depends(require_auth)
+) -> dict[str, Any]:
     """Update all Aranet4 sensor configurations - requires authentication"""
     global _config
 
@@ -479,16 +493,18 @@ async def update_aranet4_config(request: Request, username: str = Depends(requir
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
 async def get_aranet4_controls(request: Request):
     """HTMX partial: Aranet4 sensor controls panel"""
-    from dataclasses import asdict
     _, _, _, config = get_services()
     templates = request.app.state.templates
 
     # Convert aranet4 sensors to dicts for JSON serialization
     aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
 
-    return templates.TemplateResponse("partials/aranet4_controls.html", {
-        "request": request,
-        "config": config,
-        "aranet4_sensors": aranet4_sensors_dict,
-        "aranet4_status": hardware.get_aranet4_status(),
-    })
+    return templates.TemplateResponse(
+        "partials/aranet4_controls.html",
+        {
+            "request": request,
+            "config": config,
+            "aranet4_sensors": aranet4_sensors_dict,
+            "aranet4_status": hardware.get_aranet4_status(),
+        },
+    )
