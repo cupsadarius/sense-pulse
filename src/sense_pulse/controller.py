@@ -4,6 +4,8 @@ import logging
 import time
 from typing import Optional
 
+from sense_pulse import hardware
+from sense_pulse.cache import get_cache
 from sense_pulse.config import Config
 from sense_pulse.display import SenseHatDisplay
 from sense_pulse.pi_leds import disable_all_leds, enable_all_leds
@@ -11,8 +13,6 @@ from sense_pulse.pihole import PiHoleStats
 from sense_pulse.schedule import SleepSchedule
 from sense_pulse.system import SystemStats
 from sense_pulse.tailscale import TailscaleStatus
-from sense_pulse import hardware
-from sense_pulse.cache import get_cache
 
 logger = logging.getLogger(__name__)
 

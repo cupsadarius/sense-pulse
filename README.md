@@ -373,6 +373,154 @@ echo 0 > /sys/class/leds/ACT/brightness
 echo mmc0 > /sys/class/leds/ACT/trigger  # restore
 ```
 
+## Development
+
+### Setting Up Development Environment
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/sense-pulse.git
+cd sense-pulse
+
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies (including dev dependencies)
+uv sync --all-extras --dev
+
+# Install pre-commit hooks
+uv run pre-commit install
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage report
+uv run pytest --cov=sense_pulse --cov-report=html
+
+# Run specific test file
+uv run pytest tests/test_cache.py
+
+# Run with verbose output
+uv run pytest -v
+```
+
+### Code Quality Tools
+
+```bash
+# Run linter (ruff)
+uv run ruff check src/ tests/
+
+# Auto-fix linting issues
+uv run ruff check --fix src/ tests/
+
+# Format code with black
+uv run black src/ tests/
+
+# Check formatting without changes
+uv run black --check src/ tests/
+
+# Type checking with mypy
+uv run mypy src/
+
+# Run all checks (pre-commit)
+uv run pre-commit run --all-files
+```
+
+### Authentication Setup
+
+To enable web dashboard authentication:
+
+1. Generate a password hash:
+```bash
+uv run python -c "from sense_pulse.web.auth import get_password_hash; print(get_password_hash('your_secure_password'))"
+```
+
+2. Add to `config.yaml`:
+```yaml
+auth:
+  enabled: true
+  username: "admin"
+  password_hash: "$2b$12$..."  # paste hash from step 1
+```
+
+3. Restart the service:
+```bash
+sudo systemctl restart sense-pulse
+```
+
+### Project Structure
+
+```
+sense-pulse/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # GitHub Actions CI/CD
+├── src/
+│   └── sense_pulse/
+│       ├── __init__.py
+│       ├── cli.py              # CLI interface
+│       ├── config.py           # Configuration management
+│       ├── cache.py            # Data caching with background polling
+│       ├── controller.py       # Main display controller
+│       ├── hardware.py         # Hardware abstraction
+│       ├── pihole.py           # Pi-hole stats (with retry logic)
+│       ├── tailscale.py        # Tailscale status (with retry logic)
+│       ├── aranet4.py          # Aranet4 sensor integration (with retry logic)
+│       ├── system.py           # System stats
+│       ├── display.py          # LED matrix display
+│       ├── icons.py            # 8x8 pixel art icons
+│       ├── schedule.py         # Sleep scheduling
+│       ├── pi_leds.py          # Pi onboard LED control
+│       └── web/
+│           ├── app.py          # FastAPI application
+│           ├── routes.py       # API routes
+│           ├── auth.py         # HTTP Basic Auth
+│           └── templates/      # Jinja2 templates
+├── tests/
+│   ├── test_cache.py           # Cache module tests
+│   ├── test_config.py          # Config module tests
+│   └── test_auth.py            # Authentication tests
+├── pyproject.toml              # Project config + tool settings
+├── .pre-commit-config.yaml     # Pre-commit hooks
+└── config.example.yaml         # Example configuration
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and linting (`uv run pytest && uv run ruff check src/`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Continuous Integration
+
+The project uses GitHub Actions for CI:
+
+- **Linting & Type Checking**: Runs ruff, black, and mypy
+- **Tests**: Runs pytest on Python 3.9-3.12
+- **Coverage**: Uploads coverage reports to Codecov
+- **Security**: Runs bandit security scanner
+
+## Security
+
+### Reporting Security Issues
+
+Please report security vulnerabilities privately to the maintainers.
+
+### Security Features
+
+- HTTP Basic Auth for web dashboard (bcrypt password hashing)
+- No credentials stored in plain text
+- All network calls use retry logic to prevent hanging
+- Input validation on all API endpoints
+
 ## License
 
 MIT License

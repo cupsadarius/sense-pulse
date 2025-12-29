@@ -1,10 +1,11 @@
 """Hardware abstraction - graceful degradation when Sense HAT unavailable"""
 
 import logging
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
+
     from sense_pulse.aranet4 import Aranet4Sensor
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ _current_rotation: int = 0
 _web_rotation_offset: int = 90  # Default offset for web preview
 
 # Aranet4 CO2 sensors (dynamic list by label)
-_aranet4_sensors: Dict[str, "Aranet4Sensor"] = {}  # label -> Aranet4Sensor
+_aranet4_sensors: dict[str, "Aranet4Sensor"] = {}  # label -> Aranet4Sensor
 _aranet4_initialized: bool = False
 
 
@@ -35,6 +36,7 @@ def _init_sense_hat() -> None:
 
     try:
         from sense_hat import SenseHat
+
         _sense_hat = SenseHat()
         _sense_hat_available = True
         logger.info("Sense HAT initialized successfully")
@@ -58,7 +60,7 @@ def get_sense_hat() -> Optional["SenseHat"]:
     return _sense_hat
 
 
-def get_sensor_data() -> Dict[str, Any]:
+def get_sensor_data() -> dict[str, Any]:
     """Get sensor readings, returns None values if hardware unavailable"""
     _init_sense_hat()
 
@@ -88,7 +90,7 @@ def get_sensor_data() -> Dict[str, Any]:
         }
 
 
-def clear_display() -> Dict[str, str]:
+def clear_display() -> dict[str, str]:
     """Clear LED matrix if available"""
     global _current_display_mode
     _init_sense_hat()
@@ -105,7 +107,7 @@ def clear_display() -> Dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def set_pixels(pixels: List[List[int]], mode: str = "custom") -> Dict[str, str]:
+def set_pixels(pixels: list[list[int]], mode: str = "custom") -> dict[str, str]:
     """Set LED matrix pixels if available"""
     global _current_display_mode
     _init_sense_hat()
@@ -122,7 +124,7 @@ def set_pixels(pixels: List[List[int]], mode: str = "custom") -> Dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def set_rotation(rotation: int) -> Dict[str, str]:
+def set_rotation(rotation: int) -> dict[str, str]:
     """Set LED matrix rotation if available"""
     global _current_rotation
     _init_sense_hat()
@@ -139,7 +141,7 @@ def set_rotation(rotation: int) -> Dict[str, str]:
         return {"status": "error", "message": str(e)}
 
 
-def get_matrix_state() -> Dict[str, Any]:
+def get_matrix_state() -> dict[str, Any]:
     """Get current LED matrix state for web preview (reads directly from hardware)"""
     _init_sense_hat()
 
@@ -180,7 +182,7 @@ def set_display_mode(mode: str) -> None:
 
 
 def init_aranet4_sensors(
-    sensors: List[Dict[str, Any]] = None,
+    sensors: list[dict[str, Any]] = None,
     timeout: int = 30,
     cache_duration: int = 60,
 ) -> None:
@@ -226,10 +228,10 @@ def init_aranet4_sensors(
 
 
 def update_aranet4_sensors(
-    sensors: List[Dict[str, Any]],
+    sensors: list[dict[str, Any]],
     timeout: int = 30,
     cache_duration: int = 60,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Update all Aranet4 sensor configurations
 
     Args:
@@ -243,7 +245,7 @@ def update_aranet4_sensors(
         from sense_pulse.aranet4 import Aranet4Sensor, register_sensor, unregister_sensor
 
         # Unregister all existing sensors
-        for label, sensor in list(_aranet4_sensors.items()):
+        for _label, sensor in list(_aranet4_sensors.items()):
             unregister_sensor(sensor)
         _aranet4_sensors.clear()
 
@@ -271,7 +273,7 @@ def update_aranet4_sensors(
         return {"status": "error", "message": str(e)}
 
 
-def get_aranet4_data() -> Dict[str, Any]:
+def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor data from cache only (does not trigger BLE)"""
     result = {}
 
@@ -283,7 +285,7 @@ def get_aranet4_data() -> Dict[str, Any]:
     return result if result else {"available": False}
 
 
-def get_aranet4_status() -> Dict[str, Any]:
+def get_aranet4_status() -> dict[str, Any]:
     """Get status of all Aranet4 sensors"""
     result = {}
 

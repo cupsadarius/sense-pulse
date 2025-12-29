@@ -2,7 +2,6 @@
 
 import logging
 import os
-from typing import Dict
 
 import psutil
 
@@ -12,7 +11,7 @@ logger = logging.getLogger(__name__)
 class SystemStats:
     """Provides system resource statistics"""
 
-    def get_stats(self) -> Dict[str, float]:
+    def get_stats(self) -> dict[str, float]:
         """
         Get current system statistics.
 
@@ -28,10 +27,10 @@ class SystemStats:
             cpu_temp = 0.0
             try:
                 temps = psutil.sensors_temperatures()
-                if 'cpu_thermal' in temps:
-                    cpu_temp = temps['cpu_thermal'][0].current
-                elif 'coretemp' in temps:
-                    cpu_temp = temps['coretemp'][0].current
+                if "cpu_thermal" in temps:
+                    cpu_temp = temps["cpu_thermal"][0].current
+                elif "coretemp" in temps:
+                    cpu_temp = temps["coretemp"][0].current
             except (AttributeError, KeyError, IndexError):
                 # Temperature sensors not available
                 pass
