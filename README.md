@@ -10,7 +10,7 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 - **Tailscale Status**: Shows connection status and count of online devices in your Tailnet
 - **Pi-hole Stats**: Queries today, ads blocked, block percentage
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
-- **CO2 Monitoring**: Aranet4 CO2 sensor integration with color-coded alerts
+- **Aranet4 Monitoring**: Temperature, CO2, and humidity from Aranet4 sensors with color-coded alerts
 - **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
 - **Pi LED Control**: Optionally disable Pi's onboard LEDs (PWR/ACT) during sleep
@@ -26,12 +26,15 @@ The LED matrix cycles through:
 3. **DNS Queries Today** (Green)
 4. **Ads Blocked Today** (Red)
 5. **Block Percentage** (Orange)
-6. **Temperature** (Orange)
-7. **Humidity** (Blue)
-8. **Pressure** (Gray)
-9. **CPU Usage** (Yellow)
-10. **Memory Usage** (Cyan)
-11. **System Load** (Magenta)
+6. **Sense HAT Temperature** (Orange)
+7. **Sense HAT Humidity** (Blue)
+8. **Sense HAT Pressure** (Gray)
+9. **Aranet4 Temperature** (Orange - per sensor)
+10. **Aranet4 CO2** (Color-coded: Green <1000ppm, Yellow <1500ppm, Red ≥1500ppm)
+11. **Aranet4 Humidity** (Blue - per sensor)
+12. **CPU Usage** (Yellow)
+13. **Memory Usage** (Cyan)
+14. **System Load** (Magenta)
 
 ## Web Dashboard
 
