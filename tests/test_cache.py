@@ -5,8 +5,8 @@ import time
 from datetime import datetime
 
 from sense_pulse.cache import CachedData, DataCache, get_cache, initialize_cache
-from tests.mock_datasource import MockDataSource
 from sense_pulse.datasources.base import SensorReading
+from tests.mock_datasource import MockDataSource
 
 
 class TestCachedData:

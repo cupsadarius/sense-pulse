@@ -1,10 +1,16 @@
 """Aranet4 CO2 sensor data source implementation"""
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from ..config import Aranet4Config
 from .base import DataSource, DataSourceMetadata, SensorReading
+
+if TYPE_CHECKING:
+    from ..aranet4 import Aranet4Sensor
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +32,7 @@ class Aranet4DataSource(DataSource):
             config: Aranet4 configuration
         """
         self._config = config
-        self._sensors: dict[str, "Aranet4Sensor"] = {}  # label -> sensor
+        self._sensors: dict[str, Aranet4Sensor] = {}  # label -> sensor
         self._enabled = len([s for s in config.sensors if s.enabled]) > 0
 
     async def initialize(self) -> None:

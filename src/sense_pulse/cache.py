@@ -12,7 +12,7 @@ import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from .datasources.base import DataSource
@@ -60,7 +60,7 @@ class DataCache:
         self._lock = asyncio.Lock()
         self._polling_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
-        self._data_sources: dict[str, "DataSource"] = {}
+        self._data_sources: dict[str, DataSource] = {}
 
         logger.info(
             f"DataCache initialized with {cache_ttl}s TTL and {poll_interval}s poll interval"
