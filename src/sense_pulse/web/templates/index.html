@@ -141,23 +141,37 @@
     </footer>
 
     <script>
-        // WebSocket state management
+        // WebSocket state management - using two separate connections
         if (!window.sensePulseWS) {
             window.sensePulseWS = {
-                ws: null,
-                reconnectTimeout: null,
+                gridWS: null,           // Fast updates for LED matrix (500ms)
+                sensorsWS: null,        // Slow updates for sensor data (30s)
+                gridReconnectTimeout: null,
+                sensorsReconnectTimeout: null,
+                gridConnected: false,
+                sensorsConnected: false,
                 initialized: false
             };
         }
 
-        function updateWSStatus(connected) {
+        function updateWSStatus(gridConnected, sensorsConnected) {
             const indicator = document.getElementById('ws-indicator');
             const label = document.getElementById('ws-label');
-            if (connected) {
+
+            // Both connected - fully live
+            if (gridConnected && sensorsConnected) {
                 indicator.className = 'w-2 h-2 bg-green-500 rounded-full status-glow text-green-500';
                 label.className = 'text-sm text-green-400';
                 label.textContent = 'Live';
-            } else {
+            }
+            // At least one connected - partial
+            else if (gridConnected || sensorsConnected) {
+                indicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
+                label.className = 'text-sm text-yellow-400';
+                label.textContent = 'Partial';
+            }
+            // Neither connected - reconnecting
+            else {
                 indicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
                 label.className = 'text-sm text-yellow-400';
                 label.textContent = 'Reconnecting...';
@@ -429,61 +443,107 @@
             }
         };
 
-        function connectWebSocket() {
-            if (window.sensePulseWS.ws &&
-                (window.sensePulseWS.ws.readyState === WebSocket.OPEN ||
-                 window.sensePulseWS.ws.readyState === WebSocket.CONNECTING)) {
+        function connectGridWebSocket() {
+            if (window.sensePulseWS.gridWS &&
+                (window.sensePulseWS.gridWS.readyState === WebSocket.OPEN ||
+                 window.sensePulseWS.gridWS.readyState === WebSocket.CONNECTING)) {
                 return;
             }
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = protocol + '//' + window.location.host + '/ws/dashboard';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/grid';
 
-            window.sensePulseWS.ws = new WebSocket(wsUrl);
+            window.sensePulseWS.gridWS = new WebSocket(wsUrl);
 
-            window.sensePulseWS.ws.onopen = function() {
-                console.log('WebSocket connected');
-                updateWSStatus(true);
-                if (window.sensePulseWS.reconnectTimeout) {
-                    clearTimeout(window.sensePulseWS.reconnectTimeout);
-                    window.sensePulseWS.reconnectTimeout = null;
+            window.sensePulseWS.gridWS.onopen = function() {
+                console.log('Grid WebSocket connected');
+                window.sensePulseWS.gridConnected = true;
+                updateWSStatus(window.sensePulseWS.gridConnected, window.sensePulseWS.sensorsConnected);
+                if (window.sensePulseWS.gridReconnectTimeout) {
+                    clearTimeout(window.sensePulseWS.gridReconnectTimeout);
+                    window.sensePulseWS.gridReconnectTimeout = null;
                 }
             };
 
-            window.sensePulseWS.ws.onmessage = function(event) {
+            window.sensePulseWS.gridWS.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
 
-                    // Update LED matrix
+                    // Update LED matrix from grid data
                     if (data.matrix) {
                         updateLEDMatrix(data.matrix);
                     }
+                } catch (e) {
+                    console.error('Failed to parse Grid WebSocket message:', e);
+                }
+            };
 
-                    // Update status cards
+            window.sensePulseWS.gridWS.onclose = function() {
+                console.log('Grid WebSocket disconnected');
+                window.sensePulseWS.gridConnected = false;
+                updateWSStatus(window.sensePulseWS.gridConnected, window.sensePulseWS.sensorsConnected);
+                window.sensePulseWS.gridReconnectTimeout = setTimeout(connectGridWebSocket, 2000);
+            };
+
+            window.sensePulseWS.gridWS.onerror = function(error) {
+                console.error('Grid WebSocket error:', error);
+                window.sensePulseWS.gridWS.close();
+            };
+        }
+
+        function connectSensorsWebSocket() {
+            if (window.sensePulseWS.sensorsWS &&
+                (window.sensePulseWS.sensorsWS.readyState === WebSocket.OPEN ||
+                 window.sensePulseWS.sensorsWS.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/sensors';
+
+            window.sensePulseWS.sensorsWS = new WebSocket(wsUrl);
+
+            window.sensePulseWS.sensorsWS.onopen = function() {
+                console.log('Sensors WebSocket connected');
+                window.sensePulseWS.sensorsConnected = true;
+                updateWSStatus(window.sensePulseWS.gridConnected, window.sensePulseWS.sensorsConnected);
+                if (window.sensePulseWS.sensorsReconnectTimeout) {
+                    clearTimeout(window.sensePulseWS.sensorsReconnectTimeout);
+                    window.sensePulseWS.sensorsReconnectTimeout = null;
+                }
+            };
+
+            window.sensePulseWS.sensorsWS.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    // Update status cards with sensor data
                     updateStatusCards(data);
 
                     // Update timestamp
                     updateLastUpdateTime();
                 } catch (e) {
-                    console.error('Failed to parse WebSocket message:', e);
+                    console.error('Failed to parse Sensors WebSocket message:', e);
                 }
             };
 
-            window.sensePulseWS.ws.onclose = function() {
-                console.log('WebSocket disconnected');
-                updateWSStatus(false);
-                window.sensePulseWS.reconnectTimeout = setTimeout(connectWebSocket, 2000);
+            window.sensePulseWS.sensorsWS.onclose = function() {
+                console.log('Sensors WebSocket disconnected');
+                window.sensePulseWS.sensorsConnected = false;
+                updateWSStatus(window.sensePulseWS.gridConnected, window.sensePulseWS.sensorsConnected);
+                window.sensePulseWS.sensorsReconnectTimeout = setTimeout(connectSensorsWebSocket, 2000);
             };
 
-            window.sensePulseWS.ws.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                window.sensePulseWS.ws.close();
+            window.sensePulseWS.sensorsWS.onerror = function(error) {
+                console.error('Sensors WebSocket error:', error);
+                window.sensePulseWS.sensorsWS.close();
             };
         }
 
         if (!window.sensePulseWS.initialized) {
             window.sensePulseWS.initialized = true;
-            connectWebSocket();
+            connectGridWebSocket();
+            connectSensorsWebSocket();
         }
     </script>
 {% endblock %}
