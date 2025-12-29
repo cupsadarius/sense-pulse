@@ -23,6 +23,7 @@ class SensorReading:
         timestamp: When this reading was taken
         metadata: Additional context about the reading
     """
+
     sensor_id: str
     value: Any
     unit: Optional[str]
@@ -43,6 +44,7 @@ class DataSourceMetadata:
         requires_auth: Whether this source needs authentication
         enabled: Whether this source is currently enabled
     """
+
     source_id: str
     name: str
     description: str

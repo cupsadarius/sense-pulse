@@ -64,9 +64,7 @@ class Aranet4DataSource(DataSource):
                         f"({sensor_config.mac_address})"
                     )
 
-            logger.info(
-                f"Aranet4 data source initialized with {len(self._sensors)} sensor(s)"
-            )
+            logger.info(f"Aranet4 data source initialized with {len(self._sensors)} sensor(s)")
 
         except ImportError:
             logger.error("aranet4 package not installed, cannot initialize sensors")
@@ -95,38 +93,40 @@ class Aranet4DataSource(DataSource):
                 reading = sensor.get_cached_reading()
                 if reading:
                     # Create readings for each metric
-                    readings.extend([
-                        SensorReading(
-                            sensor_id=f"{label}_co2",
-                            value=reading.co2,
-                            unit="ppm",
-                            timestamp=datetime.fromtimestamp(reading.timestamp),
-                        ),
-                        SensorReading(
-                            sensor_id=f"{label}_temp",
-                            value=reading.temperature,
-                            unit="°C",
-                            timestamp=datetime.fromtimestamp(reading.timestamp),
-                        ),
-                        SensorReading(
-                            sensor_id=f"{label}_humidity",
-                            value=reading.humidity,
-                            unit="%",
-                            timestamp=datetime.fromtimestamp(reading.timestamp),
-                        ),
-                        SensorReading(
-                            sensor_id=f"{label}_pressure",
-                            value=reading.pressure,
-                            unit="mbar",
-                            timestamp=datetime.fromtimestamp(reading.timestamp),
-                        ),
-                        SensorReading(
-                            sensor_id=f"{label}_battery",
-                            value=reading.battery,
-                            unit="%",
-                            timestamp=datetime.fromtimestamp(reading.timestamp),
-                        ),
-                    ])
+                    readings.extend(
+                        [
+                            SensorReading(
+                                sensor_id=f"{label}_co2",
+                                value=reading.co2,
+                                unit="ppm",
+                                timestamp=datetime.fromtimestamp(reading.timestamp),
+                            ),
+                            SensorReading(
+                                sensor_id=f"{label}_temp",
+                                value=reading.temperature,
+                                unit="°C",
+                                timestamp=datetime.fromtimestamp(reading.timestamp),
+                            ),
+                            SensorReading(
+                                sensor_id=f"{label}_humidity",
+                                value=reading.humidity,
+                                unit="%",
+                                timestamp=datetime.fromtimestamp(reading.timestamp),
+                            ),
+                            SensorReading(
+                                sensor_id=f"{label}_pressure",
+                                value=reading.pressure,
+                                unit="mbar",
+                                timestamp=datetime.fromtimestamp(reading.timestamp),
+                            ),
+                            SensorReading(
+                                sensor_id=f"{label}_battery",
+                                value=reading.battery,
+                                unit="%",
+                                timestamp=datetime.fromtimestamp(reading.timestamp),
+                            ),
+                        ]
+                    )
 
         except Exception as e:
             logger.error(f"Error fetching Aranet4 readings: {e}")

@@ -79,11 +79,7 @@ class DataSourceRegistry:
         Returns:
             List of enabled data sources
         """
-        return [
-            source
-            for source in self._sources.values()
-            if source.get_metadata().enabled
-        ]
+        return [source for source in self._sources.values() if source.get_metadata().enabled]
 
     async def initialize_all(self) -> None:
         """Initialize all registered data sources"""
