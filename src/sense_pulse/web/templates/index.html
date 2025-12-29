@@ -284,6 +284,7 @@
             const sysCpuBar = document.getElementById('sys-cpu-bar');
             const sysMemory = document.getElementById('sys-memory');
             const sysMemoryBar = document.getElementById('sys-memory-bar');
+            const sysLoad = document.getElementById('sys-load');
             const sysTemp = document.getElementById('sys-temp');
 
             if (sysCpu) {
@@ -299,6 +300,9 @@
                 if (sysMemoryBar) {
                     sysMemoryBar.style.width = memPercent + '%';
                 }
+            }
+            if (sysLoad) {
+                sysLoad.textContent = system.load_1min ? system.load_1min.toFixed(2) : 'N/A';
             }
             if (sysTemp) {
                 sysTemp.textContent = system.cpu_temp ? system.cpu_temp.toFixed(1) + '°C' : 'N/A';
