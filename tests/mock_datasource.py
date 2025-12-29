@@ -1,7 +1,7 @@
 """Mock data source for testing"""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from sense_pulse.datasources.base import DataSource, DataSourceMetadata, SensorReading
 

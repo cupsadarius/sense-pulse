@@ -16,7 +16,7 @@ from sense_pulse.datasources import (
     SystemStatsDataSource,
     TailscaleDataSource,
 )
-from sense_pulse.web.routes import get_services, router
+from sense_pulse.web.routes import router
 
 
 @asynccontextmanager

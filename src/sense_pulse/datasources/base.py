@@ -7,8 +7,8 @@ They do NOT cache data - the cache layer handles caching by polling data sources
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any, Optional
 
 
 @dataclass
