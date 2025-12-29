@@ -58,11 +58,16 @@ class StatsDisplay:
         self.cache.register_source("co2", hardware.get_aranet4_data)
 
         # Initialize Aranet4 CO2 sensors
+        sensors_config = [
+            {
+                "label": sensor.label,
+                "mac_address": sensor.mac_address,
+                "enabled": sensor.enabled,
+            }
+            for sensor in config.aranet4.sensors
+        ]
         hardware.init_aranet4_sensors(
-            office_mac=config.aranet4.office.mac_address,
-            bedroom_mac=config.aranet4.bedroom.mac_address,
-            office_enabled=config.aranet4.office.enabled,
-            bedroom_enabled=config.aranet4.bedroom.enabled,
+            sensors=sensors_config,
             timeout=config.aranet4.timeout,
             cache_duration=config.aranet4.cache_duration,
         )
