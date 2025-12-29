@@ -1,9 +1,9 @@
 """Command-line interface for sense-pulse"""
 
 import argparse
+import asyncio
 import logging
 import sys
-import threading
 from typing import Optional
 
 from sense_pulse import __version__
@@ -49,8 +49,8 @@ def run_web_server(host: str, port: int, log_level: str) -> None:
     )
 
 
-def main() -> int:
-    """Main entry point"""
+async def async_main() -> int:
+    """Async main entry point"""
     parser = argparse.ArgumentParser(
         prog="sense-pulse",
         description="Display Pi-hole stats, Tailscale status, and sensor data on Sense HAT",
@@ -128,8 +128,8 @@ def main() -> int:
 
     # Initialize data cache with 60s TTL and 30s polling interval
     logger.info("Initializing data cache (60s TTL, 30s poll interval)")
-    cache = initialize_cache(cache_ttl=60.0, poll_interval=30.0)
-    cache.start_polling()
+    cache = await initialize_cache(cache_ttl=60.0, poll_interval=30.0)
+    await cache.start_polling()
 
     try:
         # Web server only mode
@@ -140,28 +140,48 @@ def main() -> int:
 
             logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
             app = create_app()
-            uvicorn.run(app, host=args.web_host, port=args.web_port, log_level=log_level.lower())
+            # Run uvicorn in async mode
+            config_uvicorn = uvicorn.Config(
+                app, host=args.web_host, port=args.web_port, log_level=log_level.lower()
+            )
+            server = uvicorn.Server(config_uvicorn)
+            await server.serve()
             return 0
 
-        # Start web server in background thread (unless disabled)
+        # Start web server in background task (unless disabled)
+        web_server_task = None
         if not args.no_web:
+            import uvicorn
+
+            from sense_pulse.web.app import create_app
+
             logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
-            web_thread = threading.Thread(
-                target=run_web_server,
-                args=(args.web_host, args.web_port, log_level),
-                daemon=True,
+            app = create_app()
+            config_uvicorn = uvicorn.Config(
+                app, host=args.web_host, port=args.web_port, log_level=log_level.lower()
             )
-            web_thread.start()
+            server = uvicorn.Server(config_uvicorn)
+            # Run server in background task
+            web_server_task = asyncio.create_task(server.serve())
 
         # LED display mode (requires Sense HAT)
         from sense_pulse.controller import StatsDisplay
 
         controller = StatsDisplay(config)
+        await controller.async_init()
 
         if args.once:
-            controller.run_cycle()
+            await controller.run_cycle()
         else:
-            controller.run_continuous()
+            await controller.run_continuous()
+
+        # Cancel web server if it's running
+        if web_server_task:
+            web_server_task.cancel()
+            try:
+                await web_server_task
+            except asyncio.CancelledError:
+                pass
 
         return 0
 
@@ -171,6 +191,11 @@ def main() -> int:
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         return 1
+
+
+def main() -> int:
+    """Main entry point - wraps async_main()"""
+    return asyncio.run(async_main())
 
 
 if __name__ == "__main__":
