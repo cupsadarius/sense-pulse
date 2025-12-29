@@ -12,7 +12,7 @@ import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .datasources.base import DataSource
@@ -61,25 +61,10 @@ class DataCache:
         self._polling_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
         self._data_sources: dict[str, "DataSource"] = {}
-        # Legacy support: keep old-style callables for backward compatibility
-        self._legacy_sources: dict[str, Callable] = {}
 
         logger.info(
             f"DataCache initialized with {cache_ttl}s TTL and {poll_interval}s poll interval"
         )
-
-    def register_source(self, key: str, fetch_func: Callable) -> None:
-        """
-        Register a legacy data source (for backward compatibility).
-
-        Args:
-            key: Cache key for this data source
-            fetch_func: Async callable that fetches fresh data (no arguments)
-
-        DEPRECATED: Use register_data_source() with a DataSource object instead.
-        """
-        self._legacy_sources[key] = fetch_func
-        logger.info(f"Registered legacy data source: {key}")
 
     def register_data_source(self, source: "DataSource") -> None:
         """
@@ -164,25 +149,9 @@ class DataCache:
                 "data_ages": ages,
             }
 
-    async def _poll_data_source(self, key: str, fetch_func: Callable) -> None:
+    async def _poll_data_source(self, source: "DataSource") -> None:
         """
-        Poll a single legacy data source and update cache.
-
-        Args:
-            key: Cache key
-            fetch_func: Async function to fetch data
-        """
-        try:
-            logger.debug(f"Polling legacy data source: {key}")
-            data = await fetch_func()
-            await self.set(key, data)
-            logger.debug(f"Successfully polled: {key}")
-        except Exception as e:
-            logger.error(f"Error polling {key}: {e}", exc_info=True)
-
-    async def _poll_datasource_object(self, source: "DataSource") -> None:
-        """
-        Poll a DataSource object and update cache.
+        Poll a data source and update cache.
 
         Args:
             source: DataSource object to poll
@@ -194,7 +163,7 @@ class DataCache:
             logger.debug(f"Polling data source: {metadata.name}")
             readings = await source.fetch_readings()
 
-            # Convert readings to dict format for backward compatibility
+            # Convert readings to dict format
             data = {}
             for reading in readings:
                 data[reading.sensor_id] = reading.value
@@ -211,19 +180,12 @@ class DataCache:
         while not self._stop_event.is_set():
             cycle_start = time.time()
 
-            # Poll all DataSource objects
+            # Poll all data sources
             data_sources = list(self._data_sources.values())
             for source in data_sources:
                 if self._stop_event.is_set():
                     break
-                await self._poll_datasource_object(source)
-
-            # Poll all legacy sources (for backward compatibility)
-            legacy_sources = list(self._legacy_sources.items())
-            for key, fetch_func in legacy_sources:
-                if self._stop_event.is_set():
-                    break
-                await self._poll_data_source(key, fetch_func)
+                await self._poll_data_source(source)
 
             # Wait for next poll interval
             elapsed = time.time() - cycle_start
@@ -247,15 +209,9 @@ class DataCache:
         logger.info("Background polling task started")
 
         # Do an immediate poll to populate cache
-        # Poll DataSource objects
         data_sources = list(self._data_sources.values())
         for source in data_sources:
-            await self._poll_datasource_object(source)
-
-        # Poll legacy sources
-        legacy_sources = list(self._legacy_sources.items())
-        for key, fetch_func in legacy_sources:
-            await self._poll_data_source(key, fetch_func)
+            await self._poll_data_source(source)
 
     async def stop_polling(self) -> None:
         """Stop the background polling task."""

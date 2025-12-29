@@ -90,7 +90,7 @@ class SenseHatDataSource(DataSource):
     def get_metadata(self) -> DataSourceMetadata:
         """Get Sense HAT data source metadata"""
         return DataSourceMetadata(
-            source_id="sensors",  # Keep legacy key for backward compatibility
+            source_id="sensehat",
             name="Sense HAT Sensors",
             description="Onboard temperature, humidity, and pressure sensors",
             refresh_interval=30,
