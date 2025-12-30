@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import signal
 import sys
 from typing import Optional
 
@@ -154,6 +155,17 @@ async def async_main() -> int:
     # Start background polling
     await cache.start_polling()
 
+    # Setup signal handlers for graceful shutdown
+    shutdown_event = asyncio.Event()
+
+    def signal_handler(sig: signal.Signals) -> None:
+        logger.info(f"Received signal {sig.name}, initiating graceful shutdown...")
+        shutdown_event.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, signal_handler, sig)
+
     try:
         # Web server only mode
         if args.web_only:
@@ -196,7 +208,8 @@ async def async_main() -> int:
         if args.once:
             await controller.run_cycle()
         else:
-            await controller.run_continuous()
+            # Run display loop until shutdown signal
+            await controller.run_until_shutdown(shutdown_event)
 
         # Cancel web server if it's running
         if web_server_task:
@@ -206,9 +219,6 @@ async def async_main() -> int:
 
         return 0
 
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user")
-        return 0
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         return 1
