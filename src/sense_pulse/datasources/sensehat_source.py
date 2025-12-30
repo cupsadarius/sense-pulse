@@ -1,10 +1,14 @@
 """Sense HAT onboard sensors data source implementation"""
 
+import asyncio
 import logging
 from datetime import datetime
+from typing import TYPE_CHECKING, Optional
 
-from ..devices.sensehat import get_sensor_data
 from .base import DataSource, DataSourceMetadata, SensorReading
+
+if TYPE_CHECKING:
+    from sense_hat import SenseHat
 
 logger = logging.getLogger(__name__)
 
@@ -15,22 +19,54 @@ class SenseHatDataSource(DataSource):
 
     Reads temperature, humidity, and pressure from the Sense HAT hardware.
     Gracefully handles hardware not being available.
+
+    This DataSource owns the Sense HAT hardware instance.
     """
 
     def __init__(self):
         """Initialize Sense HAT data source"""
-        self._available = True
+        self._sense_hat: Optional["SenseHat"] = None
+        self._available = False
 
     async def initialize(self) -> None:
-        """Initialize Sense HAT data source"""
-        # Test if hardware is available
-        data = await get_sensor_data()
-        self._available = data.get("available", False)
+        """Initialize Sense HAT hardware"""
+        try:
+            from sense_hat import SenseHat
 
-        if self._available:
+            # Initialize hardware in thread pool (blocking operation)
+            self._sense_hat = await asyncio.to_thread(SenseHat)
+            self._available = True
             logger.info("Sense HAT data source initialized successfully")
-        else:
-            logger.warning("Sense HAT hardware not available")
+
+        except ImportError:
+            logger.warning("sense_hat module not installed - sensor data unavailable")
+            self._available = False
+        except Exception as e:
+            logger.warning(f"Sense HAT hardware not available: {e}")
+            self._available = False
+
+    def _read_sensors_sync(self) -> dict[str, float | None]:
+        """Synchronous sensor reading (runs in thread pool)"""
+        if not self._available or self._sense_hat is None:
+            return {
+                "temperature": None,
+                "humidity": None,
+                "pressure": None,
+            }
+
+        try:
+            return {
+                "temperature": round(self._sense_hat.get_temperature(), 1),
+                "humidity": round(self._sense_hat.get_humidity(), 1),
+                "pressure": round(self._sense_hat.get_pressure(), 1),
+            }
+        except Exception as e:
+            logger.error(f"Failed to read Sense HAT sensors: {e}")
+            return {
+                "temperature": None,
+                "humidity": None,
+                "pressure": None,
+            }
 
     async def fetch_readings(self) -> list[SensorReading]:
         """
@@ -39,15 +75,13 @@ class SenseHatDataSource(DataSource):
         Returns:
             List of sensor readings (temperature, humidity, pressure)
         """
+        if not self._available:
+            return []
+
         try:
-            data = await get_sensor_data()
+            # Read sensors in thread pool (blocking I/O)
+            data = await asyncio.to_thread(self._read_sensors_sync)
             now = datetime.now()
-
-            # Only return readings if hardware is available
-            if not data.get("available", False):
-                logger.debug("Sense HAT hardware not available, returning empty readings")
-                return []
-
             readings = []
 
             # Add readings only for non-None values
@@ -99,14 +133,28 @@ class SenseHatDataSource(DataSource):
         )
 
     async def health_check(self) -> bool:
-        """Check if Sense HAT hardware is available"""
+        """Check if Sense HAT hardware is available and responsive"""
+        if not self._available or self._sense_hat is None:
+            return False
+
         try:
-            data = await get_sensor_data()
-            return data.get("available", False)
+            # Try a quick read to verify hardware is working
+            data = await asyncio.to_thread(self._read_sensors_sync)
+            return any(v is not None for v in data.values())
         except Exception as e:
             logger.debug(f"Sense HAT health check failed: {e}")
             return False
 
+    def is_available(self) -> bool:
+        """Check if Sense HAT hardware is available"""
+        return self._available
+
+    def get_sense_hat_instance(self) -> Optional["SenseHat"]:
+        """Get the Sense HAT hardware instance (for display/LED access)"""
+        return self._sense_hat
+
     async def shutdown(self) -> None:
-        """Clean up resources (no-op for Sense HAT)"""
+        """Clean up resources"""
+        self._sense_hat = None
+        self._available = False
         logger.debug("Sense HAT data source shut down")

@@ -1,4 +1,4 @@
-"""Sense HAT LED display and sensor handling"""
+"""Sense HAT LED display handling"""
 
 import asyncio
 import logging
@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class SenseHatDisplay:
-    """Handles Sense HAT sensor reading and LED display"""
+    """Handles Sense HAT LED matrix display"""
 
     def __init__(
         self,
+        sense_hat_instance: Optional["SenseHat"] = None,
         rotation: int = 0,
         scroll_speed: float = 0.08,
         icon_duration: float = 1.5,
@@ -26,44 +27,32 @@ class SenseHatDisplay:
         Initialize Sense HAT display.
 
         Args:
+            sense_hat_instance: Optional SenseHat hardware instance.
+                               If None, will try to get from sensehat module.
             rotation: Display rotation (0, 90, 180, 270)
             scroll_speed: Text scroll speed
             icon_duration: Default icon display duration
         """
         try:
-            # Use shared SenseHat instance from hardware module
-            self.sense: Optional[SenseHat] = sensehat.get_sense_hat()
+            # Use provided instance or get from module
+            if sense_hat_instance is not None:
+                self.sense: Optional[SenseHat] = sense_hat_instance
+                logger.info("Using provided Sense HAT instance")
+            else:
+                self.sense = sensehat.get_sense_hat()
+                logger.info("Using Sense HAT instance from module")
+
             if self.sense is None:
                 raise RuntimeError("Sense HAT not available")
+
             sensehat._set_rotation_sync(rotation)
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
             self.icon_duration = icon_duration
-            logger.info(f"Initialized Sense HAT with rotation: {rotation}")
+            logger.info(f"Initialized Sense HAT display with rotation: {rotation}")
         except Exception as e:
-            logger.error(f"Failed to initialize Sense HAT: {e}")
+            logger.error(f"Failed to initialize Sense HAT display: {e}")
             raise
-
-    def get_sensor_data(self) -> dict[str, float]:
-        """Read all sensor data from Sense HAT"""
-        try:
-            temp = self.sense.get_temperature()
-            humidity = self.sense.get_humidity()
-            pressure = self.sense.get_pressure()
-
-            logger.debug(
-                f"Sensor readings - Temp: {temp:.1f}C, "
-                f"Humidity: {humidity:.1f}%, Pressure: {pressure:.1f}mb"
-            )
-
-            return {
-                "temperature": round(temp, 1),
-                "humidity": round(humidity, 1),
-                "pressure": round(pressure, 1),
-            }
-        except Exception as e:
-            logger.error(f"Failed to read sensor data: {e}")
-            return {"temperature": 0, "humidity": 0, "pressure": 0}
 
     async def show_text(
         self,

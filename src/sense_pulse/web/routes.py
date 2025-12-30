@@ -1,6 +1,7 @@
 """API routes for status data"""
 
 import asyncio
+import logging
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Optional
@@ -12,11 +13,39 @@ from pydantic import BaseModel
 
 from sense_pulse.cache import get_cache
 from sense_pulse.config import Config, find_config_file, load_config
-from sense_pulse.devices import aranet4, sensehat
+from sense_pulse.devices import sensehat
 from sense_pulse.web.auth import AuthConfig as WebAuthConfig
 from sense_pulse.web.auth import require_auth, set_auth_config
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Helper functions for Aranet4 DataSource access
+async def _is_aranet4_available() -> bool:
+    """Check if Aranet4 sensors are available (configured and have data)"""
+    config = get_config()
+    # Check if any sensors are configured
+    if not any(s.enabled for s in config.aranet4.sensors):
+        return False
+    # Check if cache has CO2 data
+    cache = await get_cache()
+    co2_data = await cache.get("co2", {})
+    return bool(co2_data)
+
+
+async def _get_aranet4_status() -> dict[str, Any]:
+    """Get Aranet4 sensor status from DataSource"""
+    cache = await get_cache()
+    # Try to get the Aranet4DataSource instance
+    if hasattr(cache, "_data_sources"):
+        for source in cache._data_sources.values():
+            if source.get_metadata().source_id == "co2":
+                # DataSource has get_sensor_status method
+                if hasattr(source, "get_sensor_status"):
+                    return source.get_sensor_status()
+    # Fall back to empty dict if DataSource not available
+    return {}
 
 
 # Pydantic models for configuration updates
@@ -101,7 +130,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
         {
             "request": request,
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": aranet4.is_aranet4_available(),
+            "aranet4_available": await _is_aranet4_available(),
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
             "tailscale": await cache.get("tailscale", {}),
@@ -109,7 +138,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "system": await cache.get("system", {}),
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
-            "aranet4_status": aranet4.get_aranet4_status(),
+            "aranet4_status": await _get_aranet4_status(),
         },
     )
 
@@ -128,7 +157,7 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
         "co2": await cache.get("co2", {}),
         "hardware": {
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": aranet4.is_aranet4_available(),
+            "aranet4_available": await _is_aranet4_available(),
         },
         "config": {
             "show_icons": config.display.show_icons,
@@ -163,7 +192,7 @@ async def get_status_cards(request: Request):
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": aranet4.is_aranet4_available(),
+            "aranet4_available": await _is_aranet4_available(),
             "config": config,
         },
     )
@@ -210,7 +239,7 @@ async def grid_websocket(websocket: WebSocket):
                 "matrix": await sensehat.get_matrix_state(),
                 "hardware": {
                     "sense_hat_available": sensehat.is_sense_hat_available(),
-                    "aranet4_available": aranet4.is_aranet4_available(),
+                    "aranet4_available": await _is_aranet4_available(),
                 },
             }
 
@@ -394,10 +423,11 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[st
 @router.get("/api/aranet4/status")
 async def get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
+    cache = await get_cache()
     return {
-        "status": aranet4.get_aranet4_status(),
-        "data": await aranet4.get_aranet4_data(),
-        "available": aranet4.is_aranet4_available(),
+        "status": await _get_aranet4_status(),
+        "data": await cache.get("co2", {}),
+        "available": await _is_aranet4_available(),
     }
 
 
@@ -441,20 +471,16 @@ async def update_aranet4_config(
         # Reload config
         _config = reload_config()
 
-        # Update hardware sensors
-        timeout = _config.aranet4.timeout
-        cache_duration = _config.aranet4.cache_duration
-        aranet4.update_aranet4_sensors(
-            sensors=sensors,
-            timeout=timeout,
-            cache_duration=cache_duration,
-        )
+        # NOTE: Sensor changes require application restart to take effect
+        # The Aranet4DataSource is initialized at startup with the config
+        logger.warning("Aranet4 sensor configuration updated. Please restart the application for changes to take effect.")
 
         # Return success with updated config
         return {
             "status": "success",
-            "message": f"Updated {len(sensors)} sensor(s)",
+            "message": f"Updated {len(sensors)} sensor(s). Restart required for changes to take effect.",
             "sensors": sensors,
+            "restart_required": True,
         }
 
     except Exception as e:
@@ -476,6 +502,6 @@ async def get_aranet4_controls(request: Request):
             "request": request,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
-            "aranet4_status": aranet4.get_aranet4_status(),
+            "aranet4_status": await _get_aranet4_status(),
         },
     )
