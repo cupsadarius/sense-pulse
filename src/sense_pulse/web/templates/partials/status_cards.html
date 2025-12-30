@@ -73,7 +73,7 @@
                 <p class="text-lg font-bold text-blue-400">Sense HAT</p>
             </div>
         </div>
-        {% if sensors.available|default(false) %}
+        {% if sensors.temperature is defined %}
         <!-- Available state -->
         <div class="space-y-3 pt-4 border-t border-sense-border">
             <div class="flex items-center justify-between">
@@ -162,12 +162,12 @@
 </div>
 
 <!-- CO2 Sensors Row - Aranet4 Style Display -->
-{% if aranet4_available or (co2 and co2.available) %}
+{% if aranet4_available or (co2 and co2|length > 0) %}
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 fade-in">
     <!-- Dynamic CO2 Cards - Aranet4 Style -->
     {% if co2 and co2 is mapping %}
         {% for sensor_label, sensor_data in co2.items() %}
-            {% if sensor_label != 'available' and sensor_data is mapping %}
+            {% if sensor_data is mapping %}
     <div class="bg-sense-card rounded-xl border border-sense-border overflow-hidden hover:border-green-500/50 transition-colors" id="co2-card-{{ sensor_label | replace(' ', '-') | lower }}">
         <!-- Header with location -->
         <div class="px-4 py-2 bg-gray-800/50 flex items-center justify-between">
