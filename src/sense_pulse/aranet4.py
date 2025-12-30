@@ -213,11 +213,13 @@ def register_sensor(sensor: Aranet4Sensor) -> None:
     """Register a sensor for background polling"""
     global _polling_task
 
-    if sensor not in _sensors_to_poll:
+    # Check by MAC address to avoid duplicate registrations from different code paths
+    existing_macs = {s.mac_address for s in _sensors_to_poll}
+    if sensor.mac_address not in existing_macs:
         _sensors_to_poll.append(sensor)
         logger.info(f"Registered Aranet4 sensor: {sensor.name} ({sensor.mac_address})")
     else:
-        logger.debug(f"Aranet4 sensor already registered: {sensor.name}")
+        logger.debug(f"Aranet4 sensor already registered: {sensor.name} ({sensor.mac_address})")
 
     # Start polling task if not running (thread-safe check)
     with _task_lock:
@@ -237,9 +239,12 @@ def register_sensor(sensor: Aranet4Sensor) -> None:
 
 def unregister_sensor(sensor: Aranet4Sensor) -> None:
     """Unregister a sensor from background polling"""
-    if sensor in _sensors_to_poll:
-        _sensors_to_poll.remove(sensor)
-        logger.info(f"Unregistered Aranet4 sensor: {sensor.name}")
+    # Find and remove by MAC address to handle different object instances
+    for s in list(_sensors_to_poll):
+        if s.mac_address == sensor.mac_address:
+            _sensors_to_poll.remove(s)
+            logger.info(f"Unregistered Aranet4 sensor: {sensor.name} ({sensor.mac_address})")
+            break
 
 
 async def stop_polling() -> None:
