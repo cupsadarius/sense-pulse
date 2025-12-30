@@ -37,30 +37,18 @@ class SenseHatDataSource(DataSource):
         Fetch fresh readings from Sense HAT sensors.
 
         Returns:
-            List of sensor readings (temperature, humidity, pressure, available)
+            List of sensor readings (temperature, humidity, pressure)
         """
         try:
             data = await get_sensor_data()
             now = datetime.now()
 
-            # Check if hardware is available
-            available = data.get("available", False)
+            # Only return readings if hardware is available
+            if not data.get("available", False):
+                logger.debug("Sense HAT hardware not available, returning empty readings")
+                return []
 
-            # Always include availability status for the web UI
-            readings = [
-                SensorReading(
-                    sensor_id="available",
-                    value=available,
-                    unit=None,
-                    timestamp=now,
-                    metadata={"type": "boolean"},
-                )
-            ]
-
-            # Only add sensor readings if hardware is available
-            if not available:
-                logger.debug("Sense HAT hardware not available, returning only availability status")
-                return readings
+            readings = []
 
             # Add readings only for non-None values
             if data.get("temperature") is not None:
