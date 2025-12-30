@@ -150,13 +150,44 @@
                 sensorsReconnectTimeout: null,
                 gridConnected: false,
                 sensorsConnected: false,
-                initialized: false
+                initialized: false,
+                // Performance optimizations: cache previous states
+                ledCache: new Array(64).fill(null),  // Cache LED colors to avoid unnecessary updates
+                statusCache: {},  // Cache status card values
+                // DOM element cache
+                domCache: {},
+                // requestAnimationFrame queue
+                rafPending: false,
+                rafQueue: []
             };
         }
 
+        // Performance optimization: cached DOM element getter
+        function getCachedElement(id) {
+            if (!window.sensePulseWS.domCache[id]) {
+                window.sensePulseWS.domCache[id] = document.getElementById(id);
+            }
+            return window.sensePulseWS.domCache[id];
+        }
+
+        // Performance optimization: batch DOM updates with requestAnimationFrame
+        function scheduleUpdate(updateFn) {
+            window.sensePulseWS.rafQueue.push(updateFn);
+            if (!window.sensePulseWS.rafPending) {
+                window.sensePulseWS.rafPending = true;
+                requestAnimationFrame(() => {
+                    const queue = window.sensePulseWS.rafQueue.splice(0);
+                    queue.forEach(fn => fn());
+                    window.sensePulseWS.rafPending = false;
+                });
+            }
+        }
+
         function updateWSStatus(gridConnected, sensorsConnected) {
-            const indicator = document.getElementById('ws-indicator');
-            const label = document.getElementById('ws-label');
+            const indicator = getCachedElement('ws-indicator');
+            const label = getCachedElement('ws-label');
+
+            if (!indicator || !label) return;
 
             // Both connected - fully live
             if (gridConnected && sensorsConnected) {
@@ -180,7 +211,10 @@
 
         function updateLastUpdateTime() {
             const now = new Date();
-            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+            const lastUpdate = getCachedElement('last-update');
+            if (lastUpdate) {
+                lastUpdate.textContent = now.toLocaleTimeString();
+            }
         }
 
         function rgbToHex(r, g, b) {
@@ -214,17 +248,42 @@
             const rotation = matrixData.rotation || 0;
             const webOffset = matrixData.web_offset !== undefined ? matrixData.web_offset : 90;
 
-            const modeEl = document.getElementById('matrix-mode');
-            if (modeEl) {
+            // Update mode text (less frequent, so not cached)
+            const modeEl = getCachedElement('matrix-mode');
+            if (modeEl && modeEl.textContent !== (mode || 'idle')) {
                 modeEl.textContent = mode || 'idle';
             }
 
-            for (let i = 0; i < 64; i++) {
-                const rotatedIndex = rotateIndex(i, rotation, webOffset);
-                const led = document.getElementById('led-' + rotatedIndex);
-                if (led && pixels && pixels[i]) {
-                    const [r, g, b] = pixels[i];
-                    if (r === 0 && g === 0 && b === 0) {
+            if (!pixels) return;
+
+            // Batch updates in requestAnimationFrame for smoother rendering
+            scheduleUpdate(() => {
+                const cache = window.sensePulseWS.ledCache;
+
+                for (let i = 0; i < 64; i++) {
+                    const rotatedIndex = rotateIndex(i, rotation, webOffset);
+                    const pixel = pixels[i];
+                    if (!pixel) continue;
+
+                    const [r, g, b] = pixel;
+
+                    // Create a comparable cache key (color string)
+                    const colorKey = r === 0 && g === 0 && b === 0
+                        ? 'off'
+                        : `${r},${g},${b}`;
+
+                    // Skip update if pixel hasn't changed
+                    if (cache[rotatedIndex] === colorKey) continue;
+
+                    // Update cache
+                    cache[rotatedIndex] = colorKey;
+
+                    // Get cached DOM element
+                    const led = getCachedElement('led-' + rotatedIndex);
+                    if (!led) continue;
+
+                    // Apply color change
+                    if (colorKey === 'off') {
                         led.style.backgroundColor = '#1f2937';
                         led.style.boxShadow = 'none';
                     } else {
@@ -233,125 +292,219 @@
                         led.style.boxShadow = '0 0 8px ' + color;
                     }
                 }
-            }
+            });
         }
 
         function updateStatusCards(data) {
+            const cache = window.sensePulseWS.statusCache;
+
             // Update Tailscale card
             const tailscale = data.tailscale || {};
-            const tsStatus = document.getElementById('ts-status');
-            const tsIndicator = document.getElementById('ts-indicator');
-            const tsDevices = document.getElementById('ts-devices');
+            const tsConnected = tailscale.connected;
+            const tsDeviceCount = tailscale.device_count || '0';
 
-            if (tsStatus) {
-                if (tailscale.connected) {
-                    tsStatus.textContent = 'Connected';
-                    tsStatus.className = 'text-lg font-bold text-green-400';
-                    if (tsIndicator) {
-                        tsIndicator.className = 'w-3 h-3 bg-green-500 rounded-full status-glow text-green-500';
-                    }
-                } else {
-                    tsStatus.textContent = 'Disconnected';
-                    tsStatus.className = 'text-lg font-bold text-red-400';
-                    if (tsIndicator) {
-                        tsIndicator.className = 'w-3 h-3 bg-red-500 rounded-full';
+            // Only update if changed
+            if (cache.tsConnected !== tsConnected) {
+                cache.tsConnected = tsConnected;
+                const tsStatus = getCachedElement('ts-status');
+                const tsIndicator = getCachedElement('ts-indicator');
+
+                if (tsStatus) {
+                    if (tsConnected) {
+                        tsStatus.textContent = 'Connected';
+                        tsStatus.className = 'text-lg font-bold text-green-400';
+                        if (tsIndicator) {
+                            tsIndicator.className = 'w-3 h-3 bg-green-500 rounded-full status-glow text-green-500';
+                        }
+                    } else {
+                        tsStatus.textContent = 'Disconnected';
+                        tsStatus.className = 'text-lg font-bold text-red-400';
+                        if (tsIndicator) {
+                            tsIndicator.className = 'w-3 h-3 bg-red-500 rounded-full';
+                        }
                     }
                 }
             }
-            if (tsDevices) {
-                tsDevices.textContent = tailscale.device_count || '0';
+
+            if (cache.tsDeviceCount !== tsDeviceCount) {
+                cache.tsDeviceCount = tsDeviceCount;
+                const tsDevices = getCachedElement('ts-devices');
+                if (tsDevices) {
+                    tsDevices.textContent = tsDeviceCount;
+                }
             }
 
             // Update Pi-hole card
             const pihole = data.pihole || {};
-            const phQueries = document.getElementById('ph-queries');
-            const phBlocked = document.getElementById('ph-blocked');
-            const phRate = document.getElementById('ph-rate');
+            const phQueriesValue = pihole.queries_today || 0;
+            const phBlockedValue = pihole.ads_blocked_today || 0;
+            const phRateValue = pihole.ads_percentage_today || 0;
 
-            if (phQueries) {
-                phQueries.textContent = (pihole.queries_today || 0).toLocaleString();
+            if (cache.phQueries !== phQueriesValue) {
+                cache.phQueries = phQueriesValue;
+                const phQueries = getCachedElement('ph-queries');
+                if (phQueries) {
+                    phQueries.textContent = phQueriesValue.toLocaleString();
+                }
             }
-            if (phBlocked) {
-                phBlocked.textContent = (pihole.ads_blocked_today || 0).toLocaleString();
+
+            if (cache.phBlocked !== phBlockedValue) {
+                cache.phBlocked = phBlockedValue;
+                const phBlocked = getCachedElement('ph-blocked');
+                if (phBlocked) {
+                    phBlocked.textContent = phBlockedValue.toLocaleString();
+                }
             }
-            if (phRate) {
-                phRate.textContent = (pihole.ads_percentage_today || 0).toFixed(1) + '%';
+
+            if (cache.phRate !== phRateValue) {
+                cache.phRate = phRateValue;
+                const phRate = getCachedElement('ph-rate');
+                if (phRate) {
+                    phRate.textContent = phRateValue.toFixed(1) + '%';
+                }
             }
 
             // Update Sensors card
             const sensors = data.sensors || {};
-            const sensTemp = document.getElementById('sens-temp');
-            const sensHumidity = document.getElementById('sens-humidity');
-            const sensPressure = document.getElementById('sens-pressure');
+            const sensTemperature = sensors.temperature;
+            const sensHumidityValue = sensors.humidity;
+            const sensPressureValue = sensors.pressure;
 
-            if (sensTemp) {
-                sensTemp.textContent = sensors.temperature ? sensors.temperature.toFixed(1) + '°C' : 'N/A';
+            if (cache.sensTemperature !== sensTemperature) {
+                cache.sensTemperature = sensTemperature;
+                const sensTemp = getCachedElement('sens-temp');
+                if (sensTemp) {
+                    sensTemp.textContent = sensTemperature ? sensTemperature.toFixed(1) + '°C' : 'N/A';
+                }
             }
-            if (sensHumidity) {
-                sensHumidity.textContent = sensors.humidity ? sensors.humidity.toFixed(1) + '%' : 'N/A';
+
+            if (cache.sensHumidity !== sensHumidityValue) {
+                cache.sensHumidity = sensHumidityValue;
+                const sensHumidity = getCachedElement('sens-humidity');
+                if (sensHumidity) {
+                    sensHumidity.textContent = sensHumidityValue ? sensHumidityValue.toFixed(1) + '%' : 'N/A';
+                }
             }
-            if (sensPressure) {
-                sensPressure.textContent = sensors.pressure ? sensors.pressure.toFixed(0) + ' hPa' : 'N/A';
+
+            if (cache.sensPressure !== sensPressureValue) {
+                cache.sensPressure = sensPressureValue;
+                const sensPressure = getCachedElement('sens-pressure');
+                if (sensPressure) {
+                    sensPressure.textContent = sensPressureValue ? sensPressureValue.toFixed(0) + ' hPa' : 'N/A';
+                }
             }
 
             // Update System card
             const system = data.system || {};
-            const sysCpu = document.getElementById('sys-cpu');
-            const sysCpuBar = document.getElementById('sys-cpu-bar');
-            const sysMemory = document.getElementById('sys-memory');
-            const sysMemoryBar = document.getElementById('sys-memory-bar');
-            const sysLoad = document.getElementById('sys-load');
-            const sysTemp = document.getElementById('sys-temp');
+            const cpuPercent = system.cpu_percent || 0;
+            const memPercent = system.memory_percent || 0;
+            const load1min = system.load_1min;
+            const cpuTemp = system.cpu_temp;
 
-            if (sysCpu) {
-                const cpuPercent = system.cpu_percent || 0;
-                sysCpu.textContent = cpuPercent.toFixed(1) + '%';
+            if (cache.sysCpu !== cpuPercent) {
+                cache.sysCpu = cpuPercent;
+                const sysCpu = getCachedElement('sys-cpu');
+                const sysCpuBar = getCachedElement('sys-cpu-bar');
+
+                if (sysCpu) {
+                    sysCpu.textContent = cpuPercent.toFixed(1) + '%';
+                }
                 if (sysCpuBar) {
                     sysCpuBar.style.width = cpuPercent + '%';
                 }
             }
-            if (sysMemory) {
-                const memPercent = system.memory_percent || 0;
-                sysMemory.textContent = memPercent.toFixed(1) + '%';
+
+            if (cache.sysMemory !== memPercent) {
+                cache.sysMemory = memPercent;
+                const sysMemory = getCachedElement('sys-memory');
+                const sysMemoryBar = getCachedElement('sys-memory-bar');
+
+                if (sysMemory) {
+                    sysMemory.textContent = memPercent.toFixed(1) + '%';
+                }
                 if (sysMemoryBar) {
                     sysMemoryBar.style.width = memPercent + '%';
                 }
             }
-            if (sysLoad) {
-                sysLoad.textContent = system.load_1min ? system.load_1min.toFixed(2) : 'N/A';
+
+            if (cache.sysLoad !== load1min) {
+                cache.sysLoad = load1min;
+                const sysLoad = getCachedElement('sys-load');
+                if (sysLoad) {
+                    sysLoad.textContent = load1min ? load1min.toFixed(2) : 'N/A';
+                }
             }
-            if (sysTemp) {
-                sysTemp.textContent = system.cpu_temp ? system.cpu_temp.toFixed(1) + '°C' : 'N/A';
+
+            if (cache.sysCpuTemp !== cpuTemp) {
+                cache.sysCpuTemp = cpuTemp;
+                const sysTemp = getCachedElement('sys-temp');
+                if (sysTemp) {
+                    sysTemp.textContent = cpuTemp ? cpuTemp.toFixed(1) + '°C' : 'N/A';
+                }
             }
 
             // Update CO2 cards for all sensors dynamically
             const co2 = data.co2 || {};
+
+            // Initialize CO2 cache if not exists
+            if (!cache.co2) cache.co2 = {};
+
             for (const [label, sensorData] of Object.entries(co2)) {
                 if (!sensorData || typeof sensorData !== 'object') continue;
 
                 const sensorId = label.toLowerCase().replace(/\s+/g, '-');
-                const co2Value = document.getElementById(`co2-${sensorId}-value`);
-                const co2Temp = document.getElementById(`co2-${sensorId}-temp`);
-                const co2Humidity = document.getElementById(`co2-${sensorId}-humidity`);
+                const cacheKey = `co2_${sensorId}`;
 
-                if (co2Value) {
-                    if (sensorData.error) {
-                        co2Value.textContent = 'N/A';
-                        co2Value.className = 'text-6xl font-bold tracking-tight text-gray-400';
-                    } else {
-                        const level = sensorData.co2 || 0;
-                        co2Value.textContent = level;
-                        // Update color based on CO2 level
-                        if (level < 1000) {
-                            co2Value.className = 'text-6xl font-bold tracking-tight text-green-400';
-                        } else if (level < 1500) {
-                            co2Value.className = 'text-6xl font-bold tracking-tight text-yellow-400';
+                // Create cache entry for this sensor if it doesn't exist
+                if (!cache.co2[cacheKey]) {
+                    cache.co2[cacheKey] = {};
+                }
+
+                const sensorCache = cache.co2[cacheKey];
+                const co2Level = sensorData.co2 || 0;
+                const hasError = !!sensorData.error;
+                const temperature = sensorData.temperature || 0;
+                const humidity = sensorData.humidity || 0;
+
+                // Only update CO2 value if changed
+                if (sensorCache.level !== co2Level || sensorCache.error !== hasError) {
+                    sensorCache.level = co2Level;
+                    sensorCache.error = hasError;
+
+                    const co2Value = getCachedElement(`co2-${sensorId}-value`);
+                    if (co2Value) {
+                        if (hasError) {
+                            co2Value.textContent = 'N/A';
+                            co2Value.className = 'text-6xl font-bold tracking-tight text-gray-400';
                         } else {
-                            co2Value.className = 'text-6xl font-bold tracking-tight text-red-400';
+                            co2Value.textContent = co2Level;
+                            // Update color based on CO2 level
+                            if (co2Level < 1000) {
+                                co2Value.className = 'text-6xl font-bold tracking-tight text-green-400';
+                            } else if (co2Level < 1500) {
+                                co2Value.className = 'text-6xl font-bold tracking-tight text-yellow-400';
+                            } else {
+                                co2Value.className = 'text-6xl font-bold tracking-tight text-red-400';
+                            }
                         }
+                    }
+                }
 
-                        if (co2Temp) co2Temp.textContent = (sensorData.temperature || 0).toFixed(1) + '°C';
-                        if (co2Humidity) co2Humidity.textContent = (sensorData.humidity || 0).toFixed(0) + '%';
+                // Only update temperature if changed
+                if (!hasError && sensorCache.temperature !== temperature) {
+                    sensorCache.temperature = temperature;
+                    const co2Temp = getCachedElement(`co2-${sensorId}-temp`);
+                    if (co2Temp) {
+                        co2Temp.textContent = temperature.toFixed(1) + '°C';
+                    }
+                }
+
+                // Only update humidity if changed
+                if (!hasError && sensorCache.humidity !== humidity) {
+                    sensorCache.humidity = humidity;
+                    const co2Humidity = getCachedElement(`co2-${sensorId}-humidity`);
+                    if (co2Humidity) {
+                        co2Humidity.textContent = humidity.toFixed(0) + '%';
                     }
                 }
             }
