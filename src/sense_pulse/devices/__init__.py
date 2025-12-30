@@ -4,6 +4,9 @@ This module contains low-level hardware device implementations:
 - aranet4: Aranet4 CO2 sensor BLE interface
 - sensehat: Sense HAT hardware abstraction (sensors, LED matrix)
 - display: Display device wrapper for Sense HAT LED matrix
+- pihole: Pi-hole API client
+- tailscale: Tailscale CLI wrapper
+- system: System statistics (psutil)
 """
 
 from sense_pulse.devices.aranet4 import (
@@ -16,6 +19,7 @@ from sense_pulse.devices.aranet4 import (
     update_aranet4_sensors,
 )
 from sense_pulse.devices.display import SenseHatDisplay
+from sense_pulse.devices.pihole import PiHoleStats
 from sense_pulse.devices.sensehat import (
     clear_display,
     get_matrix_state,
@@ -27,11 +31,18 @@ from sense_pulse.devices.sensehat import (
     set_rotation,
     set_web_rotation_offset,
 )
+from sense_pulse.devices.system import SystemStats
+from sense_pulse.devices.tailscale import TailscaleStatus
 
 __all__ = [
     # Aranet4
     "Aranet4Sensor",
     "Aranet4Reading",
+    "get_aranet4_data",
+    "get_aranet4_status",
+    "init_aranet4_sensors",
+    "is_aranet4_available",
+    "update_aranet4_sensors",
     # Sense HAT hardware
     "is_sense_hat_available",
     "get_sense_hat",
@@ -42,12 +53,12 @@ __all__ = [
     "get_matrix_state",
     "set_web_rotation_offset",
     "set_display_mode",
-    # Aranet4 management
-    "init_aranet4_sensors",
-    "update_aranet4_sensors",
-    "get_aranet4_data",
-    "get_aranet4_status",
-    "is_aranet4_available",
     # Display
     "SenseHatDisplay",
+    # Pi-hole
+    "PiHoleStats",
+    # Tailscale
+    "TailscaleStatus",
+    # System
+    "SystemStats",
 ]

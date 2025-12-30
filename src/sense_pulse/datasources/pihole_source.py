@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 
 from ..config import PiholeConfig
-from ..pihole import PiHoleStats
+from ..devices.pihole import PiHoleStats
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 logger = logging.getLogger(__name__)
