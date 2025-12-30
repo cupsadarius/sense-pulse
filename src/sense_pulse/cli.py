@@ -235,7 +235,11 @@ async def async_main() -> int:
         # =====================================================================
         from sense_pulse.controller import StatsDisplay
 
-        controller = StatsDisplay(config, sense_hat_instance=sense_hat_instance)
+        controller = StatsDisplay(
+            config,
+            cache=context.cache,
+            sense_hat_instance=sense_hat_instance,
+        )
         await controller.async_init()
 
         if args.once:
