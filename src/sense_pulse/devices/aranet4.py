@@ -1,7 +1,5 @@
 """Aranet4 CO2 sensor communication via aranet4 package scan"""
 
-import asyncio
-import contextlib
 import logging
 import threading
 import time
@@ -104,17 +102,14 @@ class Aranet4Sensor:
             }
 
 
-# Background polling task
-_polling_task: Optional[asyncio.Task] = None
-_polling_stop_event = asyncio.Event()
-_scan_lock = threading.Lock()  # Prevent concurrent BLE scans (works across async/threads)
-_task_lock = threading.Lock()  # Prevent multiple polling tasks from being created
-_last_scan_time: float = 0  # Track last scan time for cooldown
+# ============================================================================
+# BLE Scanning Utilities
+# ============================================================================
+
+# Global scan lock prevents concurrent BLE operations (shared across all instances)
+_scan_lock = threading.Lock()
+_last_scan_time: float = 0
 _scan_cooldown = 5  # Minimum seconds between scans
-_sensors_to_poll: list[Aranet4Sensor] = []
-_poll_interval = 30  # seconds
-_scan_duration = 8  # seconds for BLE scan
-_task_counter = 0  # For debugging multiple task instances
 
 
 @retry(
@@ -123,10 +118,16 @@ _task_counter = 0  # For debugging multiple task instances
     wait=wait_exponential(multiplier=1, min=2, max=10),
     reraise=True,
 )
-def _do_scan() -> dict[str, Aranet4Reading]:
+def do_ble_scan(scan_duration: int = 8) -> dict[str, Aranet4Reading]:
     """Run aranet4 package scan and return readings by MAC address (with retries)
 
     IMPORTANT: Must be called with _scan_lock held to prevent concurrent scans.
+
+    Args:
+        scan_duration: Duration of BLE scan in seconds
+
+    Returns:
+        Dictionary mapping MAC addresses to Aranet4Reading objects
     """
     global _last_scan_time
 
@@ -159,7 +160,7 @@ def _do_scan() -> dict[str, Aranet4Reading]:
                 )
                 logger.debug(f"Aranet4: Found {address} CO2={advertisement.readings.co2}")
 
-        aranet4.client.find_nearby(on_detect, duration=_scan_duration)
+        aranet4.client.find_nearby(on_detect, duration=scan_duration)
         logger.info(f"Aranet4: Scan found {len(readings)} device(s)")
         return readings
 
@@ -171,100 +172,21 @@ def _do_scan() -> dict[str, Aranet4Reading]:
         raise
 
 
-async def _polling_loop():
-    """Background task that scans for all sensors at once"""
-    global _task_counter
-    _task_counter += 1
-    task_id = _task_counter
-    logger.info(f"Aranet4 background polling started (task #{task_id})")
-
-    while not _polling_stop_event.is_set():
-        try:
-            # Single scan gets all devices (run in thread pool to avoid blocking)
-            # Use threading lock to prevent concurrent BLE scans from any context
-            logger.debug(f"Aranet4 task #{task_id}: Waiting for scan lock...")
-
-            def locked_scan():
-                """Run scan with lock held"""
-                with _scan_lock:
-                    logger.debug(f"Aranet4 task #{task_id}: Acquired scan lock, starting scan")
-                    return _do_scan()
-
-            readings = await asyncio.to_thread(locked_scan)
-
-            # Update each registered sensor with its reading
-            for sensor in _sensors_to_poll:
-                if sensor.mac_address in readings:
-                    sensor.update_reading(readings[sensor.mac_address])
-                else:
-                    sensor.set_error("Not found in scan")
-
-        except Exception as e:
-            logger.error(f"Aranet4 polling error (task #{task_id}): {e}")
-
-        # Wait for next poll interval
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(_polling_stop_event.wait(), timeout=_poll_interval)
-
-    logger.info(f"Aranet4 background polling stopped (task #{task_id})")
-
-
-def register_sensor(sensor: Aranet4Sensor) -> None:
-    """Register a sensor for background polling"""
-    global _polling_task
-
-    # Check by MAC address to avoid duplicate registrations from different code paths
-    existing_macs = {s.mac_address for s in _sensors_to_poll}
-    if sensor.mac_address not in existing_macs:
-        _sensors_to_poll.append(sensor)
-        logger.info(f"Registered Aranet4 sensor: {sensor.name} ({sensor.mac_address})")
-    else:
-        logger.debug(f"Aranet4 sensor already registered: {sensor.name} ({sensor.mac_address})")
-
-    # Start polling task if not running (thread-safe check)
-    with _task_lock:
-        if _polling_task is None:
-            logger.info("Starting new Aranet4 polling task (no previous task)")
-            _polling_stop_event.clear()
-            _polling_task = asyncio.create_task(_polling_loop())
-        elif _polling_task.done():
-            logger.warning(
-                f"Previous Aranet4 polling task finished (done={_polling_task.done()}), starting new one"
-            )
-            _polling_stop_event.clear()
-            _polling_task = asyncio.create_task(_polling_loop())
-        else:
-            logger.debug("Aranet4 polling task already running")
-
-
-def unregister_sensor(sensor: Aranet4Sensor) -> None:
-    """Unregister a sensor from background polling"""
-    # Find and remove by MAC address to handle different object instances
-    for s in list(_sensors_to_poll):
-        if s.mac_address == sensor.mac_address:
-            _sensors_to_poll.remove(s)
-            logger.info(f"Unregistered Aranet4 sensor: {sensor.name} ({sensor.mac_address})")
-            break
-
-
-async def stop_polling() -> None:
-    """Stop the background polling task"""
-    global _polling_task
-    _polling_stop_event.set()
-    if _polling_task and not _polling_task.done():
-        try:
-            await asyncio.wait_for(_polling_task, timeout=5)
-        except asyncio.TimeoutError:
-            _polling_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await _polling_task
-    _polling_task = None
+def get_scan_lock() -> threading.Lock:
+    """Get the global BLE scan lock for coordinating scans across instances"""
+    return _scan_lock
 
 
 def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
     """Scan for Aranet4 devices in range using aranet4 package.
 
     Uses global scan lock to prevent concurrent BLE operations.
+
+    Args:
+        duration: Duration of scan in seconds
+
+    Returns:
+        List of discovered devices with their info
     """
     global _last_scan_time
 
@@ -315,131 +237,5 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
 
 
 def scan_for_aranet4_sync(duration: int = 10) -> list[dict[str, Any]]:
-    """Synchronous scan for Aranet4 devices"""
+    """Synchronous scan for Aranet4 devices (alias for scan_for_aranet4_devices)"""
     return scan_for_aranet4_devices(duration)
-
-
-# ============================================================================
-# Sensor Registry Management
-# ============================================================================
-
-# Aranet4 CO2 sensors registry (label -> Aranet4Sensor)
-_aranet4_sensors: dict[str, Aranet4Sensor] = {}
-_aranet4_initialized: bool = False
-
-
-def init_aranet4_sensors(
-    sensors: list[dict[str, Any]] = None,
-    timeout: int = 30,
-    cache_duration: int = 60,
-) -> None:
-    """Initialize Aranet4 CO2 sensors and start background polling
-
-    Args:
-        sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
-        timeout: Connection timeout in seconds (unused, kept for API compatibility)
-        cache_duration: Cache duration in seconds
-    """
-    global _aranet4_sensors, _aranet4_initialized
-
-    if _aranet4_initialized:
-        return
-
-    _aranet4_initialized = True
-
-    if sensors is None:
-        sensors = []
-
-    for sensor_config in sensors:
-        label = sensor_config.get("label", "")
-        mac_address = sensor_config.get("mac_address", "")
-        enabled = sensor_config.get("enabled", False)
-
-        if enabled and mac_address and label:
-            sensor = Aranet4Sensor(
-                mac_address=mac_address,
-                name=label,
-                cache_duration=cache_duration,
-            )
-            _aranet4_sensors[label] = sensor
-            register_sensor(sensor)
-            logger.info(f"Aranet4 sensor '{label}' configured: {mac_address}")
-
-
-def update_aranet4_sensors(
-    sensors: list[dict[str, Any]],
-    timeout: int = 30,
-    cache_duration: int = 60,
-) -> dict[str, str]:
-    """Update all Aranet4 sensor configurations
-
-    NOTE: This function updates the global sensor registry for immediate effect,
-    but full integration requires restarting the application to reload the
-    Aranet4DataSource with the new configuration.
-
-    Args:
-        sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
-        timeout: Connection timeout in seconds (unused, kept for API compatibility)
-        cache_duration: Cache duration in seconds
-    """
-    global _aranet4_sensors
-
-    # Unregister all existing sensors from global registry
-    for sensor in list(_sensors_to_poll):
-        unregister_sensor(sensor)
-
-    # Clear legacy dict (kept for backward compatibility)
-    _aranet4_sensors.clear()
-
-    # Register new sensors
-    for sensor_config in sensors:
-        label = sensor_config.get("label", "")
-        mac_address = sensor_config.get("mac_address", "")
-        enabled = sensor_config.get("enabled", False)
-
-        if enabled and mac_address and label:
-            sensor = Aranet4Sensor(
-                mac_address=mac_address,
-                name=label,
-                cache_duration=cache_duration,
-            )
-            _aranet4_sensors[label] = sensor  # Keep for backward compatibility
-            register_sensor(sensor)
-            logger.info(f"Aranet4 sensor '{label}' updated: {mac_address}")
-
-    logger.warning(
-        "Sensor configuration updated. For full effect with DataSource integration, "
-        "restart the application."
-    )
-
-    return {"status": "ok", "message": f"Updated {len(_aranet4_sensors)} sensor(s)"}
-
-
-async def get_aranet4_data() -> dict[str, Any]:
-    """Get CO2 sensor data from cache only (does not trigger BLE)
-
-    NOTE: This is a legacy function. Prefer using the cache with key "co2" instead.
-    """
-    result = {}
-
-    for sensor in _sensors_to_poll:
-        reading = sensor.get_cached_reading()
-        if reading:
-            result[sensor.name] = reading.to_dict()
-
-    return result if result else {"available": False}
-
-
-def get_aranet4_status() -> dict[str, Any]:
-    """Get status of all Aranet4 sensors registered for polling"""
-    result = {}
-
-    for sensor in _sensors_to_poll:
-        result[sensor.name] = sensor.get_status()
-
-    return result
-
-
-def is_aranet4_available() -> bool:
-    """Check if any Aranet4 sensor is configured and registered for polling"""
-    return len(_sensors_to_poll) > 0
