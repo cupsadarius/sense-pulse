@@ -113,8 +113,8 @@ async def async_main() -> int:
     args = parser.parse_args()
 
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
-    from sense_pulse.cache import initialize_cache
     from sense_pulse.config import load_config
+    from sense_pulse.context import AppContext
     from sense_pulse.datasources import (
         Aranet4DataSource,
         PiHoleDataSource,
@@ -135,25 +135,36 @@ async def async_main() -> int:
     logger.info("Starting sense-pulse")
     logger.info("=" * 50)
 
-    # Initialize data cache with 60s TTL and 30s polling interval
-    logger.info("Initializing data cache (60s TTL, 30s poll interval)")
-    cache = await initialize_cache(cache_ttl=60.0, poll_interval=30.0)
+    # =========================================================================
+    # Create AppContext - single source of truth for all dependencies
+    # =========================================================================
+    logger.info("Creating AppContext (TTL=60s, Poll=30s)")
+    context = AppContext.create(
+        config=config,
+        cache_ttl=60.0,
+        poll_interval=30.0,
+    )
 
-    # Create and register data sources
-    data_sources = [
-        TailscaleDataSource(config.tailscale),
-        PiHoleDataSource(config.pihole),
-        SystemStatsDataSource(),
-        SenseHatDataSource(),
-        Aranet4DataSource(config.aranet4),
-    ]
+    # Add all data sources to context
+    context.add_data_source(TailscaleDataSource(config.tailscale))
+    context.add_data_source(PiHoleDataSource(config.pihole))
+    context.add_data_source(SystemStatsDataSource())
+    context.add_data_source(SenseHatDataSource())
+    context.add_data_source(Aranet4DataSource(config.aranet4))
 
-    for source in data_sources:
-        await source.initialize()
-        cache.register_data_source(source)
+    # Start context (initializes sources, registers with cache, starts polling)
+    await context.start()
 
-    # Start background polling
-    await cache.start_polling()
+    # Get SenseHat instance from data source if available
+    sense_hat_instance = None
+    for source in context.data_sources:
+        if hasattr(source, "get_sense_hat_instance"):
+            instance = source.get_sense_hat_instance()
+            if instance:
+                context.sense_hat = instance
+                sense_hat_instance = instance
+                logger.info("Found SenseHat instance from DataSource")
+                break
 
     # Setup signal handlers for graceful shutdown
     shutdown_event = asyncio.Event()
@@ -171,20 +182,25 @@ async def async_main() -> int:
         loop.add_signal_handler(sig, signal_handler, sig)
 
     try:
+        # =====================================================================
         # Web server only mode
+        # =====================================================================
         if args.web_only:
             import uvicorn
 
             from sense_pulse.web.app import create_app
 
             logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
-            app = create_app()
-            # Run uvicorn in async mode
+            app = create_app(context=context)  # Inject context
+
             config_uvicorn = uvicorn.Config(
-                app, host=args.web_host, port=args.web_port, log_level=log_level.lower()
+                app,
+                host=args.web_host,
+                port=args.web_port,
+                log_level=log_level.lower(),
+                log_config=None,  # Prevent uvicorn from reconfiguring logging
             )
             server = uvicorn.Server(config_uvicorn)
-            # Create task so it can be cancelled by signal handler
             main_task = asyncio.create_task(server.serve())
             try:
                 await main_task
@@ -192,7 +208,9 @@ async def async_main() -> int:
                 logger.info("Web server cancelled")
             return 0
 
-        # Start web server in background task (unless disabled)
+        # =====================================================================
+        # Start web server in background (unless disabled)
+        # =====================================================================
         web_server_task = None
         if not args.no_web:
             import uvicorn
@@ -200,25 +218,22 @@ async def async_main() -> int:
             from sense_pulse.web.app import create_app
 
             logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
-            app = create_app()
+            app = create_app(context=context)  # Inject context
+
             config_uvicorn = uvicorn.Config(
-                app, host=args.web_host, port=args.web_port, log_level=log_level.lower()
+                app,
+                host=args.web_host,
+                port=args.web_port,
+                log_level=log_level.lower(),
+                log_config=None,
             )
             server = uvicorn.Server(config_uvicorn)
-            # Run server in background task
             web_server_task = asyncio.create_task(server.serve())
 
+        # =====================================================================
         # LED display mode (requires Sense HAT)
+        # =====================================================================
         from sense_pulse.controller import StatsDisplay
-
-        # Get SenseHat instance from DataSource if available
-        sense_hat_instance = None
-        for source in data_sources:
-            if hasattr(source, "get_sense_hat_instance"):
-                sense_hat_instance = source.get_sense_hat_instance()
-                if sense_hat_instance:
-                    logger.info("Using SenseHat instance from DataSource")
-                    break
 
         controller = StatsDisplay(config, sense_hat_instance=sense_hat_instance)
         await controller.async_init()
@@ -248,11 +263,11 @@ async def async_main() -> int:
         logger.error(f"Fatal error: {e}")
         return 1
     finally:
-        # Cleanup: stop cache polling and shutdown data sources
+        # =====================================================================
+        # Cleanup using AppContext
+        # =====================================================================
         logger.info("Shutting down...")
-        await cache.stop_polling()
-        for source in data_sources:
-            await source.shutdown()
+        await context.shutdown()
         logger.info("Cleanup complete")
 
 
