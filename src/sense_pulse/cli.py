@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import signal
 import sys
 from typing import Optional
 
@@ -114,6 +115,13 @@ async def async_main() -> int:
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
     from sense_pulse.cache import initialize_cache
     from sense_pulse.config import load_config
+    from sense_pulse.datasources import (
+        Aranet4DataSource,
+        PiHoleDataSource,
+        SenseHatDataSource,
+        SystemStatsDataSource,
+        TailscaleDataSource,
+    )
 
     # Load configuration
     config = load_config(args.config)
@@ -130,7 +138,33 @@ async def async_main() -> int:
     # Initialize data cache with 60s TTL and 30s polling interval
     logger.info("Initializing data cache (60s TTL, 30s poll interval)")
     cache = await initialize_cache(cache_ttl=60.0, poll_interval=30.0)
+
+    # Create and register data sources
+    data_sources = [
+        TailscaleDataSource(config.tailscale),
+        PiHoleDataSource(config.pihole),
+        SystemStatsDataSource(),
+        SenseHatDataSource(),
+        Aranet4DataSource(config.aranet4),
+    ]
+
+    for source in data_sources:
+        await source.initialize()
+        cache.register_data_source(source)
+
+    # Start background polling
     await cache.start_polling()
+
+    # Setup signal handlers for graceful shutdown
+    shutdown_event = asyncio.Event()
+
+    def signal_handler(sig: signal.Signals) -> None:
+        logger.info(f"Received signal {sig.name}, initiating graceful shutdown...")
+        shutdown_event.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, signal_handler, sig)
 
     try:
         # Web server only mode
@@ -174,7 +208,8 @@ async def async_main() -> int:
         if args.once:
             await controller.run_cycle()
         else:
-            await controller.run_continuous()
+            # Run display loop until shutdown signal
+            await controller.run_until_shutdown(shutdown_event)
 
         # Cancel web server if it's running
         if web_server_task:
@@ -184,12 +219,16 @@ async def async_main() -> int:
 
         return 0
 
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user")
-        return 0
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         return 1
+    finally:
+        # Cleanup: stop cache polling and shutdown data sources
+        logger.info("Shutting down...")
+        await cache.stop_polling()
+        for source in data_sources:
+            await source.shutdown()
+        logger.info("Cleanup complete")
 
 
 def main() -> int:

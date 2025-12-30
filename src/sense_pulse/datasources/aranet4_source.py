@@ -81,7 +81,9 @@ class Aranet4DataSource(DataSource):
         the most recent reading from the continuous polling task.
 
         Returns:
-            List of sensor readings from all configured sensors
+            List of sensor readings from all configured sensors.
+            Each reading represents one sensor with a nested dict value
+            containing temperature, co2, humidity, pressure, and battery.
         """
         if not self._enabled:
             return []
@@ -92,40 +94,21 @@ class Aranet4DataSource(DataSource):
             for label, sensor in self._sensors.items():
                 reading = sensor.get_cached_reading()
                 if reading:
-                    # Create readings for each metric
-                    readings.extend(
-                        [
-                            SensorReading(
-                                sensor_id=f"{label}_co2",
-                                value=reading.co2,
-                                unit="ppm",
-                                timestamp=datetime.fromtimestamp(reading.timestamp),
-                            ),
-                            SensorReading(
-                                sensor_id=f"{label}_temp",
-                                value=reading.temperature,
-                                unit="°C",
-                                timestamp=datetime.fromtimestamp(reading.timestamp),
-                            ),
-                            SensorReading(
-                                sensor_id=f"{label}_humidity",
-                                value=reading.humidity,
-                                unit="%",
-                                timestamp=datetime.fromtimestamp(reading.timestamp),
-                            ),
-                            SensorReading(
-                                sensor_id=f"{label}_pressure",
-                                value=reading.pressure,
-                                unit="mbar",
-                                timestamp=datetime.fromtimestamp(reading.timestamp),
-                            ),
-                            SensorReading(
-                                sensor_id=f"{label}_battery",
-                                value=reading.battery,
-                                unit="%",
-                                timestamp=datetime.fromtimestamp(reading.timestamp),
-                            ),
-                        ]
+                    # Create a single reading per sensor with nested dict value
+                    # This matches the format expected by the controller
+                    readings.append(
+                        SensorReading(
+                            sensor_id=label,
+                            value={
+                                "temperature": reading.temperature,
+                                "co2": reading.co2,
+                                "humidity": reading.humidity,
+                                "pressure": reading.pressure,
+                                "battery": reading.battery,
+                            },
+                            unit=None,
+                            timestamp=datetime.fromtimestamp(reading.timestamp),
+                        )
                     )
 
         except Exception as e:
@@ -139,7 +122,7 @@ class Aranet4DataSource(DataSource):
         sensor_list = ", ".join(self._sensors.keys()) if self._sensors else "none"
 
         return DataSourceMetadata(
-            source_id="aranet4",
+            source_id="co2",
             name="Aranet4 CO2 Sensors",
             description=f"BLE CO2 sensors: {sensor_list} ({sensor_count} configured)",
             refresh_interval=30,
