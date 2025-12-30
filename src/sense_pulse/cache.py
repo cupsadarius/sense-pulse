@@ -237,6 +237,76 @@ class DataCache:
             self._cache.clear()
             logger.info("Cache cleared")
 
+    # =========================================================================
+    # PUBLIC API FOR DATA SOURCE ACCESS
+    # =========================================================================
+
+    def get_data_source(self, source_id: str) -> Optional["DataSource"]:
+        """
+        Get a registered data source by ID.
+
+        This provides public access to data sources without exposing
+        the internal _data_sources dict.
+
+        Args:
+            source_id: The source identifier (e.g., "co2", "tailscale")
+
+        Returns:
+            The DataSource instance, or None if not found
+        """
+        return self._data_sources.get(source_id)
+
+    def get_data_source_status(self, source_id: str) -> Optional[dict[str, Any]]:
+        """
+        Get status from a data source that supports the get_sensor_status method.
+
+        This is specifically for Aranet4-style sources that provide detailed
+        sensor status beyond just readings.
+
+        Args:
+            source_id: The source identifier
+
+        Returns:
+            Status dict from the source, or None if not available
+        """
+        source = self._data_sources.get(source_id)
+        if source and hasattr(source, "get_sensor_status"):
+            return source.get_sensor_status()
+        return None
+
+    def list_registered_sources(self) -> list[str]:
+        """
+        Get list of all registered data source IDs.
+
+        Returns:
+            List of source IDs (e.g., ["tailscale", "pihole", "system"])
+        """
+        return list(self._data_sources.keys())
+
+    def get_all_source_metadata(self) -> dict[str, "DataSourceMetadata"]:
+        """
+        Get metadata for all registered data sources.
+
+        Returns:
+            Dict mapping source_id to DataSourceMetadata
+        """
+        return {
+            source_id: source.get_metadata()
+            for source_id, source in self._data_sources.items()
+        }
+
+    def is_source_registered(self, source_id: str) -> bool:
+        """
+        Check if a data source is registered.
+
+        Args:
+            source_id: The source identifier to check
+
+        Returns:
+            True if source is registered, False otherwise
+        """
+        return source_id in self._data_sources
+
 
 # Global cache instance
 _global_cache: Optional[DataCache] = None
