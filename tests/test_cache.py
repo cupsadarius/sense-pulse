@@ -4,7 +4,7 @@ import asyncio
 import time
 from datetime import datetime
 
-from sense_pulse.cache import CachedData, DataCache, get_cache, initialize_cache
+from sense_pulse.cache import CachedData, DataCache
 from sense_pulse.datasources.base import SensorReading
 from tests.mock_datasource import MockDataSource
 
@@ -191,25 +191,6 @@ class TestDataCache:
 
         assert cache.is_source_registered("registered") is True
         assert cache.is_source_registered("not_registered") is False
-
-
-class TestGlobalCache:
-    """Test global cache singleton"""
-
-    async def test_get_cache_singleton(self):
-        """Test that get_cache returns singleton"""
-        cache1 = await get_cache()
-        cache2 = await get_cache()
-        assert cache1 is cache2
-
-    async def test_initialize_cache(self):
-        """Test explicit cache initialization"""
-        cache = await initialize_cache(cache_ttl=120, poll_interval=60)
-        assert cache.cache_ttl == 120
-        assert cache.poll_interval == 60
-
-        # Should be the global instance
-        assert await get_cache() is cache
 
 
 class TestCachePolling:

@@ -3,9 +3,11 @@
 import asyncio
 import contextlib
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from sense_pulse.cache import get_cache
+if TYPE_CHECKING:
+    from sense_pulse.cache import DataCache
+
 from sense_pulse.config import Config
 from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.pi_leds import disable_all_leds, enable_all_leds
@@ -17,19 +19,25 @@ logger = logging.getLogger(__name__)
 class StatsDisplay:
     """Main controller for displaying stats on Sense HAT"""
 
-    def __init__(self, config: Config, sense_hat_instance=None):
+    def __init__(
+        self,
+        config: Config,
+        cache: "DataCache",
+        sense_hat_instance=None,
+    ):
         """
         Initialize the stats display controller.
 
         Args:
             config: Application configuration
+            cache: DataCache instance for accessing sensor data
             sense_hat_instance: Optional SenseHat hardware instance
         """
         logger.info("Initializing StatsDisplay...")
 
         self.config = config
+        self.cache = cache
         self.show_icons = config.display.show_icons
-        self.cache = None  # Will be initialized in async_init()
         self.display = None  # Will be initialized in async_init()
         self._sense_hat_instance = sense_hat_instance
 
@@ -46,9 +54,6 @@ class StatsDisplay:
 
     async def async_init(self) -> None:
         """Complete async initialization (call this after __init__)"""
-        # Get global cache instance (already initialized by CLI with data sources)
-        self.cache = await get_cache()
-
         # Initialize display with SenseHat instance
         self.display = SenseHatDisplay(
             sense_hat_instance=self._sense_hat_instance,
