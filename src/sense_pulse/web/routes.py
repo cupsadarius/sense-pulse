@@ -16,9 +16,28 @@ from sense_pulse.config import Config, find_config_file, load_config
 from sense_pulse.devices import sensehat
 from sense_pulse.web.auth import AuthConfig as WebAuthConfig
 from sense_pulse.web.auth import require_auth, set_auth_config
+from sense_pulse.web.app import get_app_context
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _get_cache_from_context_or_global():
+    """
+    Get cache from context if available, fall back to global.
+
+    This enables gradual migration from global cache to dependency injection.
+
+    Returns:
+        DataCache instance from either AppContext or global singleton
+    """
+    context = get_app_context()
+    if context:
+        return context.cache
+
+    # Fall back to global cache (legacy mode)
+    from sense_pulse.cache import get_cache
+    return await get_cache()
 
 
 # Helper functions for Aranet4 DataSource access
@@ -29,14 +48,14 @@ async def _is_aranet4_available() -> bool:
     if not any(s.enabled for s in config.aranet4.sensors):
         return False
     # Check if cache has CO2 data
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
     co2_data = await cache.get("co2", {})
     return bool(co2_data)
 
 
 async def _get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status from DataSource via public API."""
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
 
     # Use public API to get data source status
     status = cache.get_data_source_status("co2")
@@ -45,7 +64,7 @@ async def _get_aranet4_status() -> dict[str, Any]:
 
 async def _get_registered_sources() -> list[str]:
     """Get list of registered data source IDs."""
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
     return cache.list_registered_sources()
 
 
@@ -90,6 +109,13 @@ _config_path: Optional[Path] = None
 def get_config():
     """Get or initialize configuration"""
     global _config, _config_path
+
+    # Prefer config from context if available
+    context = get_app_context()
+    if context:
+        return context.config
+
+    # Fall back to loading config directly (legacy mode)
     if _config is None:
         _config_path = find_config_file()
         _config = load_config()
@@ -121,7 +147,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
     """Render main dashboard (requires authentication)"""
     templates = request.app.state.templates
     config = get_config()
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
 
     # Convert aranet4 sensors to dicts for JSON serialization
     aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
@@ -148,7 +174,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
 async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get all status data as JSON (from cache) - requires authentication"""
     config = get_config()
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
 
     return {
         "tailscale": await cache.get("tailscale", {}),
@@ -172,7 +198,7 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
 @router.get("/api/sensors")
 async def get_sensors() -> dict[str, Any]:
     """Get Sense HAT sensor readings (from cache)"""
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
     return await cache.get("sensors", {})
 
 
@@ -181,7 +207,7 @@ async def get_status_cards(request: Request):
     """HTMX partial: status cards grid (from cache)"""
     config = get_config()
     templates = request.app.state.templates
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
 
     return templates.TemplateResponse(
         "partials/status_cards.html",
@@ -257,7 +283,7 @@ async def sensors_websocket(websocket: WebSocket):
     """WebSocket endpoint for sensor data (slower updates - 30s)"""
     await websocket.accept()
     get_config()  # Ensure config is initialized
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
 
     try:
         while True:
@@ -424,7 +450,7 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[st
 @router.get("/api/aranet4/status")
 async def get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
     return {
         "status": await _get_aranet4_status(),
         "data": await cache.get("co2", {}),
@@ -435,7 +461,7 @@ async def get_aranet4_status() -> dict[str, Any]:
 @router.get("/api/aranet4/data")
 async def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor readings from Aranet4 devices (from cache)"""
-    cache = await get_cache()
+    cache = await _get_cache_from_context_or_global()
     return await cache.get("co2", {})
 
 
