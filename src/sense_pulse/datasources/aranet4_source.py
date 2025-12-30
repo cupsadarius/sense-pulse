@@ -85,13 +85,23 @@ class Aranet4DataSource(DataSource):
             Each reading represents one sensor with a nested dict value
             containing temperature, co2, humidity, pressure, and battery.
         """
-        if not self._enabled:
-            return []
-
         readings = []
 
         try:
-            for label, sensor in self._sensors.items():
+            # Import here to avoid circular dependency
+            from ..devices.aranet4 import _sensors_to_poll
+
+            # If DataSource was initialized with config, use self._sensors
+            # Otherwise, fall back to global registry (for backward compatibility)
+            sensors_to_read = self._sensors if self._enabled else {}
+
+            # If we have no configured sensors, check global registry
+            if not sensors_to_read and _sensors_to_poll:
+                logger.debug("Using global sensor registry (no DataSource config)")
+                # Build a temporary dict from global registry
+                sensors_to_read = {sensor.name: sensor for sensor in _sensors_to_poll}
+
+            for label, sensor in sensors_to_read.items():
                 reading = sensor.get_cached_reading()
                 if reading:
                     # Create a single reading per sensor with nested dict value
