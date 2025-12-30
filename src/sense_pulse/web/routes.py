@@ -35,16 +35,18 @@ async def _is_aranet4_available() -> bool:
 
 
 async def _get_aranet4_status() -> dict[str, Any]:
-    """Get Aranet4 sensor status from DataSource"""
+    """Get Aranet4 sensor status from DataSource via public API."""
     cache = await get_cache()
-    # Try to get the Aranet4DataSource instance
-    if hasattr(cache, "_data_sources"):
-        for source in cache._data_sources.values():
-            # DataSource has get_sensor_status method
-            if source.get_metadata().source_id == "co2" and hasattr(source, "get_sensor_status"):
-                return source.get_sensor_status()
-    # Fall back to empty dict if DataSource not available
-    return {}
+
+    # Use public API to get data source status
+    status = cache.get_data_source_status("co2")
+    return status if status else {}
+
+
+async def _get_registered_sources() -> list[str]:
+    """Get list of registered data source IDs."""
+    cache = await get_cache()
+    return cache.list_registered_sources()
 
 
 # Pydantic models for configuration updates
