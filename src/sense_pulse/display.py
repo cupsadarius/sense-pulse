@@ -74,24 +74,11 @@ class SenseHatDisplay:
         try:
             speed = scroll_speed if scroll_speed is not None else self.scroll_speed
             logger.debug(f"Displaying text: {text}")
-
-            # WORKAROUND: show_message has rotation issues in sense_hat library
-            # Temporarily reset rotation to 0, then restore after
-            # This ensures text displays with same orientation as icons
-            current_rotation = hardware.get_current_rotation()
-            if current_rotation != 0:
-                await hardware.set_rotation(0)
-
-            try:
-                # Run blocking show_message in thread pool to prevent blocking event loop
-                # This allows WebSocket to continue sending pixel updates during scrolling
-                await asyncio.to_thread(
-                    self.sense.show_message, text, scroll_speed=speed, text_colour=color
-                )
-            finally:
-                # Restore original rotation
-                if current_rotation != 0:
-                    await hardware.set_rotation(current_rotation)
+            # Run blocking show_message in thread pool to prevent blocking event loop
+            # This allows WebSocket to continue sending pixel updates during scrolling
+            await asyncio.to_thread(
+                self.sense.show_message, text, scroll_speed=speed, text_colour=color
+            )
         except Exception as e:
             logger.error(f"Failed to display text: {e}")
 
