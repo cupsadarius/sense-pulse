@@ -67,7 +67,7 @@ class StatsDisplay:
         else:
             status_text = "TS: Connected" if is_connected else "TS: Disconnected"
             color = (0, 255, 0) if is_connected else (255, 0, 0)
-            self.display.show_text(status_text, color=color)
+            await self.display.show_text(status_text, color=color)
 
         if is_connected:
             device_count = status["device_count"]
@@ -78,7 +78,7 @@ class StatsDisplay:
                     text_color=(0, 200, 255),
                 )
             else:
-                self.display.show_text(
+                await self.display.show_text(
                     f"TS Devices: {device_count}",
                     color=(0, 200, 255),
                 )
@@ -105,15 +105,15 @@ class StatsDisplay:
                 text_color=(255, 165, 0),
             )
         else:
-            self.display.show_text(
+            await self.display.show_text(
                 f"Queries: {stats['queries_today']}",
                 color=(0, 255, 0),
             )
-            self.display.show_text(
+            await self.display.show_text(
                 f"Blocked: {stats['ads_blocked_today']}",
                 color=(255, 0, 0),
             )
-            self.display.show_text(
+            await self.display.show_text(
                 f"Block%: {stats['ads_percentage_today']:.1f}%",
                 color=(255, 165, 0),
             )
@@ -140,15 +140,15 @@ class StatsDisplay:
                 text_color=(200, 200, 200),
             )
         else:
-            self.display.show_text(
+            await self.display.show_text(
                 f"Temp: {sensors['temperature']:.1f}C",
                 color=(255, 100, 0),
             )
-            self.display.show_text(
+            await self.display.show_text(
                 f"Humid: {sensors['humidity']:.1f}%",
                 color=(0, 100, 255),
             )
-            self.display.show_text(
+            await self.display.show_text(
                 f"Press: {sensors['pressure']:.0f}mb",
                 color=(200, 200, 200),
             )
@@ -175,15 +175,15 @@ class StatsDisplay:
                 text_color=(255, 0, 255),
             )
         else:
-            self.display.show_text(
+            await self.display.show_text(
                 f"CPU: {stats['cpu_percent']:.0f}%",
                 color=(255, 200, 0),
             )
-            self.display.show_text(
+            await self.display.show_text(
                 f"Mem: {stats['memory_percent']:.0f}%",
                 color=(0, 200, 255),
             )
-            self.display.show_text(
+            await self.display.show_text(
                 f"Load: {stats['load_1min']:.2f}",
                 color=(255, 0, 255),
             )
@@ -234,7 +234,7 @@ class StatsDisplay:
                         text_color=(255, 100, 0),
                     )
                 else:
-                    self.display.show_text(
+                    await self.display.show_text(
                         f"{sensor_label} Temp: {temperature}°C",
                         color=(255, 100, 0),
                     )
@@ -250,7 +250,7 @@ class StatsDisplay:
                         text_color=color,
                     )
                 else:
-                    self.display.show_text(
+                    await self.display.show_text(
                         f"{sensor_label} CO2: {co2}ppm",
                         color=color,
                     )
@@ -264,7 +264,7 @@ class StatsDisplay:
                         text_color=(0, 100, 255),
                     )
                 else:
-                    self.display.show_text(
+                    await self.display.show_text(
                         f"{sensor_label} Humidity: {humidity}%",
                         color=(0, 100, 255),
                     )
