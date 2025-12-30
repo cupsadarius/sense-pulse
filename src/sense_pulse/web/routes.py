@@ -11,8 +11,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from sense_pulse.cache import get_cache
-from sense_pulse.devices import aranet4, sensehat
 from sense_pulse.config import Config, find_config_file, load_config
+from sense_pulse.devices import aranet4, sensehat
 from sense_pulse.web.auth import AuthConfig as WebAuthConfig
 from sense_pulse.web.auth import require_auth, set_auth_config
 
@@ -409,7 +409,7 @@ async def get_aranet4_status() -> dict[str, Any]:
     return {
         "status": aranet4.get_aranet4_status(),
         "data": await aranet4.get_aranet4_data(),
-        "available": sensehat.is_aranet4_available(),
+        "available": aranet4.is_aranet4_available(),
     }
 
 
