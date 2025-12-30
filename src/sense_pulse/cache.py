@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from .datasources.base import DataSource
+    from .datasources.base import DataSource, DataSourceMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +271,7 @@ class DataCache:
         """
         source = self._data_sources.get(source_id)
         if source and hasattr(source, "get_sensor_status"):
-            return source.get_sensor_status()
+            return source.get_sensor_status()  # type: ignore[no-any-return]
         return None
 
     def list_registered_sources(self) -> list[str]:
@@ -291,8 +291,7 @@ class DataCache:
             Dict mapping source_id to DataSourceMetadata
         """
         return {
-            source_id: source.get_metadata()
-            for source_id, source in self._data_sources.items()
+            source_id: source.get_metadata() for source_id, source in self._data_sources.items()
         }
 
     def is_source_registered(self, source_id: str) -> bool:
