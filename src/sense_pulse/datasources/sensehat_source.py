@@ -45,7 +45,7 @@ class SenseHatDataSource(DataSource):
             logger.warning(f"Sense HAT hardware not available: {e}")
             self._available = False
 
-    def _read_sensors_sync(self) -> dict[str, float | None]:
+    def _read_sensors_sync(self) -> dict[str, Optional[float]]:
         """Synchronous sensor reading (runs in thread pool)"""
         if not self._available or self._sense_hat is None:
             return {

@@ -40,10 +40,12 @@ async def _get_aranet4_status() -> dict[str, Any]:
     # Try to get the Aranet4DataSource instance
     if hasattr(cache, "_data_sources"):
         for source in cache._data_sources.values():
-            if source.get_metadata().source_id == "co2":
-                # DataSource has get_sensor_status method
-                if hasattr(source, "get_sensor_status"):
-                    return source.get_sensor_status()
+            # DataSource has get_sensor_status method
+            if (
+                source.get_metadata().source_id == "co2"
+                and hasattr(source, "get_sensor_status")
+            ):
+                return source.get_sensor_status()
     # Fall back to empty dict if DataSource not available
     return {}
 
