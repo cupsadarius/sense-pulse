@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 
 from sense_pulse.cache import get_cache
-from sense_pulse.devices import sensehat
 from sense_pulse.config import load_config
 from sense_pulse.datasources import (
     Aranet4DataSource,
@@ -16,6 +15,7 @@ from sense_pulse.datasources import (
     SystemStatsDataSource,
     TailscaleDataSource,
 )
+from sense_pulse.devices import sensehat
 from sense_pulse.web.routes import router
 
 
