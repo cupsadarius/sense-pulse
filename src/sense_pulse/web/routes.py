@@ -128,8 +128,8 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "tailscale": await cache.get("tailscale", {}),
             "pihole": await cache.get("pihole", {}),
             "system": await cache.get("system", {}),
-            "sensors": await cache.get("sensehat", {}),
-            "co2": await cache.get("aranet4", {}),
+            "sensors": await cache.get("sensors", {}),
+            "co2": await cache.get("co2", {}),
             "aranet4_status": hardware.get_aranet4_status(),
         },
     )
@@ -145,8 +145,8 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
         "tailscale": await cache.get("tailscale", {}),
         "pihole": await cache.get("pihole", {}),
         "system": await cache.get("system", {}),
-        "sensors": await cache.get("sensehat", {}),
-        "co2": await cache.get("aranet4", {}),
+        "sensors": await cache.get("sensors", {}),
+        "co2": await cache.get("co2", {}),
         "hardware": {
             "sense_hat_available": hardware.is_sense_hat_available(),
             "aranet4_available": hardware.is_aranet4_available(),
@@ -164,7 +164,7 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
 async def get_sensors() -> dict[str, Any]:
     """Get Sense HAT sensor readings (from cache)"""
     cache = await get_cache()
-    return await cache.get("sensehat", {})
+    return await cache.get("sensors", {})
 
 
 @router.get("/api/status/cards", response_class=HTMLResponse)
@@ -181,8 +181,8 @@ async def get_status_cards(request: Request):
             "tailscale": await cache.get("tailscale", {}),
             "pihole": await cache.get("pihole", {}),
             "system": await cache.get("system", {}),
-            "sensors": await cache.get("sensehat", {}),
-            "co2": await cache.get("aranet4", {}),
+            "sensors": await cache.get("sensors", {}),
+            "co2": await cache.get("co2", {}),
             "sense_hat_available": hardware.is_sense_hat_available(),
             "aranet4_available": hardware.is_aranet4_available(),
             "config": config,
@@ -257,8 +257,8 @@ async def sensors_websocket(websocket: WebSocket):
                 "tailscale": await cache.get("tailscale", {}),
                 "pihole": await cache.get("pihole", {}),
                 "system": await cache.get("system", {}),
-                "sensors": await cache.get("sensehat", {}),
-                "co2": await cache.get("aranet4", {}),
+                "sensors": await cache.get("sensors", {}),
+                "co2": await cache.get("co2", {}),
             }
 
             await websocket.send_json(data)
@@ -426,7 +426,7 @@ async def get_aranet4_status() -> dict[str, Any]:
 async def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor readings from Aranet4 devices (from cache)"""
     cache = await get_cache()
-    return await cache.get("aranet4", {})
+    return await cache.get("co2", {})
 
 
 @router.post("/api/aranet4/config")

@@ -324,6 +324,9 @@ class StatsDisplay:
                 # Wait for either the interval or shutdown signal
                 with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(shutdown_event.wait(), timeout=update_interval)
+        except asyncio.CancelledError:
+            logger.info("Display loop cancelled by signal")
+            raise  # Re-raise so finally block runs, then caller handles it
         except Exception as e:
             logger.error(f"Fatal error in continuous loop: {e}")
             raise
