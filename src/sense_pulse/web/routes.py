@@ -74,7 +74,7 @@ def get_config():
             }
             for sensor in _config.aranet4.sensors
         ]
-        sensehat.init_aranet4_sensors(
+        aranet4.init_aranet4_sensors(
             sensors=sensors_config,
             timeout=_config.aranet4.timeout,
             cache_duration=_config.aranet4.cache_duration,
@@ -113,7 +113,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
         {
             "request": request,
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": sensehat.is_aranet4_available(),
+            "aranet4_available": aranet4.is_aranet4_available(),
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
             "tailscale": await cache.get("tailscale", {}),
@@ -121,7 +121,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "system": await cache.get("system", {}),
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
-            "aranet4_status": sensehat.get_aranet4_status(),
+            "aranet4_status": aranet4.get_aranet4_status(),
         },
     )
 
@@ -140,7 +140,7 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
         "co2": await cache.get("co2", {}),
         "hardware": {
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": sensehat.is_aranet4_available(),
+            "aranet4_available": aranet4.is_aranet4_available(),
         },
         "config": {
             "show_icons": config.display.show_icons,
@@ -175,7 +175,7 @@ async def get_status_cards(request: Request):
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": sensehat.is_aranet4_available(),
+            "aranet4_available": aranet4.is_aranet4_available(),
             "config": config,
         },
     )
@@ -222,7 +222,7 @@ async def grid_websocket(websocket: WebSocket):
                 "matrix": await sensehat.get_matrix_state(),
                 "hardware": {
                     "sense_hat_available": sensehat.is_sense_hat_available(),
-                    "aranet4_available": sensehat.is_aranet4_available(),
+                    "aranet4_available": aranet4.is_aranet4_available(),
                 },
             }
 
@@ -407,8 +407,8 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[st
 async def get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
     return {
-        "status": sensehat.get_aranet4_status(),
-        "data": await sensehat.get_aranet4_data(),
+        "status": aranet4.get_aranet4_status(),
+        "data": await aranet4.get_aranet4_data(),
         "available": sensehat.is_aranet4_available(),
     }
 
@@ -456,7 +456,7 @@ async def update_aranet4_config(
         # Update hardware sensors
         timeout = _config.aranet4.timeout
         cache_duration = _config.aranet4.cache_duration
-        sensehat.update_aranet4_sensors(
+        aranet4.update_aranet4_sensors(
             sensors=sensors,
             timeout=timeout,
             cache_duration=cache_duration,
@@ -488,6 +488,6 @@ async def get_aranet4_controls(request: Request):
             "request": request,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
-            "aranet4_status": sensehat.get_aranet4_status(),
+            "aranet4_status": aranet4.get_aranet4_status(),
         },
     )
