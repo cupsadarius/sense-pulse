@@ -157,10 +157,14 @@ async def async_main() -> int:
 
     # Setup signal handlers for graceful shutdown
     shutdown_event = asyncio.Event()
+    main_task: Optional[asyncio.Task] = None
 
     def signal_handler(sig: signal.Signals) -> None:
         logger.info(f"Received signal {sig.name}, initiating graceful shutdown...")
         shutdown_event.set()
+        # Also cancel the main task to interrupt any blocking operations
+        if main_task and not main_task.done():
+            main_task.cancel()
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -180,7 +184,12 @@ async def async_main() -> int:
                 app, host=args.web_host, port=args.web_port, log_level=log_level.lower()
             )
             server = uvicorn.Server(config_uvicorn)
-            await server.serve()
+            # Create task so it can be cancelled by signal handler
+            main_task = asyncio.create_task(server.serve())
+            try:
+                await main_task
+            except asyncio.CancelledError:
+                logger.info("Web server cancelled")
             return 0
 
         # Start web server in background task (unless disabled)
@@ -209,7 +218,11 @@ async def async_main() -> int:
             await controller.run_cycle()
         else:
             # Run display loop until shutdown signal
-            await controller.run_until_shutdown(shutdown_event)
+            main_task = asyncio.create_task(controller.run_until_shutdown(shutdown_event))
+            try:
+                await main_task
+            except asyncio.CancelledError:
+                logger.info("Display loop cancelled")
 
         # Cancel web server if it's running
         if web_server_task:
@@ -219,6 +232,9 @@ async def async_main() -> int:
 
         return 0
 
+    except asyncio.CancelledError:
+        logger.info("Main task cancelled")
+        return 0
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         return 1
