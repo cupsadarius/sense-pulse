@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from ..system import SystemStats
+from ..devices.system import SystemStats
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 logger = logging.getLogger(__name__)
