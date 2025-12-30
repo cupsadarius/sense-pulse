@@ -12,11 +12,8 @@ This module contains low-level hardware device implementations:
 from sense_pulse.devices.aranet4 import (
     Aranet4Reading,
     Aranet4Sensor,
-    get_aranet4_data,
-    get_aranet4_status,
-    init_aranet4_sensors,
-    is_aranet4_available,
-    update_aranet4_sensors,
+    scan_for_aranet4_devices,
+    scan_for_aranet4_sync,
 )
 from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.devices.pihole import PiHoleStats
@@ -38,11 +35,8 @@ __all__ = [
     # Aranet4
     "Aranet4Sensor",
     "Aranet4Reading",
-    "get_aranet4_data",
-    "get_aranet4_status",
-    "init_aranet4_sensors",
-    "is_aranet4_available",
-    "update_aranet4_sensors",
+    "scan_for_aranet4_devices",
+    "scan_for_aranet4_sync",
     # Sense HAT hardware
     "is_sense_hat_available",
     "get_sense_hat",
