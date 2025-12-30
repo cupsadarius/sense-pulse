@@ -40,10 +40,9 @@ async def _get_aranet4_status() -> dict[str, Any]:
     # Try to get the Aranet4DataSource instance
     if hasattr(cache, "_data_sources"):
         for source in cache._data_sources.values():
-            if source.get_metadata().source_id == "co2":
-                # DataSource has get_sensor_status method
-                if hasattr(source, "get_sensor_status"):
-                    return source.get_sensor_status()
+            # DataSource has get_sensor_status method
+            if source.get_metadata().source_id == "co2" and hasattr(source, "get_sensor_status"):
+                return source.get_sensor_status()
     # Fall back to empty dict if DataSource not available
     return {}
 
@@ -473,7 +472,9 @@ async def update_aranet4_config(
 
         # NOTE: Sensor changes require application restart to take effect
         # The Aranet4DataSource is initialized at startup with the config
-        logger.warning("Aranet4 sensor configuration updated. Please restart the application for changes to take effect.")
+        logger.warning(
+            "Aranet4 sensor configuration updated. Please restart the application for changes to take effect."
+        )
 
         # Return success with updated config
         return {
