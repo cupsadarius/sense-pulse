@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from ..hardware import get_sensor_data, is_sense_hat_available
+from ..hardware import get_sensor_data
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 logger = logging.getLogger(__name__)
@@ -23,14 +23,9 @@ class SenseHatDataSource(DataSource):
 
     async def initialize(self) -> None:
         """Initialize Sense HAT data source"""
-        # Ensure hardware module is initialized (this sets the global availability flag)
-        # Call synchronously first to ensure the global is set before any web requests
-        self._available = is_sense_hat_available()
-
-        if self._available:
-            # Also verify we can read sensor data
-            data = await get_sensor_data()
-            self._available = data.get("available", False)
+        # Test if hardware is available
+        data = await get_sensor_data()
+        self._available = data.get("available", False)
 
         if self._available:
             logger.info("Sense HAT data source initialized successfully")
