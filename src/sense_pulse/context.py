@@ -19,12 +19,13 @@ Usage:
     await context.shutdown()
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
-import logging
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
+
     from sense_pulse.datasources.base import DataSource
 
 from sense_pulse.cache import DataCache
