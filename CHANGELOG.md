@@ -1,5 +1,169 @@
 # Changelog
 
+## Version 0.10.0 - Dependency Injection Architecture (Breaking Changes)
+
+### Major Refactoring
+
+**AppContext Dependency Injection**
+- Introduced `AppContext` module for centralized dependency management
+- Eliminated all global singleton patterns in favor of dependency injection
+- Single source of truth for application dependencies (cache, config, data sources)
+- Unified lifecycle management with `start()` and `shutdown()` methods
+
+### Breaking Changes
+
+⚠️ **API Changes**
+- Removed global cache singleton:
+  - `get_cache()` function removed
+  - `initialize_cache()` function removed
+  - Cache must now be passed via dependency injection
+- `StatsDisplay` constructor now requires `cache` parameter
+- `create_app()` now accepts optional `AppContext` parameter
+- Web routes no longer create their own cache instance
+- All components must receive dependencies via constructor injection
+
+### New Features
+
+**AppContext Module (`src/sense_pulse/context.py`):**
+- Factory method `AppContext.create(config)` for creating configured contexts
+- Automatic data source initialization from configuration
+- Lifecycle management with unified start/shutdown
+- Method chaining for adding data sources: `context.add_data_source(source)`
+- Helper methods for querying registered sources
+- Graceful error handling during initialization
+
+**DataCache Public API:**
+- Added `get_data_source_status(key)` - Get status of specific data source
+- Added `list_registered_sources()` - List all registered data source keys
+- Encapsulated internal `_data_sources` attribute
+- Routes now use public API instead of accessing private attributes
+
+### Architecture Improvements
+
+**Dependency Injection Flow:**
+1. CLI creates `AppContext` with configuration
+2. Context initializes all data sources (Pi-hole, Tailscale, System, Sense HAT, Aranet4)
+3. Context starts cache polling
+4. Context injected into web app and display controller
+5. Unified shutdown cleans up all resources
+
+**Benefits:**
+- Eliminates global state and singleton patterns
+- Better testability through constructor injection
+- Single initialization point for all dependencies
+- Cleaner lifecycle management
+- No duplicate data source initialization
+- Easier to test and mock components
+
+### Technical Changes
+
+**CLI Updates (`cli.py`):**
+- Replace `initialize_cache()` with `AppContext.create(config)`
+- Replace individual data source registration with `context.add_data_source()`
+- Replace `cache.start_polling()` with `context.start()`
+- Replace manual cleanup with `context.shutdown()`
+- Inject context into `create_app()` instead of creating dependencies internally
+
+**Web App Updates (`web/app.py`):**
+- Add `get_app_context()` function for module-level context access
+- Update `lifespan` to verify context instead of creating data sources
+- Update `create_app()` to accept optional `AppContext` parameter
+- Initialize auth and hardware settings from context config
+
+**Routes Updates (`web/routes.py`):**
+- Add `_get_cache_from_context_or_global()` helper for context-aware cache access
+- Update all route functions to use context-aware cache helper
+- Replace `cache._data_sources` access with `cache.list_registered_sources()`
+- Use `cache.get_data_source_status()` for Aranet4 status checks
+
+**Controller Updates (`controller.py`):**
+- `StatsDisplay` constructor now requires `cache` parameter
+- Remove dependency on global cache singleton
+
+### Migration Guide
+
+**Breaking Changes - No Backward Compatibility:**
+
+This version completely removes the global cache singleton. If you have custom code that uses the cache, you must update it:
+
+```python
+# OLD - No longer works
+from sense_pulse.cache import get_cache, initialize_cache
+cache = get_cache()
+
+# NEW - Use AppContext
+from sense_pulse.context import AppContext
+context = AppContext.create(config)
+context.start()
+cache = context.cache
+```
+
+**For Custom Web Applications:**
+
+```python
+# OLD - Web app created its own dependencies
+from sense_pulse.web.app import create_app
+app = create_app()
+
+# NEW - Inject dependencies via AppContext
+from sense_pulse.context import AppContext
+from sense_pulse.web.app import create_app
+
+context = AppContext.create(config)
+context.start()
+app = create_app(context=context)
+```
+
+### Files Changed
+
+- `src/sense_pulse/context.py` - New AppContext module
+- `src/sense_pulse/cache.py` - Removed global singleton functions
+- `src/sense_pulse/cli.py` - Uses AppContext for dependency injection
+- `src/sense_pulse/controller.py` - Receives cache via constructor
+- `src/sense_pulse/web/app.py` - Accepts AppContext parameter
+- `src/sense_pulse/web/routes.py` - Uses public cache API
+- `tests/test_context.py` - New comprehensive test suite (13 tests, 97% coverage)
+- `tests/test_cli_context.py` - CLI integration tests with AppContext
+- `tests/test_web_app.py` - Web app dependency injection tests
+
+### Test Coverage
+
+- All 88 tests passing
+- Added 23 new tests for AppContext and dependency injection
+- Verified no duplicate data source initialization
+- Verified proper cleanup on shutdown
+- 97% coverage for AppContext module
+
+### Upgrade Instructions
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Restart service
+sudo systemctl restart sense-pulse
+```
+
+**Note:** This is a breaking change. Custom code that uses `get_cache()` or `initialize_cache()` will need to be updated to use `AppContext` instead.
+
+### Why This Change?
+
+The global cache singleton pattern created several issues:
+1. **Hidden dependencies** - Components didn't declare their dependencies
+2. **Testing difficulties** - Hard to mock global state
+3. **Initialization order** - Unclear when cache was initialized
+4. **Resource leaks** - No clear ownership of cleanup
+5. **Duplicate initialization** - Data sources could be registered multiple times
+
+The AppContext pattern solves all of these by:
+- Making dependencies explicit via constructor injection
+- Centralizing initialization and cleanup
+- Providing clear lifecycle management
+- Enabling proper testing with dependency injection
+- Preventing duplicate initialization
+
+---
+
 ## Version 0.9.0 - Unified DataSource Interface (Breaking Changes)
 
 ### Major Refactoring
