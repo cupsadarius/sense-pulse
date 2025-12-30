@@ -218,7 +218,7 @@
             // Workaround: show_message and set_pixels handle rotation differently in frame buffer
             // Text displays correctly on web, but icons need -90° compensation
             if (mode !== 'scrolling') {
-                effectiveRotation = (effectiveRotation - 90 + 360) % 360;
+                effectiveRotation = (effectiveRotation + 90 + 360) % 360;
             }
 
             const row = Math.floor(i / 8);
