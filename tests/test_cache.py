@@ -117,6 +117,81 @@ class TestDataCache:
         assert await cache.get("key1") is None
         assert await cache.get("key2") is None
 
+    async def test_get_data_source(self):
+        """Test getting a registered data source by ID"""
+        cache = DataCache()
+        source = MockDataSource(source_id="test_source")
+        await source.initialize()
+        cache.register_data_source(source)
+
+        # Should return the source
+        retrieved = cache.get_data_source("test_source")
+        assert retrieved is source
+
+        # Should return None for unknown source
+        assert cache.get_data_source("nonexistent") is None
+
+    async def test_get_data_source_status(self):
+        """Test getting status from a source with get_sensor_status"""
+        cache = DataCache()
+
+        # Create a mock source with get_sensor_status method
+        source = MockDataSource(source_id="aranet_mock")
+        source.get_sensor_status = lambda: {"sensor1": {"connected": True}}
+        await source.initialize()
+        cache.register_data_source(source)
+
+        # Should return status
+        status = cache.get_data_source_status("aranet_mock")
+        assert status is not None
+        assert "sensor1" in status
+
+        # Should return None for source without the method
+        plain_source = MockDataSource(source_id="plain")
+        await plain_source.initialize()
+        cache.register_data_source(plain_source)
+        assert cache.get_data_source_status("plain") is None
+
+        # Should return None for unknown source
+        assert cache.get_data_source_status("unknown") is None
+
+    async def test_list_registered_sources(self):
+        """Test listing all registered source IDs"""
+        cache = DataCache()
+        source1 = MockDataSource(source_id="source1")
+        source2 = MockDataSource(source_id="source2")
+        await source1.initialize()
+        await source2.initialize()
+        cache.register_data_source(source1)
+        cache.register_data_source(source2)
+
+        sources = cache.list_registered_sources()
+        assert "source1" in sources
+        assert "source2" in sources
+        assert len(sources) == 2
+
+    async def test_get_all_source_metadata(self):
+        """Test getting metadata for all sources"""
+        cache = DataCache()
+        source = MockDataSource(source_id="test", name="Test Source")
+        await source.initialize()
+        cache.register_data_source(source)
+
+        metadata = cache.get_all_source_metadata()
+        assert "test" in metadata
+        assert metadata["test"].name == "Test Source"
+        assert metadata["test"].source_id == "test"
+
+    async def test_is_source_registered(self):
+        """Test checking if source is registered"""
+        cache = DataCache()
+        source = MockDataSource(source_id="registered")
+        await source.initialize()
+        cache.register_data_source(source)
+
+        assert cache.is_source_registered("registered") is True
+        assert cache.is_source_registered("not_registered") is False
+
 
 class TestGlobalCache:
     """Test global cache singleton"""
