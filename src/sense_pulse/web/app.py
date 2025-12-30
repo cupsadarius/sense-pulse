@@ -6,8 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 
-from sense_pulse import hardware
 from sense_pulse.cache import get_cache
+from sense_pulse.devices import sensehat
 from sense_pulse.config import load_config
 from sense_pulse.datasources import (
     Aranet4DataSource,
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     config = load_config()
 
     # Initialize hardware settings
-    hardware.set_web_rotation_offset(config.display.web_rotation_offset)
+    sensehat.set_web_rotation_offset(config.display.web_rotation_offset)
 
     # Create data source instances
     data_sources = [

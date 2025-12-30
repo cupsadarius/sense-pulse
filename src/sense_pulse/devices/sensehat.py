@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-    from sense_pulse.aranet4 import Aranet4Sensor
+    from sense_pulse.devices.aranet4 import Aranet4Sensor
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +230,7 @@ def init_aranet4_sensors(
         sensors = []
 
     try:
-        from sense_pulse.aranet4 import Aranet4Sensor, register_sensor
+        from sense_pulse.devices.aranet4 import Aranet4Sensor, register_sensor
 
         for sensor_config in sensors:
             label = sensor_config.get("label", "")
@@ -268,7 +268,7 @@ def update_aranet4_sensors(
     global _aranet4_sensors
 
     try:
-        from sense_pulse.aranet4 import Aranet4Sensor, register_sensor, unregister_sensor
+        from sense_pulse.devices.aranet4 import Aranet4Sensor, register_sensor, unregister_sensor
 
         # Unregister all existing sensors
         for _label, sensor in list(_aranet4_sensors.items()):
