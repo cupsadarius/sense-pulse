@@ -284,21 +284,32 @@ sense-pulse/
         ├── __main__.py     # python -m entry point
         ├── cli.py          # Command-line interface
         ├── config.py       # Configuration loading
+        ├── context.py      # AppContext for dependency injection
         ├── cache.py        # Data caching with background polling
         ├── hardware.py     # Sense HAT abstraction layer
         ├── icons.py        # 8x8 LED pixel art
-        ├── tailscale.py    # Tailscale status
-        ├── pihole.py       # Pi-hole stats
-        ├── system.py       # System stats (CPU, memory, load)
+        ├── tailscale.py    # Tailscale status (legacy)
+        ├── pihole.py       # Pi-hole stats (legacy)
+        ├── system.py       # System stats (legacy)
         ├── display.py      # Sense HAT display
         ├── schedule.py     # Sleep schedule
         ├── controller.py   # Main controller
         ├── pi_leds.py      # Pi onboard LED control
-        ├── aranet4.py      # Aranet4 CO2 sensor integration
+        ├── aranet4.py      # Aranet4 CO2 sensor integration (legacy)
+        ├── datasources/    # DataSource implementations
+        │   ├── __init__.py
+        │   ├── base.py     # DataSource interface
+        │   ├── registry.py # Source management
+        │   ├── pihole_source.py    # Pi-hole wrapper
+        │   ├── tailscale_source.py # Tailscale wrapper
+        │   ├── system_source.py    # System metrics wrapper
+        │   ├── sensehat_source.py  # Sense HAT wrapper
+        │   └── aranet4_source.py   # Aranet4 wrapper
         └── web/            # Web dashboard module
             ├── __init__.py
             ├── app.py      # FastAPI application
             ├── routes.py   # API endpoints
+            ├── auth.py     # HTTP Basic Auth
             └── templates/  # Jinja2 HTML templates
 ```
 
@@ -374,6 +385,38 @@ echo mmc0 > /sys/class/leds/ACT/trigger  # restore
 ```
 
 ## Development
+
+### Architecture Overview
+
+Sense Pulse uses a **dependency injection** architecture for clean, testable code:
+
+**AppContext Pattern:**
+- `AppContext` is the central dependency container
+- Manages lifecycle of all data sources (Pi-hole, Tailscale, sensors, etc.)
+- Injected into web app and display controller
+- Eliminates global singletons and hidden dependencies
+
+**Key Components:**
+- `context.py` - AppContext for dependency injection
+- `datasources/` - Unified DataSource interface implementations
+- `cache.py` - Centralized data caching with background polling
+- `controller.py` - Display controller (receives cache via injection)
+- `web/app.py` - FastAPI app (receives context via injection)
+
+**Data Flow:**
+1. CLI creates `AppContext` from configuration
+2. Context initializes all data sources
+3. Context starts background cache polling
+4. Context injected into web app and controller
+5. Components read from shared cache
+6. Unified shutdown cleans up all resources
+
+**Benefits:**
+- Explicit dependencies via constructor injection
+- Easy to test with mock objects
+- Single initialization point
+- Clear lifecycle management
+- No global state
 
 ### Setting Up Development Environment
 
@@ -464,17 +507,27 @@ sense-pulse/
 │       ├── __init__.py
 │       ├── cli.py              # CLI interface
 │       ├── config.py           # Configuration management
+│       ├── context.py          # AppContext for dependency injection
 │       ├── cache.py            # Data caching with background polling
 │       ├── controller.py       # Main display controller
 │       ├── hardware.py         # Hardware abstraction
-│       ├── pihole.py           # Pi-hole stats (with retry logic)
-│       ├── tailscale.py        # Tailscale status (with retry logic)
-│       ├── aranet4.py          # Aranet4 sensor integration (with retry logic)
-│       ├── system.py           # System stats
+│       ├── pihole.py           # Pi-hole stats (legacy)
+│       ├── tailscale.py        # Tailscale status (legacy)
+│       ├── aranet4.py          # Aranet4 sensor integration (legacy)
+│       ├── system.py           # System stats (legacy)
 │       ├── display.py          # LED matrix display
 │       ├── icons.py            # 8x8 pixel art icons
 │       ├── schedule.py         # Sleep scheduling
 │       ├── pi_leds.py          # Pi onboard LED control
+│       ├── datasources/        # DataSource implementations
+│       │   ├── __init__.py
+│       │   ├── base.py         # DataSource interface
+│       │   ├── registry.py     # Source management
+│       │   ├── pihole_source.py    # Pi-hole wrapper
+│       │   ├── tailscale_source.py # Tailscale wrapper
+│       │   ├── system_source.py    # System metrics wrapper
+│       │   ├── sensehat_source.py  # Sense HAT wrapper
+│       │   └── aranet4_source.py   # Aranet4 wrapper
 │       └── web/
 │           ├── app.py          # FastAPI application
 │           ├── routes.py       # API routes
@@ -483,6 +536,10 @@ sense-pulse/
 ├── tests/
 │   ├── test_cache.py           # Cache module tests
 │   ├── test_config.py          # Config module tests
+│   ├── test_context.py         # AppContext tests
+│   ├── test_cli_context.py     # CLI integration tests
+│   ├── test_web_app.py         # Web app dependency injection tests
+│   ├── test_datasources.py     # DataSource tests
 │   └── test_auth.py            # Authentication tests
 ├── pyproject.toml              # Project config + tool settings
 ├── .pre-commit-config.yaml     # Pre-commit hooks
