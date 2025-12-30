@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-from sense_pulse import hardware, icons
+from sense_pulse import icons
+from sense_pulse.devices import sensehat
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,10 @@ class SenseHatDisplay:
         """
         try:
             # Use shared SenseHat instance from hardware module
-            self.sense: Optional[SenseHat] = hardware.get_sense_hat()
+            self.sense: Optional[SenseHat] = sensehat.get_sense_hat()
             if self.sense is None:
                 raise RuntimeError("Sense HAT not available")
-            hardware._set_rotation_sync(rotation)
+            sensehat._set_rotation_sync(rotation)
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
             self.icon_duration = icon_duration
@@ -97,7 +98,7 @@ class SenseHatDisplay:
             display_time = duration if duration is not None else self.icon_duration
             logger.debug("Displaying icon")
             # Use hardware module for matrix operations (handles state tracking)
-            await hardware.set_pixels(icon_pixels, mode)
+            await sensehat.set_pixels(icon_pixels, mode)
             await asyncio.sleep(display_time)
         except Exception as e:
             logger.error(f"Failed to display icon: {e}")
@@ -124,13 +125,13 @@ class SenseHatDisplay:
         if icon:
             await self.show_icon(icon, duration=icon_duration, mode=icon_name)
         # Update mode to show we're scrolling text
-        hardware.set_display_mode("scrolling")
+        sensehat.set_display_mode("scrolling")
         await self.show_text(text, color=text_color, scroll_speed=scroll_speed)
 
     async def clear(self):
         """Clear the LED display"""
         try:
             # Use hardware module for matrix operations (handles state tracking)
-            await hardware.clear_display()
+            await sensehat.clear_display()
         except Exception as e:
             logger.error(f"Failed to clear display: {e}")

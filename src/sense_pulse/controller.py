@@ -7,7 +7,7 @@ from typing import Optional
 
 from sense_pulse.cache import get_cache
 from sense_pulse.config import Config
-from sense_pulse.display import SenseHatDisplay
+from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.pi_leds import disable_all_leds, enable_all_leds
 from sense_pulse.schedule import SleepSchedule
 

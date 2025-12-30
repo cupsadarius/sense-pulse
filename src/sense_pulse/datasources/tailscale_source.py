@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 
 from ..config import TailscaleConfig
-from ..tailscale import TailscaleStatus
+from ..devices.tailscale import TailscaleStatus
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 logger = logging.getLogger(__name__)

@@ -317,3 +317,115 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
 def scan_for_aranet4_sync(duration: int = 10) -> list[dict[str, Any]]:
     """Synchronous scan for Aranet4 devices"""
     return scan_for_aranet4_devices(duration)
+
+
+# ============================================================================
+# Sensor Registry Management
+# ============================================================================
+
+# Aranet4 CO2 sensors registry (label -> Aranet4Sensor)
+_aranet4_sensors: dict[str, Aranet4Sensor] = {}
+_aranet4_initialized: bool = False
+
+
+def init_aranet4_sensors(
+    sensors: list[dict[str, Any]] = None,
+    timeout: int = 30,
+    cache_duration: int = 60,
+) -> None:
+    """Initialize Aranet4 CO2 sensors and start background polling
+
+    Args:
+        sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
+        timeout: Connection timeout in seconds (unused, kept for API compatibility)
+        cache_duration: Cache duration in seconds
+    """
+    global _aranet4_sensors, _aranet4_initialized
+
+    if _aranet4_initialized:
+        return
+
+    _aranet4_initialized = True
+
+    if sensors is None:
+        sensors = []
+
+    for sensor_config in sensors:
+        label = sensor_config.get("label", "")
+        mac_address = sensor_config.get("mac_address", "")
+        enabled = sensor_config.get("enabled", False)
+
+        if enabled and mac_address and label:
+            sensor = Aranet4Sensor(
+                mac_address=mac_address,
+                name=label,
+                cache_duration=cache_duration,
+            )
+            _aranet4_sensors[label] = sensor
+            register_sensor(sensor)
+            logger.info(f"Aranet4 sensor '{label}' configured: {mac_address}")
+
+
+def update_aranet4_sensors(
+    sensors: list[dict[str, Any]],
+    timeout: int = 30,
+    cache_duration: int = 60,
+) -> dict[str, str]:
+    """Update all Aranet4 sensor configurations
+
+    Args:
+        sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
+        timeout: Connection timeout in seconds (unused, kept for API compatibility)
+        cache_duration: Cache duration in seconds
+    """
+    global _aranet4_sensors
+
+    # Unregister all existing sensors
+    for _label, sensor in list(_aranet4_sensors.items()):
+        unregister_sensor(sensor)
+    _aranet4_sensors.clear()
+
+    # Register new sensors
+    for sensor_config in sensors:
+        label = sensor_config.get("label", "")
+        mac_address = sensor_config.get("mac_address", "")
+        enabled = sensor_config.get("enabled", False)
+
+        if enabled and mac_address and label:
+            sensor = Aranet4Sensor(
+                mac_address=mac_address,
+                name=label,
+                cache_duration=cache_duration,
+            )
+            _aranet4_sensors[label] = sensor
+            register_sensor(sensor)
+            logger.info(f"Aranet4 sensor '{label}' updated: {mac_address}")
+
+    return {"status": "ok", "message": f"Updated {len(_aranet4_sensors)} sensor(s)"}
+
+
+async def get_aranet4_data() -> dict[str, Any]:
+    """Get CO2 sensor data from cache only (does not trigger BLE)"""
+    result = {}
+
+    for label, sensor in _aranet4_sensors.items():
+        reading = sensor.get_cached_reading()
+        if reading:
+            result[label] = reading.to_dict()
+
+    return result if result else {"available": False}
+
+
+def get_aranet4_status() -> dict[str, Any]:
+    """Get status of all Aranet4 sensors"""
+    result = {}
+
+    for label, sensor in _aranet4_sensors.items():
+        result[label] = sensor.get_status()
+
+    return result
+
+
+def is_aranet4_available() -> bool:
+    """Check if any Aranet4 sensor is configured"""
+    return len(_aranet4_sensors) > 0
