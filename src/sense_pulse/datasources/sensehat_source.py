@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from ..hardware import get_sensor_data
+from ..devices.sensehat import get_sensor_data
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 logger = logging.getLogger(__name__)

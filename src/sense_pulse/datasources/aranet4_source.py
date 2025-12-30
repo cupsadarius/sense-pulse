@@ -10,7 +10,7 @@ from ..config import Aranet4Config
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 if TYPE_CHECKING:
-    from ..aranet4 import Aranet4Sensor
+    from ..devices.aranet4 import Aranet4Sensor
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class Aranet4DataSource(DataSource):
 
         try:
             # Import aranet4 module functions
-            from ..aranet4 import Aranet4Sensor, register_sensor
+            from ..devices.aranet4 import Aranet4Sensor, register_sensor
 
             # Register each enabled sensor
             for sensor_config in self._config.sensors:
@@ -141,7 +141,7 @@ class Aranet4DataSource(DataSource):
     async def shutdown(self) -> None:
         """Stop background BLE polling"""
         try:
-            from ..aranet4 import stop_polling, unregister_sensor
+            from ..devices.aranet4 import stop_polling, unregister_sensor
 
             # Unregister all sensors
             for label, sensor in list(self._sensors.items()):
