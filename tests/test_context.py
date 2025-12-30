@@ -1,8 +1,9 @@
 """Tests for AppContext module."""
 
 import pytest
-from sense_pulse.context import AppContext
+
 from sense_pulse.config import Config
+from sense_pulse.context import AppContext
 from tests.mock_datasource import MockDataSource
 
 
