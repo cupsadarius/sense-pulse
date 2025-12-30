@@ -286,16 +286,10 @@ sense-pulse/
         ├── config.py       # Configuration loading
         ├── context.py      # AppContext for dependency injection
         ├── cache.py        # Data caching with background polling
-        ├── hardware.py     # Sense HAT abstraction layer
         ├── icons.py        # 8x8 LED pixel art
-        ├── tailscale.py    # Tailscale status (legacy)
-        ├── pihole.py       # Pi-hole stats (legacy)
-        ├── system.py       # System stats (legacy)
-        ├── display.py      # Sense HAT display
         ├── schedule.py     # Sleep schedule
         ├── controller.py   # Main controller
         ├── pi_leds.py      # Pi onboard LED control
-        ├── aranet4.py      # Aranet4 CO2 sensor integration (legacy)
         ├── datasources/    # DataSource implementations
         │   ├── __init__.py
         │   ├── base.py     # DataSource interface
@@ -305,6 +299,14 @@ sense-pulse/
         │   ├── system_source.py    # System metrics wrapper
         │   ├── sensehat_source.py  # Sense HAT wrapper
         │   └── aranet4_source.py   # Aranet4 wrapper
+        ├── devices/        # Device implementations
+        │   ├── __init__.py
+        │   ├── pihole.py       # Pi-hole stats
+        │   ├── tailscale.py    # Tailscale status
+        │   ├── system.py       # System stats
+        │   ├── sensehat.py     # Sense HAT hardware
+        │   ├── display.py      # LED display
+        │   └── aranet4.py      # Aranet4 CO2 sensor
         └── web/            # Web dashboard module
             ├── __init__.py
             ├── app.py      # FastAPI application
@@ -510,12 +512,6 @@ sense-pulse/
 │       ├── context.py          # AppContext for dependency injection
 │       ├── cache.py            # Data caching with background polling
 │       ├── controller.py       # Main display controller
-│       ├── hardware.py         # Hardware abstraction
-│       ├── pihole.py           # Pi-hole stats (legacy)
-│       ├── tailscale.py        # Tailscale status (legacy)
-│       ├── aranet4.py          # Aranet4 sensor integration (legacy)
-│       ├── system.py           # System stats (legacy)
-│       ├── display.py          # LED matrix display
 │       ├── icons.py            # 8x8 pixel art icons
 │       ├── schedule.py         # Sleep scheduling
 │       ├── pi_leds.py          # Pi onboard LED control
@@ -528,6 +524,14 @@ sense-pulse/
 │       │   ├── system_source.py    # System metrics wrapper
 │       │   ├── sensehat_source.py  # Sense HAT wrapper
 │       │   └── aranet4_source.py   # Aranet4 wrapper
+│       ├── devices/            # Device implementations
+│       │   ├── __init__.py
+│       │   ├── pihole.py       # Pi-hole stats
+│       │   ├── tailscale.py    # Tailscale status
+│       │   ├── system.py       # System stats
+│       │   ├── sensehat.py     # Sense HAT hardware
+│       │   ├── display.py      # LED display
+│       │   └── aranet4.py      # Aranet4 CO2 sensor
 │       └── web/
 │           ├── app.py          # FastAPI application
 │           ├── routes.py       # API routes

@@ -1,6 +1,6 @@
 [project]
 name = "sense-pulse"
-version = "0.4.0"
+version = "0.10.0"
 description = "Display Pi-hole statistics, Tailscale status, and sensor data on Sense HAT LED matrix"
 readme = "README.md"
 requires-python = ">=3.9"
