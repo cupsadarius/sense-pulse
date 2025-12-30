@@ -4,15 +4,11 @@ import asyncio
 import logging
 from typing import Optional
 
-from sense_pulse import hardware
 from sense_pulse.cache import get_cache
 from sense_pulse.config import Config
 from sense_pulse.display import SenseHatDisplay
 from sense_pulse.pi_leds import disable_all_leds, enable_all_leds
-from sense_pulse.pihole import PiHoleStats
 from sense_pulse.schedule import SleepSchedule
-from sense_pulse.system import SystemStats
-from sense_pulse.tailscale import TailscaleStatus
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +29,6 @@ class StatsDisplay:
         self.show_icons = config.display.show_icons
         self.cache = None  # Will be initialized in async_init()
 
-        self.pihole = PiHoleStats(config.pihole.host, config.pihole.password)
-        self.tailscale = TailscaleStatus(config.tailscale.cache_duration)
         self.display = SenseHatDisplay(
             rotation=config.display.rotation,
             scroll_speed=config.display.scroll_speed,
@@ -44,48 +38,17 @@ class StatsDisplay:
             config.sleep.start_hour,
             config.sleep.end_hour,
         )
-        self.system = SystemStats()
 
         # Track sleep state for Pi LED control
         self._was_sleeping = False
         self._disable_pi_leds = config.sleep.disable_pi_leds
 
-        # Store sensor config for async init
-        self._sensors_config = [
-            {
-                "label": sensor.label,
-                "mac_address": sensor.mac_address,
-                "enabled": sensor.enabled,
-            }
-            for sensor in config.aranet4.sensors
-        ]
-        self._aranet4_timeout = config.aranet4.timeout
-        self._aranet4_cache_duration = config.aranet4.cache_duration
-
         logger.info("StatsDisplay initialized (async_init required)")
 
     async def async_init(self) -> None:
         """Complete async initialization (call this after __init__)"""
-        # Get global cache instance
+        # Get global cache instance (already initialized by CLI with data sources)
         self.cache = await get_cache()
-
-        # Register data sources with cache for background polling
-        self.cache.register_source("tailscale", self.tailscale.get_status_summary)
-        self.cache.register_source("pihole", self.pihole.get_summary)
-        self.cache.register_source("system", self.system.get_stats)
-        self.cache.register_source("sensors", hardware.get_sensor_data)
-        self.cache.register_source("co2", hardware.get_aranet4_data)
-
-        # Initialize Aranet4 CO2 sensors
-        hardware.init_aranet4_sensors(
-            sensors=self._sensors_config,
-            timeout=self._aranet4_timeout,
-            cache_duration=self._aranet4_cache_duration,
-        )
-
-        # Start cache polling
-        await self.cache.start_polling()
-
         logger.info("StatsDisplay async initialization completed")
 
     async def display_tailscale_status(self):
@@ -357,11 +320,6 @@ class StatsDisplay:
             if self._disable_pi_leds and self._was_sleeping:
                 logger.info("Re-enabling Pi onboard LEDs on shutdown")
                 enable_all_leds()
-            # Stop cache polling
-            if self.cache:
-                await self.cache.stop_polling()
-            # Close HTTP clients
-            await self.pihole.close()
             logger.info("Shutdown complete")
         except Exception as e:
             logger.error(f"Fatal error in continuous loop: {e}")

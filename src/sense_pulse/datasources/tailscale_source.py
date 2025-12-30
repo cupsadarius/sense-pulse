@@ -45,14 +45,14 @@ class TailscaleDataSource(DataSource):
 
             return [
                 SensorReading(
-                    sensor_id="tailscale_connected",
+                    sensor_id="connected",
                     value=summary["connected"],
                     unit=None,
                     timestamp=now,
                     metadata={"type": "boolean"},
                 ),
                 SensorReading(
-                    sensor_id="tailscale_devices",
+                    sensor_id="device_count",
                     value=summary["device_count"],
                     unit="devices",
                     timestamp=now,

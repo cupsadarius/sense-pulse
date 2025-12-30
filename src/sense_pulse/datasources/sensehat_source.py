@@ -54,7 +54,7 @@ class SenseHatDataSource(DataSource):
             if data.get("temperature") is not None:
                 readings.append(
                     SensorReading(
-                        sensor_id="sensehat_temp",
+                        sensor_id="temperature",
                         value=data["temperature"],
                         unit="°C",
                         timestamp=now,
@@ -64,7 +64,7 @@ class SenseHatDataSource(DataSource):
             if data.get("humidity") is not None:
                 readings.append(
                     SensorReading(
-                        sensor_id="sensehat_humidity",
+                        sensor_id="humidity",
                         value=data["humidity"],
                         unit="%",
                         timestamp=now,
@@ -74,7 +74,7 @@ class SenseHatDataSource(DataSource):
             if data.get("pressure") is not None:
                 readings.append(
                     SensorReading(
-                        sensor_id="sensehat_pressure",
+                        sensor_id="pressure",
                         value=data["pressure"],
                         unit="mbar",
                         timestamp=now,
@@ -90,7 +90,7 @@ class SenseHatDataSource(DataSource):
     def get_metadata(self) -> DataSourceMetadata:
         """Get Sense HAT data source metadata"""
         return DataSourceMetadata(
-            source_id="sensehat",
+            source_id="sensors",
             name="Sense HAT Sensors",
             description="Onboard temperature, humidity, and pressure sensors",
             refresh_interval=30,

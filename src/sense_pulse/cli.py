@@ -114,6 +114,13 @@ async def async_main() -> int:
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
     from sense_pulse.cache import initialize_cache
     from sense_pulse.config import load_config
+    from sense_pulse.datasources import (
+        Aranet4DataSource,
+        PiHoleDataSource,
+        SenseHatDataSource,
+        SystemStatsDataSource,
+        TailscaleDataSource,
+    )
 
     # Load configuration
     config = load_config(args.config)
@@ -130,6 +137,21 @@ async def async_main() -> int:
     # Initialize data cache with 60s TTL and 30s polling interval
     logger.info("Initializing data cache (60s TTL, 30s poll interval)")
     cache = await initialize_cache(cache_ttl=60.0, poll_interval=30.0)
+
+    # Create and register data sources
+    data_sources = [
+        TailscaleDataSource(config.tailscale),
+        PiHoleDataSource(config.pihole),
+        SystemStatsDataSource(),
+        SenseHatDataSource(),
+        Aranet4DataSource(config.aranet4),
+    ]
+
+    for source in data_sources:
+        await source.initialize()
+        cache.register_data_source(source)
+
+    # Start background polling
     await cache.start_polling()
 
     try:
@@ -190,6 +212,13 @@ async def async_main() -> int:
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         return 1
+    finally:
+        # Cleanup: stop cache polling and shutdown data sources
+        logger.info("Shutting down...")
+        await cache.stop_polling()
+        for source in data_sources:
+            await source.shutdown()
+        logger.info("Cleanup complete")
 
 
 def main() -> int:
