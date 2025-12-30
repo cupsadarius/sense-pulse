@@ -1,6 +1,5 @@
 """Tests for CLI with AppContext integration."""
 
-
 import pytest
 
 from sense_pulse.config import Config
