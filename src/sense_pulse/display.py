@@ -64,17 +64,21 @@ class SenseHatDisplay:
             logger.error(f"Failed to read sensor data: {e}")
             return {"temperature": 0, "humidity": 0, "pressure": 0}
 
-    def show_text(
+    async def show_text(
         self,
         text: str,
         color: tuple[int, int, int] = (255, 255, 255),
         scroll_speed: Optional[float] = None,
     ):
-        """Display scrolling text on LED matrix"""
+        """Display scrolling text on LED matrix (async to prevent blocking)"""
         try:
             speed = scroll_speed if scroll_speed is not None else self.scroll_speed
             logger.debug(f"Displaying text: {text}")
-            self.sense.show_message(text, scroll_speed=speed, text_colour=color)
+            # Run blocking show_message in thread pool to prevent blocking event loop
+            # This allows WebSocket to continue sending pixel updates during scrolling
+            await asyncio.to_thread(
+                self.sense.show_message, text, scroll_speed=speed, text_colour=color
+            )
         except Exception as e:
             logger.error(f"Failed to display text: {e}")
 
@@ -121,7 +125,7 @@ class SenseHatDisplay:
             await self.show_icon(icon, duration=icon_duration, mode=icon_name)
         # Update mode to show we're scrolling text
         hardware.set_display_mode("scrolling")
-        self.show_text(text, color=text_color, scroll_speed=scroll_speed)
+        await self.show_text(text, color=text_color, scroll_speed=scroll_speed)
 
     async def clear(self):
         """Clear the LED display"""
