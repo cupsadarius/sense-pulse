@@ -1,9 +1,9 @@
 """FastAPI application for Sense Pulse web interface."""
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
-import logging
 
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
@@ -46,17 +46,12 @@ async def lifespan(app: FastAPI):
     if _app_context:
         if not _app_context.is_started:
             logger.warning(
-                "AppContext provided but not started - "
-                "this may indicate a configuration issue"
+                "AppContext provided but not started - " "this may indicate a configuration issue"
             )
         else:
-            logger.info(
-                f"Using AppContext with {len(_app_context.data_sources)} data source(s)"
-            )
+            logger.info(f"Using AppContext with {len(_app_context.data_sources)} data source(s)")
     else:
-        logger.warning(
-            "No AppContext provided - running in legacy mode with global cache"
-        )
+        logger.warning("No AppContext provided - running in legacy mode with global cache")
 
     yield  # Application runs here
 
@@ -103,8 +98,9 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
 
     # Initialize auth and hardware settings if context is provided
     if context:
-        from sense_pulse.web.auth import AuthConfig as WebAuthConfig, set_auth_config
         from sense_pulse.devices import sensehat
+        from sense_pulse.web.auth import AuthConfig as WebAuthConfig
+        from sense_pulse.web.auth import set_auth_config
 
         # Set up auth
         auth_config = WebAuthConfig(
