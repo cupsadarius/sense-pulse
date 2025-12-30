@@ -14,9 +14,9 @@ from pydantic import BaseModel
 from sense_pulse.cache import get_cache
 from sense_pulse.config import Config, find_config_file, load_config
 from sense_pulse.devices import sensehat
+from sense_pulse.web.app import get_app_context
 from sense_pulse.web.auth import AuthConfig as WebAuthConfig
 from sense_pulse.web.auth import require_auth, set_auth_config
-from sense_pulse.web.app import get_app_context
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,7 +36,7 @@ async def _get_cache_from_context_or_global():
         return context.cache
 
     # Fall back to global cache (legacy mode)
-    from sense_pulse.cache import get_cache
+
     return await get_cache()
 
 

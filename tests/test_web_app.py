@@ -1,8 +1,9 @@
 """Tests for web application with dependency injection."""
 
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime
 
 from sense_pulse.config import Config
 from sense_pulse.context import AppContext
@@ -81,6 +82,7 @@ class TestWebAppCreation:
 
             # Give cache time to populate
             import asyncio
+
             await asyncio.sleep(0.2)
 
             response = client.get("/api/sensors")
@@ -100,6 +102,7 @@ class TestWebAppContextAccess:
         """Test get_app_context returns None before app creation."""
         # Reset module state
         import sense_pulse.web.app as app_module
+
         app_module._app_context = None
 
         assert get_app_context() is None
