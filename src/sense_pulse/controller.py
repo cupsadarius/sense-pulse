@@ -1,6 +1,7 @@
 """Main controller for stats display"""
 
 import asyncio
+import contextlib
 import logging
 from typing import Optional
 
@@ -303,25 +304,43 @@ class StatsDisplay:
             logger.error(f"Error during display cycle: {e}")
             await self.display.clear()
 
-    async def run_continuous(self, interval: Optional[int] = None):
-        """Run continuous display loop"""
+    async def run_until_shutdown(
+        self, shutdown_event: asyncio.Event, interval: Optional[int] = None
+    ):
+        """
+        Run continuous display loop until shutdown event is set.
+
+        Args:
+            shutdown_event: Event that signals shutdown when set
+            interval: Update interval in seconds (uses config default if not specified)
+        """
         update_interval = interval or self.config.update.interval
         logger.info(f"Starting continuous display with {update_interval}s interval...")
 
         try:
-            while True:
+            while not shutdown_event.is_set():
                 await self.run_cycle()
                 logger.debug(f"Waiting {update_interval} seconds before next cycle...")
-                await asyncio.sleep(update_interval)
-        except KeyboardInterrupt:
-            logger.info("Received shutdown signal, cleaning up...")
+                # Wait for either the interval or shutdown signal
+                with contextlib.suppress(asyncio.TimeoutError):
+                    await asyncio.wait_for(shutdown_event.wait(), timeout=update_interval)
+        except Exception as e:
+            logger.error(f"Fatal error in continuous loop: {e}")
+            raise
+        finally:
+            logger.info("Cleaning up display...")
             await self.display.clear()
             # Re-enable Pi LEDs on shutdown if they were managed
             if self._disable_pi_leds and self._was_sleeping:
                 logger.info("Re-enabling Pi onboard LEDs on shutdown")
                 enable_all_leds()
-            logger.info("Shutdown complete")
-        except Exception as e:
-            logger.error(f"Fatal error in continuous loop: {e}")
-            await self.display.clear()
-            raise
+
+    async def run_continuous(self, interval: Optional[int] = None):
+        """
+        Run continuous display loop (legacy method).
+
+        Note: Prefer run_until_shutdown() for proper signal handling.
+        """
+        # Create a local shutdown event that's never set for backwards compatibility
+        shutdown_event = asyncio.Event()
+        await self.run_until_shutdown(shutdown_event, interval)
