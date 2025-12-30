@@ -195,6 +195,11 @@ async def get_matrix_state() -> dict[str, Any]:
     return await asyncio.to_thread(_get_matrix_state_sync)
 
 
+def get_current_rotation() -> int:
+    """Get the current rotation setting"""
+    return _current_rotation
+
+
 def set_web_rotation_offset(offset: int) -> None:
     """Set web preview rotation offset"""
     global _web_rotation_offset
