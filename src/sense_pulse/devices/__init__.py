@@ -6,23 +6,26 @@ This module contains low-level hardware device implementations:
 - display: Display device wrapper for Sense HAT LED matrix
 """
 
-from sense_pulse.devices.aranet4 import Aranet4Reading, Aranet4Sensor
+from sense_pulse.devices.aranet4 import (
+    Aranet4Reading,
+    Aranet4Sensor,
+    get_aranet4_data,
+    get_aranet4_status,
+    init_aranet4_sensors,
+    is_aranet4_available,
+    update_aranet4_sensors,
+)
 from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.devices.sensehat import (
     clear_display,
-    get_aranet4_data,
-    get_aranet4_status,
     get_matrix_state,
     get_sense_hat,
     get_sensor_data,
-    init_aranet4_sensors,
-    is_aranet4_available,
     is_sense_hat_available,
     set_display_mode,
     set_pixels,
     set_rotation,
     set_web_rotation_offset,
-    update_aranet4_sensors,
 )
 
 __all__ = [

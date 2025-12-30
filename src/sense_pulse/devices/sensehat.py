@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-    from sense_pulse.devices.aranet4 import Aranet4Sensor
-
 logger = logging.getLogger(__name__)
 
 # Try to import Sense HAT, but don't fail if unavailable
@@ -20,10 +18,6 @@ _initialized: bool = False
 _current_display_mode: str = "idle"
 _current_rotation: int = 0
 _web_rotation_offset: int = 90  # Default offset for web preview
-
-# Aranet4 CO2 sensors (dynamic list by label)
-_aranet4_sensors: dict[str, "Aranet4Sensor"] = {}  # label -> Aranet4Sensor
-_aranet4_initialized: bool = False
 
 
 def _init_sense_hat() -> None:
@@ -205,122 +199,3 @@ def set_display_mode(mode: str) -> None:
     """Update the current display mode label"""
     global _current_display_mode
     _current_display_mode = mode
-
-
-def init_aranet4_sensors(
-    sensors: list[dict[str, Any]] = None,
-    timeout: int = 30,
-    cache_duration: int = 60,
-) -> None:
-    """Initialize Aranet4 CO2 sensors and start background polling
-
-    Args:
-        sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
-        timeout: Connection timeout in seconds
-        cache_duration: Cache duration in seconds
-    """
-    global _aranet4_sensors, _aranet4_initialized
-
-    if _aranet4_initialized:
-        return
-
-    _aranet4_initialized = True
-
-    if sensors is None:
-        sensors = []
-
-    try:
-        from sense_pulse.devices.aranet4 import Aranet4Sensor, register_sensor
-
-        for sensor_config in sensors:
-            label = sensor_config.get("label", "")
-            mac_address = sensor_config.get("mac_address", "")
-            enabled = sensor_config.get("enabled", False)
-
-            if enabled and mac_address and label:
-                sensor = Aranet4Sensor(
-                    mac_address=mac_address,
-                    name=label,
-                    cache_duration=cache_duration,
-                )
-                _aranet4_sensors[label] = sensor
-                register_sensor(sensor)
-                logger.info(f"Aranet4 sensor '{label}' configured: {mac_address}")
-
-    except ImportError:
-        logger.warning("Aranet4 module not available - CO2 sensors disabled")
-    except Exception as e:
-        logger.error(f"Failed to initialize Aranet4 sensors: {e}")
-
-
-def update_aranet4_sensors(
-    sensors: list[dict[str, Any]],
-    timeout: int = 30,
-    cache_duration: int = 60,
-) -> dict[str, str]:
-    """Update all Aranet4 sensor configurations
-
-    Args:
-        sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
-        timeout: Connection timeout in seconds
-        cache_duration: Cache duration in seconds
-    """
-    global _aranet4_sensors
-
-    try:
-        from sense_pulse.devices.aranet4 import Aranet4Sensor, register_sensor, unregister_sensor
-
-        # Unregister all existing sensors
-        for _label, sensor in list(_aranet4_sensors.items()):
-            unregister_sensor(sensor)
-        _aranet4_sensors.clear()
-
-        # Register new sensors
-        for sensor_config in sensors:
-            label = sensor_config.get("label", "")
-            mac_address = sensor_config.get("mac_address", "")
-            enabled = sensor_config.get("enabled", False)
-
-            if enabled and mac_address and label:
-                sensor = Aranet4Sensor(
-                    mac_address=mac_address,
-                    name=label,
-                    cache_duration=cache_duration,
-                )
-                _aranet4_sensors[label] = sensor
-                register_sensor(sensor)
-                logger.info(f"Aranet4 sensor '{label}' updated: {mac_address}")
-
-        return {"status": "ok", "message": f"Updated {len(_aranet4_sensors)} sensor(s)"}
-
-    except ImportError:
-        return {"status": "error", "message": "Aranet4 module not available"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
-async def get_aranet4_data() -> dict[str, Any]:
-    """Get CO2 sensor data from cache only (does not trigger BLE)"""
-    result = {}
-
-    for label, sensor in _aranet4_sensors.items():
-        reading = sensor.get_cached_reading()
-        if reading:
-            result[label] = reading.to_dict()
-
-    return result if result else {"available": False}
-
-
-def get_aranet4_status() -> dict[str, Any]:
-    """Get status of all Aranet4 sensors"""
-    result = {}
-
-    for label, sensor in _aranet4_sensors.items():
-        result[label] = sensor.get_status()
-
-    return result
-
-
-def is_aranet4_available() -> bool:
-    """Check if any Aranet4 sensor is configured"""
-    return len(_aranet4_sensors) > 0
