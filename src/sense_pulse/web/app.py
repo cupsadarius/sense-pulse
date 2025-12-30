@@ -85,7 +85,7 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
     app = FastAPI(
         title="Sense Pulse",
         description="Pi-hole + Tailscale + Sense HAT Status Dashboard",
-        version="0.9.1",
+        version="0.10.0",
         lifespan=lifespan,
     )
 
