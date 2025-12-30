@@ -373,6 +373,10 @@ def update_aranet4_sensors(
 ) -> dict[str, str]:
     """Update all Aranet4 sensor configurations
 
+    NOTE: This function updates the global sensor registry for immediate effect,
+    but full integration requires restarting the application to reload the
+    Aranet4DataSource with the new configuration.
+
     Args:
         sensors: List of sensor configs, each with 'label', 'mac_address', and 'enabled' fields
         timeout: Connection timeout in seconds (unused, kept for API compatibility)
@@ -380,9 +384,11 @@ def update_aranet4_sensors(
     """
     global _aranet4_sensors
 
-    # Unregister all existing sensors
-    for _label, sensor in list(_aranet4_sensors.items()):
+    # Unregister all existing sensors from global registry
+    for sensor in list(_sensors_to_poll):
         unregister_sensor(sensor)
+
+    # Clear legacy dict (kept for backward compatibility)
     _aranet4_sensors.clear()
 
     # Register new sensors
@@ -397,35 +403,43 @@ def update_aranet4_sensors(
                 name=label,
                 cache_duration=cache_duration,
             )
-            _aranet4_sensors[label] = sensor
+            _aranet4_sensors[label] = sensor  # Keep for backward compatibility
             register_sensor(sensor)
             logger.info(f"Aranet4 sensor '{label}' updated: {mac_address}")
+
+    logger.warning(
+        "Sensor configuration updated. For full effect with DataSource integration, "
+        "restart the application."
+    )
 
     return {"status": "ok", "message": f"Updated {len(_aranet4_sensors)} sensor(s)"}
 
 
 async def get_aranet4_data() -> dict[str, Any]:
-    """Get CO2 sensor data from cache only (does not trigger BLE)"""
+    """Get CO2 sensor data from cache only (does not trigger BLE)
+
+    NOTE: This is a legacy function. Prefer using the cache with key "co2" instead.
+    """
     result = {}
 
-    for label, sensor in _aranet4_sensors.items():
+    for sensor in _sensors_to_poll:
         reading = sensor.get_cached_reading()
         if reading:
-            result[label] = reading.to_dict()
+            result[sensor.name] = reading.to_dict()
 
     return result if result else {"available": False}
 
 
 def get_aranet4_status() -> dict[str, Any]:
-    """Get status of all Aranet4 sensors"""
+    """Get status of all Aranet4 sensors registered for polling"""
     result = {}
 
-    for label, sensor in _aranet4_sensors.items():
-        result[label] = sensor.get_status()
+    for sensor in _sensors_to_poll:
+        result[sensor.name] = sensor.get_status()
 
     return result
 
 
 def is_aranet4_available() -> bool:
-    """Check if any Aranet4 sensor is configured"""
-    return len(_aranet4_sensors) > 0
+    """Check if any Aranet4 sensor is configured and registered for polling"""
+    return len(_sensors_to_poll) > 0
