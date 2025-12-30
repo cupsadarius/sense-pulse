@@ -155,10 +155,7 @@
                 ledCache: new Array(64).fill(null),  // Cache LED colors to avoid unnecessary updates
                 statusCache: {},  // Cache status card values
                 // DOM element cache
-                domCache: {},
-                // requestAnimationFrame queue
-                rafPending: false,
-                rafQueue: []
+                domCache: {}
             };
         }
 
@@ -168,19 +165,6 @@
                 window.sensePulseWS.domCache[id] = document.getElementById(id);
             }
             return window.sensePulseWS.domCache[id];
-        }
-
-        // Performance optimization: batch DOM updates with requestAnimationFrame
-        function scheduleUpdate(updateFn) {
-            window.sensePulseWS.rafQueue.push(updateFn);
-            if (!window.sensePulseWS.rafPending) {
-                window.sensePulseWS.rafPending = true;
-                requestAnimationFrame(() => {
-                    const queue = window.sensePulseWS.rafQueue.splice(0);
-                    queue.forEach(fn => fn());
-                    window.sensePulseWS.rafPending = false;
-                });
-            }
         }
 
         function updateWSStatus(gridConnected, sensorsConnected) {
@@ -248,51 +232,49 @@
             const rotation = matrixData.rotation || 0;
             const webOffset = matrixData.web_offset !== undefined ? matrixData.web_offset : 90;
 
-            // Update mode text (less frequent, so not cached)
+            // Update mode text
             const modeEl = getCachedElement('matrix-mode');
             if (modeEl && modeEl.textContent !== (mode || 'idle')) {
                 modeEl.textContent = mode || 'idle';
             }
 
-            if (!pixels) return;
+            if (!pixels || pixels.length !== 64) return;
 
-            // Batch updates in requestAnimationFrame for smoother rendering
-            scheduleUpdate(() => {
-                const cache = window.sensePulseWS.ledCache;
+            // Apply dirty-checking directly without rAF batching for faster updates
+            const cache = window.sensePulseWS.ledCache;
 
-                for (let i = 0; i < 64; i++) {
-                    const rotatedIndex = rotateIndex(i, rotation, webOffset);
-                    const pixel = pixels[i];
-                    if (!pixel) continue;
+            for (let i = 0; i < 64; i++) {
+                const rotatedIndex = rotateIndex(i, rotation, webOffset);
+                const pixel = pixels[i];
+                if (!pixel || pixel.length !== 3) continue;
 
-                    const [r, g, b] = pixel;
+                const [r, g, b] = pixel;
 
-                    // Create a comparable cache key (color string)
-                    const colorKey = r === 0 && g === 0 && b === 0
-                        ? 'off'
-                        : `${r},${g},${b}`;
+                // Create a comparable cache key (color string)
+                const colorKey = r === 0 && g === 0 && b === 0
+                    ? 'off'
+                    : `${r},${g},${b}`;
 
-                    // Skip update if pixel hasn't changed
-                    if (cache[rotatedIndex] === colorKey) continue;
+                // Skip update if pixel hasn't changed
+                if (cache[rotatedIndex] === colorKey) continue;
 
-                    // Update cache
-                    cache[rotatedIndex] = colorKey;
+                // Update cache
+                cache[rotatedIndex] = colorKey;
 
-                    // Get cached DOM element
-                    const led = getCachedElement('led-' + rotatedIndex);
-                    if (!led) continue;
+                // Get cached DOM element
+                const led = getCachedElement('led-' + rotatedIndex);
+                if (!led) continue;
 
-                    // Apply color change
-                    if (colorKey === 'off') {
-                        led.style.backgroundColor = '#1f2937';
-                        led.style.boxShadow = 'none';
-                    } else {
-                        const color = rgbToHex(r, g, b);
-                        led.style.backgroundColor = color;
-                        led.style.boxShadow = '0 0 8px ' + color;
-                    }
+                // Apply color change
+                if (colorKey === 'off') {
+                    led.style.backgroundColor = '#1f2937';
+                    led.style.boxShadow = 'none';
+                } else {
+                    const color = rgbToHex(r, g, b);
+                    led.style.backgroundColor = color;
+                    led.style.boxShadow = '0 0 8px ' + color;
                 }
-            });
+            }
         }
 
         function updateStatusCards(data) {
