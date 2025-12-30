@@ -212,12 +212,12 @@
             // Pixels from get_pixels() are already rotated by the physical rotation setting,
             // so we only apply the web offset to adjust the viewing angle
             // EXCEPTION: show_message (scrolling text) has different rotation behavior than set_pixels (icons)
-            // so we apply compensation for scrolling mode
+            // so we apply compensation for icon modes (not scrolling)
             let effectiveRotation = webOffset % 360;
 
-            // Workaround: show_message and set_pixels handle rotation differently
-            // If in scrolling mode, apply -90° compensation to match icon orientation
-            if (mode === 'scrolling') {
+            // Workaround: show_message and set_pixels handle rotation differently in frame buffer
+            // Text displays correctly on web, but icons need -90° compensation
+            if (mode !== 'scrolling') {
                 effectiveRotation = (effectiveRotation - 90 + 360) % 360;
             }
 
