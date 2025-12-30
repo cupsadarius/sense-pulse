@@ -215,12 +215,6 @@
             // so we apply compensation for icon modes (not scrolling)
             let effectiveRotation = webOffset % 360;
 
-            // Workaround: show_message and set_pixels handle rotation differently in frame buffer
-            // Text displays correctly on web, but icons need -90° compensation
-            if (mode !== 'scrolling') {
-                effectiveRotation = (effectiveRotation + 90 + 360) % 360;
-            }
-
             const row = Math.floor(i / 8);
             const col = i % 8;
             switch (effectiveRotation) {
