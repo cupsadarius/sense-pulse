@@ -211,7 +211,16 @@ async def async_main() -> int:
         # LED display mode (requires Sense HAT)
         from sense_pulse.controller import StatsDisplay
 
-        controller = StatsDisplay(config)
+        # Get SenseHat instance from DataSource if available
+        sense_hat_instance = None
+        for source in data_sources:
+            if hasattr(source, "get_sense_hat_instance"):
+                sense_hat_instance = source.get_sense_hat_instance()
+                if sense_hat_instance:
+                    logger.info("Using SenseHat instance from DataSource")
+                    break
+
+        controller = StatsDisplay(config, sense_hat_instance=sense_hat_instance)
         await controller.async_init()
 
         if args.once:

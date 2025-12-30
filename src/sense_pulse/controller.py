@@ -17,24 +17,22 @@ logger = logging.getLogger(__name__)
 class StatsDisplay:
     """Main controller for displaying stats on Sense HAT"""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, sense_hat_instance=None):
         """
         Initialize the stats display controller.
 
         Args:
             config: Application configuration
+            sense_hat_instance: Optional SenseHat hardware instance
         """
         logger.info("Initializing StatsDisplay...")
 
         self.config = config
         self.show_icons = config.display.show_icons
         self.cache = None  # Will be initialized in async_init()
+        self.display = None  # Will be initialized in async_init()
+        self._sense_hat_instance = sense_hat_instance
 
-        self.display = SenseHatDisplay(
-            rotation=config.display.rotation,
-            scroll_speed=config.display.scroll_speed,
-            icon_duration=config.display.icon_duration,
-        )
         self.sleep_schedule = SleepSchedule(
             config.sleep.start_hour,
             config.sleep.end_hour,
@@ -50,6 +48,15 @@ class StatsDisplay:
         """Complete async initialization (call this after __init__)"""
         # Get global cache instance (already initialized by CLI with data sources)
         self.cache = await get_cache()
+
+        # Initialize display with SenseHat instance
+        self.display = SenseHatDisplay(
+            sense_hat_instance=self._sense_hat_instance,
+            rotation=self.config.display.rotation,
+            scroll_speed=self.config.display.scroll_speed,
+            icon_duration=self.config.display.icon_duration,
+        )
+
         logger.info("StatsDisplay async initialization completed")
 
     async def display_tailscale_status(self):
