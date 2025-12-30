@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -21,9 +20,8 @@ class Aranet4DataSource(DataSource):
     """
     Aranet4 BLE CO2 sensors data source.
 
-    Note: BLE scans are expensive and slow, so this data source maintains
-    a background polling task. fetch_readings() returns the latest data
-    from the background poller, not a fresh BLE scan.
+    Performs a BLE scan when fetch_readings() is called.
+    No internal polling - relies on Cache's polling mechanism.
     """
 
     def __init__(self, config: Aranet4Config):
@@ -36,24 +34,21 @@ class Aranet4DataSource(DataSource):
         self._config = config
         self._sensors: dict[str, Aranet4Sensor] = {}  # label -> sensor
         self._enabled = len([s for s in config.sensors if s.enabled]) > 0
-        self._polling_task: asyncio.Task | None = None
-        self._polling_stop_event = asyncio.Event()
-        self._poll_interval = 30  # seconds
         self._scan_duration = 8  # seconds for BLE scan
-        self._task_counter = 0
 
     async def initialize(self) -> None:
         """
-        Start background BLE polling for configured sensors.
+        Initialize sensor instances.
 
-        This registers each enabled sensor and starts the polling task.
+        Creates Aranet4Sensor objects for each configured sensor.
+        Does NOT start any background polling - Cache handles that.
         """
         if not self._enabled:
             logger.info("No Aranet4 sensors enabled, skipping initialization")
             return
 
         try:
-            # Import aranet4 module functions
+            # Import aranet4 module
             from ..devices.aranet4 import Aranet4Sensor
 
             # Create sensor instances for each enabled sensor
@@ -72,9 +67,6 @@ class Aranet4DataSource(DataSource):
 
             logger.info(f"Aranet4 data source initialized with {len(self._sensors)} sensor(s)")
 
-            # Start background polling task
-            await self._start_polling()
-
         except ImportError:
             logger.error("aranet4 package not installed, cannot initialize sensors")
             self._enabled = False
@@ -82,93 +74,62 @@ class Aranet4DataSource(DataSource):
             logger.error(f"Error initializing Aranet4 data source: {e}")
             self._enabled = False
 
-    async def _start_polling(self) -> None:
-        """Start the background polling task"""
-        if self._polling_task is not None and not self._polling_task.done():
-            logger.warning("Aranet4 polling task already running")
-            return
-
-        self._polling_stop_event.clear()
-        self._polling_task = asyncio.create_task(self._polling_loop())
-        logger.info("Aranet4 background polling task started")
-
-    async def _polling_loop(self) -> None:
-        """Background task that scans for all sensors at once"""
-        self._task_counter += 1
-        task_id = self._task_counter
-        logger.info(f"Aranet4 background polling started (task #{task_id})")
-
-        while not self._polling_stop_event.is_set():
-            try:
-                # Import scan utilities
-                from ..devices.aranet4 import do_ble_scan, get_scan_lock
-
-                # Single scan gets all devices (run in thread pool to avoid blocking)
-                logger.debug(f"Aranet4 task #{task_id}: Waiting for scan lock...")
-
-                def locked_scan():
-                    """Run scan with lock held"""
-                    with get_scan_lock():
-                        logger.debug(f"Aranet4 task #{task_id}: Acquired scan lock, starting scan")
-                        return do_ble_scan(scan_duration=self._scan_duration)
-
-                readings = await asyncio.to_thread(locked_scan)
-
-                # Update each registered sensor with its reading
-                for label, sensor in self._sensors.items():
-                    if sensor.mac_address in readings:
-                        sensor.update_reading(readings[sensor.mac_address])
-                    else:
-                        sensor.set_error("Not found in scan")
-
-            except Exception as e:
-                logger.error(f"Aranet4 polling error (task #{task_id}): {e}")
-
-            # Wait for next poll interval
-            with contextlib.suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(
-                    self._polling_stop_event.wait(), timeout=self._poll_interval
-                )
-
-        logger.info(f"Aranet4 background polling stopped (task #{task_id})")
-
     async def fetch_readings(self) -> list[SensorReading]:
         """
-        Return latest data from background BLE poller.
+        Fetch fresh readings by performing a BLE scan.
 
-        This doesn't trigger a new BLE scan (too expensive), but returns
-        the most recent reading from the continuous polling task.
+        This triggers a single BLE scan to read all configured sensors.
+        The scan takes ~8 seconds. Results are cached in sensor instances.
 
         Returns:
             List of sensor readings from all configured sensors.
             Each reading represents one sensor with a nested dict value
             containing temperature, co2, humidity, pressure, and battery.
         """
-        if not self._enabled:
+        if not self._enabled or not self._sensors:
             return []
 
         readings = []
 
         try:
+            # Import scan utilities
+            from ..devices.aranet4 import do_ble_scan, get_scan_lock
+
+            # Perform a single BLE scan for all sensors
+            logger.debug("Aranet4: Starting BLE scan...")
+
+            def locked_scan():
+                """Run scan with lock held"""
+                with get_scan_lock():
+                    return do_ble_scan(scan_duration=self._scan_duration)
+
+            # Run scan in thread pool (blocking operation)
+            scan_results = await asyncio.to_thread(locked_scan)
+
+            # Update each sensor with its reading from the scan
             for label, sensor in self._sensors.items():
-                reading = sensor.get_cached_reading()
-                if reading:
-                    # Create a single reading per sensor with nested dict value
-                    # This matches the format expected by the controller
+                if sensor.mac_address in scan_results:
+                    reading_data = scan_results[sensor.mac_address]
+                    sensor.update_reading(reading_data)
+
+                    # Create sensor reading for cache
                     readings.append(
                         SensorReading(
                             sensor_id=label,
                             value={
-                                "temperature": reading.temperature,
-                                "co2": reading.co2,
-                                "humidity": reading.humidity,
-                                "pressure": reading.pressure,
-                                "battery": reading.battery,
+                                "temperature": reading_data.temperature,
+                                "co2": reading_data.co2,
+                                "humidity": reading_data.humidity,
+                                "pressure": reading_data.pressure,
+                                "battery": reading_data.battery,
                             },
                             unit=None,
-                            timestamp=datetime.fromtimestamp(reading.timestamp),
+                            timestamp=datetime.fromtimestamp(reading_data.timestamp),
                         )
                     )
+                else:
+                    sensor.set_error("Not found in scan")
+                    logger.warning(f"Sensor {label} ({sensor.mac_address}) not found in BLE scan")
 
         except Exception as e:
             logger.error(f"Error fetching Aranet4 readings: {e}")
@@ -194,7 +155,7 @@ class Aranet4DataSource(DataSource):
         if not self._enabled:
             return False
 
-        # Check if at least one sensor has a recent reading
+        # Check if at least one sensor has a cached reading
         return any(s.get_cached_reading() for s in self._sensors.values())
 
     def get_sensor_status(self) -> dict[str, dict]:
@@ -202,22 +163,9 @@ class Aranet4DataSource(DataSource):
         return {label: sensor.get_status() for label, sensor in self._sensors.items()}
 
     async def shutdown(self) -> None:
-        """Stop background BLE polling"""
+        """Clean up resources"""
         try:
             logger.info("Stopping Aranet4 data source...")
-
-            # Stop the polling task
-            if self._polling_task and not self._polling_task.done():
-                self._polling_stop_event.set()
-
-                try:
-                    await asyncio.wait_for(self._polling_task, timeout=5.0)
-                    logger.info("Aranet4 polling task stopped")
-                except asyncio.TimeoutError:
-                    logger.warning("Polling task did not stop gracefully, cancelling")
-                    self._polling_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await self._polling_task
 
             # Clear sensors
             for label in list(self._sensors.keys()):
