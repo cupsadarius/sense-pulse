@@ -65,20 +65,8 @@ def get_config():
         _config = load_config()
         # Initialize hardware settings from config
         sensehat.set_web_rotation_offset(_config.display.web_rotation_offset)
-        # Initialize Aranet4 sensors from config
-        sensors_config = [
-            {
-                "label": sensor.label,
-                "mac_address": sensor.mac_address,
-                "enabled": sensor.enabled,
-            }
-            for sensor in _config.aranet4.sensors
-        ]
-        aranet4.init_aranet4_sensors(
-            sensors=sensors_config,
-            timeout=_config.aranet4.timeout,
-            cache_duration=_config.aranet4.cache_duration,
-        )
+        # Note: Aranet4 sensors are initialized by Aranet4DataSource in CLI
+        # No duplicate initialization needed here
 
         # Initialize auth configuration
         auth_config = WebAuthConfig(
