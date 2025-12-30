@@ -10,12 +10,9 @@ from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from sense_pulse import hardware
 from sense_pulse.cache import get_cache
+from sense_pulse.devices import aranet4, sensehat
 from sense_pulse.config import Config, find_config_file, load_config
-from sense_pulse.pihole import PiHoleStats
-from sense_pulse.system import SystemStats
-from sense_pulse.tailscale import TailscaleStatus
 from sense_pulse.web.auth import AuthConfig as WebAuthConfig
 from sense_pulse.web.auth import require_auth, set_auth_config
 
@@ -56,24 +53,18 @@ class ConfigUpdate(BaseModel):
 
 
 # Lazy-initialized shared instances
-_pihole: Optional[PiHoleStats] = None
-_tailscale: Optional[TailscaleStatus] = None
-_system: Optional[SystemStats] = None
 _config: Optional[Config] = None
 _config_path: Optional[Path] = None
 
 
-def get_services():
-    """Get or initialize service instances"""
-    global _pihole, _tailscale, _system, _config, _config_path
+def get_config():
+    """Get or initialize configuration"""
+    global _config, _config_path
     if _config is None:
         _config_path = find_config_file()
         _config = load_config()
-        _pihole = PiHoleStats(_config.pihole.host, _config.pihole.password)
-        _tailscale = TailscaleStatus(_config.tailscale.cache_duration)
-        _system = SystemStats()
         # Initialize hardware settings from config
-        hardware.set_web_rotation_offset(_config.display.web_rotation_offset)
+        sensehat.set_web_rotation_offset(_config.display.web_rotation_offset)
         # Initialize Aranet4 sensors from config
         sensors_config = [
             {
@@ -83,7 +74,7 @@ def get_services():
             }
             for sensor in _config.aranet4.sensors
         ]
-        hardware.init_aranet4_sensors(
+        sensehat.init_aranet4_sensors(
             sensors=sensors_config,
             timeout=_config.aranet4.timeout,
             cache_duration=_config.aranet4.cache_duration,
@@ -97,7 +88,7 @@ def get_services():
         )
         set_auth_config(auth_config)
 
-    return _pihole, _tailscale, _system, _config
+    return _config
 
 
 def reload_config():
@@ -111,7 +102,7 @@ def reload_config():
 async def index(request: Request, username: str = Depends(require_auth)):
     """Render main dashboard (requires authentication)"""
     templates = request.app.state.templates
-    _, _, _, config = get_services()
+    config = get_config()
     cache = await get_cache()
 
     # Convert aranet4 sensors to dicts for JSON serialization
@@ -121,8 +112,8 @@ async def index(request: Request, username: str = Depends(require_auth)):
         "index.html",
         {
             "request": request,
-            "sense_hat_available": hardware.is_sense_hat_available(),
-            "aranet4_available": hardware.is_aranet4_available(),
+            "sense_hat_available": sensehat.is_sense_hat_available(),
+            "aranet4_available": sensehat.is_aranet4_available(),
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
             "tailscale": await cache.get("tailscale", {}),
@@ -130,7 +121,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "system": await cache.get("system", {}),
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
-            "aranet4_status": hardware.get_aranet4_status(),
+            "aranet4_status": sensehat.get_aranet4_status(),
         },
     )
 
@@ -138,7 +129,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
 @router.get("/api/status")
 async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get all status data as JSON (from cache) - requires authentication"""
-    _, _, _, config = get_services()
+    config = get_config()
     cache = await get_cache()
 
     return {
@@ -148,8 +139,8 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
         "sensors": await cache.get("sensors", {}),
         "co2": await cache.get("co2", {}),
         "hardware": {
-            "sense_hat_available": hardware.is_sense_hat_available(),
-            "aranet4_available": hardware.is_aranet4_available(),
+            "sense_hat_available": sensehat.is_sense_hat_available(),
+            "aranet4_available": sensehat.is_aranet4_available(),
         },
         "config": {
             "show_icons": config.display.show_icons,
@@ -170,7 +161,7 @@ async def get_sensors() -> dict[str, Any]:
 @router.get("/api/status/cards", response_class=HTMLResponse)
 async def get_status_cards(request: Request):
     """HTMX partial: status cards grid (from cache)"""
-    _, _, _, config = get_services()
+    config = get_config()
     templates = request.app.state.templates
     cache = await get_cache()
 
@@ -183,8 +174,8 @@ async def get_status_cards(request: Request):
             "system": await cache.get("system", {}),
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
-            "sense_hat_available": hardware.is_sense_hat_available(),
-            "aranet4_available": hardware.is_aranet4_available(),
+            "sense_hat_available": sensehat.is_sense_hat_available(),
+            "aranet4_available": sensehat.is_aranet4_available(),
             "config": config,
         },
     )
@@ -193,14 +184,14 @@ async def get_status_cards(request: Request):
 @router.post("/api/display/clear")
 async def clear_display(username: str = Depends(require_auth)):
     """Clear the LED matrix (no-op if Sense HAT unavailable) - requires authentication"""
-    return await hardware.clear_display()
+    return await sensehat.clear_display()
 
 
 @router.get("/api/hardware/status")
 async def hardware_status():
     """Check hardware availability"""
     return {
-        "sense_hat": hardware.is_sense_hat_available(),
+        "sense_hat": sensehat.is_sense_hat_available(),
     }
 
 
@@ -209,7 +200,7 @@ async def health_check():
     """Health check endpoint - always succeeds even without Sense HAT"""
     return {
         "status": "healthy",
-        "sense_hat_available": hardware.is_sense_hat_available(),
+        "sense_hat_available": sensehat.is_sense_hat_available(),
     }
 
 
@@ -222,16 +213,16 @@ async def health_check():
 async def grid_websocket(websocket: WebSocket):
     """WebSocket endpoint for LED matrix and hardware status (fast updates)"""
     await websocket.accept()
-    get_services()  # Ensure services are initialized
+    get_config()  # Ensure config is initialized
 
     try:
         while True:
             # Send only grid/matrix data for smooth animation
             data = {
-                "matrix": await hardware.get_matrix_state(),
+                "matrix": await sensehat.get_matrix_state(),
                 "hardware": {
-                    "sense_hat_available": hardware.is_sense_hat_available(),
-                    "aranet4_available": hardware.is_aranet4_available(),
+                    "sense_hat_available": sensehat.is_sense_hat_available(),
+                    "aranet4_available": sensehat.is_aranet4_available(),
                 },
             }
 
@@ -247,7 +238,7 @@ async def grid_websocket(websocket: WebSocket):
 async def sensors_websocket(websocket: WebSocket):
     """WebSocket endpoint for sensor data (slower updates - 30s)"""
     await websocket.accept()
-    get_services()  # Ensure services are initialized
+    get_config()  # Ensure config is initialized
     cache = await get_cache()
 
     try:
@@ -275,9 +266,9 @@ async def sensors_websocket(websocket: WebSocket):
 
 
 @router.get("/api/config")
-async def get_config(username: str = Depends(require_auth)) -> dict[str, Any]:
+async def get_config_endpoint(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get current configuration - requires authentication"""
-    _, _, _, config = get_services()
+    config = get_config()
     return {
         "display": {
             "rotation": config.display.rotation,
@@ -324,7 +315,7 @@ async def update_config_endpoint(
                 rotation = int(display_updates["rotation"])
                 if rotation in [0, 90, 180, 270]:
                     config_data["display"]["rotation"] = rotation
-                    await hardware.set_rotation(rotation)
+                    await sensehat.set_rotation(rotation)
 
             if "show_icons" in display_updates:
                 config_data["display"]["show_icons"] = bool(display_updates["show_icons"])
@@ -339,7 +330,7 @@ async def update_config_endpoint(
                 offset = int(display_updates["web_rotation_offset"])
                 if offset in [0, 90, 180, 270]:
                     config_data["display"]["web_rotation_offset"] = offset
-                    hardware.set_web_rotation_offset(offset)
+                    sensehat.set_web_rotation_offset(offset)
 
         if "sleep" in body:
             if "sleep" not in config_data:
@@ -388,7 +379,7 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[st
     import concurrent.futures
 
     try:
-        from sense_pulse.aranet4 import scan_for_aranet4_sync
+        from sense_pulse.devices.aranet4 import scan_for_aranet4_sync
 
         # Run sync scan in thread pool to not block FastAPI
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -416,9 +407,9 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[st
 async def get_aranet4_status() -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
     return {
-        "status": hardware.get_aranet4_status(),
-        "data": await hardware.get_aranet4_data(),
-        "available": hardware.is_aranet4_available(),
+        "status": sensehat.get_aranet4_status(),
+        "data": await sensehat.get_aranet4_data(),
+        "available": sensehat.is_aranet4_available(),
     }
 
 
@@ -465,7 +456,7 @@ async def update_aranet4_config(
         # Update hardware sensors
         timeout = _config.aranet4.timeout
         cache_duration = _config.aranet4.cache_duration
-        hardware.update_aranet4_sensors(
+        sensehat.update_aranet4_sensors(
             sensors=sensors,
             timeout=timeout,
             cache_duration=cache_duration,
@@ -485,7 +476,7 @@ async def update_aranet4_config(
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
 async def get_aranet4_controls(request: Request):
     """HTMX partial: Aranet4 sensor controls panel"""
-    _, _, _, config = get_services()
+    config = get_config()
     templates = request.app.state.templates
 
     # Convert aranet4 sensors to dicts for JSON serialization
@@ -497,6 +488,6 @@ async def get_aranet4_controls(request: Request):
             "request": request,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
-            "aranet4_status": hardware.get_aranet4_status(),
+            "aranet4_status": sensehat.get_aranet4_status(),
         },
     )
