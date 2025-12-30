@@ -55,19 +55,19 @@ class PiHoleDataSource(DataSource):
 
             return [
                 SensorReading(
-                    sensor_id="pihole_queries",
+                    sensor_id="queries_today",
                     value=summary["queries_today"],
                     unit="queries",
                     timestamp=now,
                 ),
                 SensorReading(
-                    sensor_id="pihole_blocked",
+                    sensor_id="ads_blocked_today",
                     value=summary["ads_blocked_today"],
                     unit="ads",
                     timestamp=now,
                 ),
                 SensorReading(
-                    sensor_id="pihole_block_pct",
+                    sensor_id="ads_percentage_today",
                     value=summary["ads_percentage_today"],
                     unit="%",
                     timestamp=now,

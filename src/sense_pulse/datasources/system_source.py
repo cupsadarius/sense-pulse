@@ -37,25 +37,25 @@ class SystemStatsDataSource(DataSource):
 
             return [
                 SensorReading(
-                    sensor_id="system_cpu",
+                    sensor_id="cpu_percent",
                     value=stats["cpu_percent"],
                     unit="%",
                     timestamp=now,
                 ),
                 SensorReading(
-                    sensor_id="system_memory",
+                    sensor_id="memory_percent",
                     value=stats["memory_percent"],
                     unit="%",
                     timestamp=now,
                 ),
                 SensorReading(
-                    sensor_id="system_load",
+                    sensor_id="load_1min",
                     value=stats["load_1min"],
                     unit="load",
                     timestamp=now,
                 ),
                 SensorReading(
-                    sensor_id="system_temp",
+                    sensor_id="cpu_temp",
                     value=stats["cpu_temp"],
                     unit="°C",
                     timestamp=now,
