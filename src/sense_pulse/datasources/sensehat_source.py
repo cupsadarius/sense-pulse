@@ -25,7 +25,7 @@ class SenseHatDataSource(DataSource):
 
     def __init__(self):
         """Initialize Sense HAT data source"""
-        self._sense_hat: Optional["SenseHat"] = None
+        self._sense_hat: Optional[SenseHat] = None
         self._available = False
 
     async def initialize(self) -> None:

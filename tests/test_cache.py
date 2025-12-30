@@ -137,7 +137,7 @@ class TestDataCache:
 
         # Create a mock source with get_sensor_status method
         source = MockDataSource(source_id="aranet_mock")
-        source.get_sensor_status = lambda: {"sensor1": {"connected": True}}
+        source.get_sensor_status = lambda: {"sensor1": {"connected": True}}  # type: ignore[attr-defined]
         await source.initialize()
         cache.register_data_source(source)
 

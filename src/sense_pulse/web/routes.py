@@ -473,7 +473,9 @@ async def update_aranet4_config(
 
         # NOTE: Sensor changes require application restart to take effect
         # The Aranet4DataSource is initialized at startup with the config
-        logger.warning("Aranet4 sensor configuration updated. Please restart the application for changes to take effect.")
+        logger.warning(
+            "Aranet4 sensor configuration updated. Please restart the application for changes to take effect."
+        )
 
         # Return success with updated config
         return {
