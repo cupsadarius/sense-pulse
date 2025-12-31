@@ -123,7 +123,7 @@ class WeatherDataSource(DataSource):
             visibility_km = float(current.get("visibility", 0))
             cloud_cover = int(current.get("cloudcover", 0))
 
-            return [
+            readings = [
                 SensorReading(
                     sensor_id="weather_temp",
                     value=temp_c,
@@ -191,6 +191,43 @@ class WeatherDataSource(DataSource):
                     timestamp=timestamp,
                 ),
             ]
+
+            # Add 3-day forecast data
+            forecast_data = data.get("weather", [])
+            if forecast_data:
+                forecast_list = []
+                for day in forecast_data[:3]:  # Only 3 days
+                    date = day.get("date", "")
+                    max_temp = float(day.get("maxtempC", 0))
+                    min_temp = float(day.get("mintempC", 0))
+                    avg_temp = float(day.get("avgtempC", 0))
+                    # Get description from hourly data (midday forecast)
+                    hourly = day.get("hourly", [])
+                    desc = "Unknown"
+                    if len(hourly) >= 4:  # Get midday forecast (12:00)
+                        desc = hourly[4].get("weatherDesc", [{}])[0].get("value", "Unknown")
+
+                    forecast_list.append(
+                        {
+                            "date": date,
+                            "max_temp": max_temp,
+                            "min_temp": min_temp,
+                            "avg_temp": avg_temp,
+                            "description": desc,
+                        }
+                    )
+
+                # Store forecast as a single sensor reading with JSON data
+                readings.append(
+                    SensorReading(
+                        sensor_id="weather_forecast",
+                        value=forecast_list,
+                        unit=None,
+                        timestamp=timestamp,
+                    )
+                )
+
+            return readings
 
         except (KeyError, IndexError, ValueError, TypeError) as e:
             logger.error(f"Error parsing weather data: {e}")
