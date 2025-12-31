@@ -113,7 +113,9 @@ async def async_main() -> int:
     args = parser.parse_args()
 
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
-    from sense_pulse.config import load_config
+    from pathlib import Path
+
+    from sense_pulse.config import find_config_file, load_config
     from sense_pulse.context import AppContext
     from sense_pulse.datasources import (
         Aranet4DataSource,
@@ -123,8 +125,11 @@ async def async_main() -> int:
         TailscaleDataSource,
     )
 
+    # Determine config path
+    config_path = Path(args.config) if args.config else find_config_file()
+
     # Load configuration
-    config = load_config(args.config)
+    config = load_config(str(config_path) if config_path else None)
 
     # Setup logging (override with verbose flag if set)
     log_level = "DEBUG" if args.verbose else config.logging.level
@@ -141,6 +146,7 @@ async def async_main() -> int:
     logger.info("Creating AppContext (TTL=60s, Poll=30s)")
     context = AppContext.create(
         config=config,
+        config_path=config_path,
         cache_ttl=60.0,
         poll_interval=30.0,
     )
