@@ -245,3 +245,59 @@ class TestCachePolling:
         await cache.start_polling()  # Should be no-op
 
         await cache.stop_polling()
+
+    async def test_custom_cache_ttl(self):
+        """Test that custom cache TTL works correctly"""
+        # Create cache with short TTL
+        cache = DataCache(cache_ttl=0.2, poll_interval=10.0)
+        await cache.set("key1", "value1")
+
+        # Should be available immediately
+        assert await cache.get("key1") == "value1"
+
+        # Wait for TTL to expire
+        await asyncio.sleep(0.3)
+
+        # Should be expired now
+        assert await cache.get("key1", default="expired") == "expired"
+
+    async def test_custom_poll_interval(self):
+        """Test that custom poll interval is respected"""
+        # Create cache with very short poll interval
+        cache = DataCache(cache_ttl=10.0, poll_interval=0.2)
+        source = MockDataSource(source_id="test_poll", name="Test Poll")
+        await source.initialize()
+
+        cache.register_data_source(source)
+        await cache.start_polling()
+
+        # Wait for multiple poll cycles
+        await asyncio.sleep(0.6)
+
+        await cache.stop_polling()
+
+        # Should have polled at least 3 times (immediate + 2 intervals)
+        # Give some leeway for timing
+        assert source.get_fetch_count() >= 2
+
+    async def test_cache_ttl_preserved_in_status(self):
+        """Test that cache TTL is reported correctly in status"""
+        cache = DataCache(cache_ttl=123.0, poll_interval=45.0)
+        await cache.set("test", "value")
+
+        status = await cache.get_status()
+        assert status["cache_ttl"] == 123.0
+
+    async def test_different_ttl_values(self):
+        """Test cache with various TTL values"""
+        # Very short TTL
+        cache_short = DataCache(cache_ttl=0.1)
+        await cache_short.set("key", "value")
+        await asyncio.sleep(0.15)
+        assert await cache_short.get("key", default="expired") == "expired"
+
+        # Long TTL
+        cache_long = DataCache(cache_ttl=100.0)
+        await cache_long.set("key", "value")
+        await asyncio.sleep(0.1)
+        assert await cache_long.get("key") == "value"

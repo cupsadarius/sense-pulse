@@ -1,6 +1,5 @@
 """Weather data source implementation using wttr.io API"""
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -36,7 +35,9 @@ class WeatherDataSource(DataSource):
     async def initialize(self) -> None:
         """Initialize HTTP client for weather API"""
         self._client = httpx.AsyncClient(timeout=10.0)
-        logger.info(f"Weather data source initialized (location: {self._config.location or 'auto'})")
+        logger.info(
+            f"Weather data source initialized (location: {self._config.location or 'auto'})"
+        )
 
     async def fetch_readings(self) -> list[SensorReading]:
         """
