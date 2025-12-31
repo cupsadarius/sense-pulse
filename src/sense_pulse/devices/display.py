@@ -45,6 +45,9 @@ class SenseHatDisplay:
             if self.sense is None:
                 raise RuntimeError("Sense HAT not available")
 
+            # Set rotation on the actual instance we're using for display
+            self.sense.set_rotation(rotation)
+            # Also update module tracking for web preview
             sensehat._set_rotation_sync(rotation)
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
