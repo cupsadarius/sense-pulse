@@ -21,7 +21,10 @@ Usage:
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
+
+import yaml
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
@@ -29,7 +32,7 @@ if TYPE_CHECKING:
     from sense_pulse.datasources.base import DataSource
 
 from sense_pulse.cache import DataCache
-from sense_pulse.config import Config
+from sense_pulse.config import Config, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,7 @@ class AppContext:
 
     config: Config
     cache: DataCache
+    config_path: Optional[Path] = None
     data_sources: list["DataSource"] = field(default_factory=list)
     sense_hat: Optional["SenseHat"] = None
     _started: bool = field(default=False, repr=False)
@@ -62,6 +66,7 @@ class AppContext:
     def create(
         cls,
         config: Config,
+        config_path: Optional[Path] = None,
         cache_ttl: float = 60.0,
         poll_interval: float = 30.0,
     ) -> "AppContext":
@@ -70,6 +75,7 @@ class AppContext:
 
         Args:
             config: Application configuration
+            config_path: Path to the config file (for updates)
             cache_ttl: Cache time-to-live in seconds (default: 60)
             poll_interval: Background poll interval in seconds (default: 30)
 
@@ -77,13 +83,13 @@ class AppContext:
             Configured AppContext instance ready for data source registration
 
         Example:
-            context = AppContext.create(load_config())
+            context = AppContext.create(load_config(), config_path=Path("config.yaml"))
             context.add_data_source(MyDataSource())
             await context.start()
         """
         cache = DataCache(cache_ttl=cache_ttl, poll_interval=poll_interval)
         logger.debug(f"Created AppContext with cache TTL={cache_ttl}s, poll={poll_interval}s")
-        return cls(config=config, cache=cache)
+        return cls(config=config, cache=cache, config_path=config_path)
 
     def add_data_source(self, source: "DataSource") -> "AppContext":
         """
@@ -197,6 +203,59 @@ class AppContext:
             if source.get_metadata().source_id == source_id:
                 return source
         return None
+
+    def reload_config(self) -> Config:
+        """
+        Reload configuration from disk.
+
+        Returns:
+            The reloaded Config instance
+
+        Raises:
+            RuntimeError: If config_path is not set
+        """
+        if self.config_path is None:
+            raise RuntimeError("Cannot reload config: config_path not set")
+
+        self.config = load_config(str(self.config_path))
+        logger.info(f"Reloaded config from {self.config_path}")
+        return self.config
+
+    def update_config(self, updates: dict[str, Any]) -> Config:
+        """
+        Update configuration and persist to disk.
+
+        Args:
+            updates: Dictionary of config updates (e.g., {"display": {"rotation": 90}})
+
+        Returns:
+            The updated Config instance
+
+        Raises:
+            RuntimeError: If config_path is not set or doesn't exist
+        """
+        if self.config_path is None or not self.config_path.exists():
+            raise RuntimeError("Cannot update config: config_path not set or file doesn't exist")
+
+        # Load current config file
+        with open(self.config_path) as f:
+            config_data = yaml.safe_load(f) or {}
+
+        # Deep merge updates into config_data
+        for section, section_updates in updates.items():
+            if section not in config_data:
+                config_data[section] = {}
+            if isinstance(section_updates, dict):
+                config_data[section].update(section_updates)
+            else:
+                config_data[section] = section_updates
+
+        # Write back to file
+        with open(self.config_path, "w") as f:
+            yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
+
+        # Reload config from file
+        return self.reload_config()
 
     def __repr__(self) -> str:
         sources = [s.get_metadata().source_id for s in self.data_sources]

@@ -3,31 +3,29 @@
 import asyncio
 import logging
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any, Optional
 
-import yaml
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from sense_pulse.cache import DataCache
-from sense_pulse.config import Config, find_config_file, load_config
+from sense_pulse.config import Config
+from sense_pulse.context import AppContext
 from sense_pulse.devices import sensehat
 from sense_pulse.web.app import get_app_context
-from sense_pulse.web.auth import AuthConfig as WebAuthConfig
-from sense_pulse.web.auth import require_auth, set_auth_config
+from sense_pulse.web.auth import require_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _get_cache() -> DataCache:
+def _get_context() -> AppContext:
     """
-    Get cache from AppContext.
+    Get AppContext.
 
     Returns:
-        DataCache instance from AppContext
+        AppContext instance
 
     Raises:
         RuntimeError: If AppContext is not available
@@ -35,13 +33,23 @@ def _get_cache() -> DataCache:
     context = get_app_context()
     if not context:
         raise RuntimeError("AppContext not available. Web app must be initialized with context.")
-    return context.cache
+    return context
+
+
+def _get_cache() -> DataCache:
+    """Get cache from AppContext."""
+    return _get_context().cache
+
+
+def _get_config() -> Config:
+    """Get config from AppContext."""
+    return _get_context().config
 
 
 # Helper functions for Aranet4 DataSource access
 async def _is_aranet4_available() -> bool:
     """Check if Aranet4 sensors are available (configured and have data)"""
-    config = get_config()
+    config = _get_config()
     # Check if any sensors are configured
     if not any(s.enabled for s in config.aranet4.sensors):
         return False
@@ -99,52 +107,11 @@ class ConfigUpdate(BaseModel):
     aranet4: Optional[Aranet4ConfigUpdate] = None
 
 
-# Lazy-initialized shared instances
-_config: Optional[Config] = None
-_config_path: Optional[Path] = None
-
-
-def get_config():
-    """Get or initialize configuration"""
-    global _config, _config_path
-
-    # Prefer config from context if available
-    context = get_app_context()
-    if context:
-        return context.config
-
-    # Fall back to loading config directly (legacy mode)
-    if _config is None:
-        _config_path = find_config_file()
-        _config = load_config()
-        # Initialize hardware settings from config
-        sensehat.set_web_rotation_offset(_config.display.web_rotation_offset)
-        # Note: Aranet4 sensors are initialized by Aranet4DataSource in CLI
-        # No duplicate initialization needed here
-
-        # Initialize auth configuration
-        auth_config = WebAuthConfig(
-            enabled=_config.auth.enabled,
-            username=_config.auth.username,
-            password_hash=_config.auth.password_hash,
-        )
-        set_auth_config(auth_config)
-
-    return _config
-
-
-def reload_config():
-    """Reload configuration from file"""
-    global _config
-    _config = load_config(str(_config_path) if _config_path else None)
-    return _config
-
-
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, username: str = Depends(require_auth)):
     """Render main dashboard (requires authentication)"""
     templates = request.app.state.templates
-    config = get_config()
+    config = _get_config()
     cache = _get_cache()
 
     # Convert aranet4 sensors to dicts for JSON serialization
@@ -171,7 +138,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
 @router.get("/api/status")
 async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get all status data as JSON (from cache) - requires authentication"""
-    config = get_config()
+    config = _get_config()
     cache = _get_cache()
 
     return {
@@ -203,7 +170,7 @@ async def get_sensors() -> dict[str, Any]:
 @router.get("/api/status/cards", response_class=HTMLResponse)
 async def get_status_cards(request: Request):
     """HTMX partial: status cards grid (from cache)"""
-    config = get_config()
+    config = _get_config()
     templates = request.app.state.templates
     cache = _get_cache()
 
@@ -255,7 +222,6 @@ async def health_check():
 async def grid_websocket(websocket: WebSocket):
     """WebSocket endpoint for LED matrix and hardware status (fast updates)"""
     await websocket.accept()
-    get_config()  # Ensure config is initialized
 
     try:
         while True:
@@ -280,7 +246,6 @@ async def grid_websocket(websocket: WebSocket):
 async def sensors_websocket(websocket: WebSocket):
     """WebSocket endpoint for sensor data (slower updates - 30s)"""
     await websocket.accept()
-    get_config()  # Ensure config is initialized
     cache = _get_cache()
 
     try:
@@ -310,7 +275,7 @@ async def sensors_websocket(websocket: WebSocket):
 @router.get("/api/config")
 async def get_config_endpoint(username: str = Depends(require_auth)) -> dict[str, Any]:
     """Get current configuration - requires authentication"""
-    config = get_config()
+    config = _get_config()
     return {
         "display": {
             "rotation": config.display.rotation,
@@ -334,75 +299,67 @@ async def update_config_endpoint(
     request: Request, username: str = Depends(require_auth)
 ) -> dict[str, Any]:
     """Update configuration and persist to config.yaml - requires authentication"""
-    global _config
+    context = _get_context()
 
-    if _config_path is None or not _config_path.exists():
+    if context.config_path is None or not context.config_path.exists():
         return {"status": "error", "message": "No config file found"}
 
     try:
         # Parse JSON body
         body = await request.json()
 
-        # Load current config file
-        with open(_config_path) as f:
-            config_data = yaml.safe_load(f) or {}
+        # Build updates dict with validation
+        updates: dict[str, Any] = {}
 
-        # Apply updates from JSON body
         if "display" in body:
-            if "display" not in config_data:
-                config_data["display"] = {}
             display_updates = body["display"]
+            updates["display"] = {}
 
             if "rotation" in display_updates:
                 rotation = int(display_updates["rotation"])
                 if rotation in [0, 90, 180, 270]:
-                    config_data["display"]["rotation"] = rotation
+                    updates["display"]["rotation"] = rotation
                     await sensehat.set_rotation(rotation)
 
             if "show_icons" in display_updates:
-                config_data["display"]["show_icons"] = bool(display_updates["show_icons"])
+                updates["display"]["show_icons"] = bool(display_updates["show_icons"])
 
             if "scroll_speed" in display_updates:
-                config_data["display"]["scroll_speed"] = display_updates["scroll_speed"]
+                updates["display"]["scroll_speed"] = display_updates["scroll_speed"]
 
             if "icon_duration" in display_updates:
-                config_data["display"]["icon_duration"] = display_updates["icon_duration"]
+                updates["display"]["icon_duration"] = display_updates["icon_duration"]
 
             if "web_rotation_offset" in display_updates:
                 offset = int(display_updates["web_rotation_offset"])
                 if offset in [0, 90, 180, 270]:
-                    config_data["display"]["web_rotation_offset"] = offset
+                    updates["display"]["web_rotation_offset"] = offset
                     sensehat.set_web_rotation_offset(offset)
 
         if "sleep" in body:
-            if "sleep" not in config_data:
-                config_data["sleep"] = {}
             sleep_updates = body["sleep"]
+            updates["sleep"] = {}
 
             if "start_hour" in sleep_updates:
-                config_data["sleep"]["start_hour"] = sleep_updates["start_hour"]
+                updates["sleep"]["start_hour"] = sleep_updates["start_hour"]
 
             if "end_hour" in sleep_updates:
-                config_data["sleep"]["end_hour"] = sleep_updates["end_hour"]
+                updates["sleep"]["end_hour"] = sleep_updates["end_hour"]
 
             if "disable_pi_leds" in sleep_updates:
-                config_data["sleep"]["disable_pi_leds"] = bool(sleep_updates["disable_pi_leds"])
+                updates["sleep"]["disable_pi_leds"] = bool(sleep_updates["disable_pi_leds"])
 
-        # Write back to file
-        with open(_config_path, "w") as f:
-            yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
-
-        # Reload config
-        _config = reload_config()
+        # Update config via context (writes to disk and reloads)
+        config = context.update_config(updates)
 
         # Return success with full config state
         return {
             "status": "success",
             "config": {
-                "rotation": _config.display.rotation,
-                "show_icons": _config.display.show_icons,
-                "web_rotation_offset": _config.display.web_rotation_offset,
-                "disable_pi_leds": _config.sleep.disable_pi_leds,
+                "rotation": config.display.rotation,
+                "show_icons": config.display.show_icons,
+                "web_rotation_offset": config.display.web_rotation_offset,
+                "disable_pi_leds": config.sleep.disable_pi_leds,
             },
         }
 
@@ -468,9 +425,9 @@ async def update_aranet4_config(
     request: Request, username: str = Depends(require_auth)
 ) -> dict[str, Any]:
     """Update all Aranet4 sensor configurations - requires authentication"""
-    global _config
+    context = _get_context()
 
-    if _config_path is None or not _config_path.exists():
+    if context.config_path is None or not context.config_path.exists():
         return {"status": "error", "message": "No config file found"}
 
     try:
@@ -478,23 +435,8 @@ async def update_aranet4_config(
         body = await request.json()
         sensors = body.get("sensors", [])
 
-        # Load current config file
-        with open(_config_path) as f:
-            config_data = yaml.safe_load(f) or {}
-
-        # Ensure aranet4 section exists
-        if "aranet4" not in config_data:
-            config_data["aranet4"] = {}
-
-        # Update sensors list
-        config_data["aranet4"]["sensors"] = sensors
-
-        # Write back to file
-        with open(_config_path, "w") as f:
-            yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
-
-        # Reload config
-        _config = reload_config()
+        # Update config via context (writes to disk and reloads)
+        context.update_config({"aranet4": {"sensors": sensors}})
 
         # NOTE: Sensor changes require application restart to take effect
         # The Aranet4DataSource is initialized at startup with the config
@@ -517,7 +459,7 @@ async def update_aranet4_config(
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
 async def get_aranet4_controls(request: Request):
     """HTMX partial: Aranet4 sensor controls panel"""
-    config = get_config()
+    config = _get_config()
     templates = request.app.state.templates
 
     # Convert aranet4 sensors to dicts for JSON serialization
