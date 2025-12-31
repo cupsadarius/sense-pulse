@@ -12,6 +12,7 @@ from .registry import DataSourceRegistry
 from .sensehat_source import SenseHatDataSource
 from .system_source import SystemStatsDataSource
 from .tailscale_source import TailscaleDataSource
+from .weather_source import WeatherDataSource
 
 __all__ = [
     "DataSource",
@@ -23,4 +24,5 @@ __all__ = [
     "SystemStatsDataSource",
     "Aranet4DataSource",
     "SenseHatDataSource",
+    "WeatherDataSource",
 ]
