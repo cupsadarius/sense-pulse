@@ -69,71 +69,46 @@
             {% endif %}
         </div>
 
-        <!-- Weather Forecast -->
-        {% include "partials/weather_forecast.html" %}
-
         <!-- Unified Settings -->
         <div class="mb-8">
             {% include "partials/unified_settings.html" %}
         </div>
 
         <!-- Service Status & Actions -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Service Status -->
-            <div class="bg-sense-card rounded-xl border border-sense-border p-6">
-                <h2 class="text-lg font-semibold mb-4">Service Status</h2>
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <div class="flex items-center gap-3">
-                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                            <span>sense-pulse.service</span>
-                        </div>
-                        <span class="text-sm text-green-400">running</span>
+        <div class="bg-sense-card rounded-xl border border-sense-border p-6">
+            <h2 class="text-lg font-semibold mb-4">Service Status</h2>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>sense-pulse.service</span>
                     </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <div class="flex items-center gap-3">
-                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                            <span>pihole-FTL.service</span>
-                        </div>
-                        <span class="text-sm text-green-400">running</span>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <div class="flex items-center gap-3">
-                            <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                            <span>tailscaled.service</span>
-                        </div>
-                        <span class="text-sm text-green-400">running</span>
-                    </div>
+                    <span class="text-sm text-green-400">running</span>
                 </div>
-                <div class="mt-4 flex gap-2">
-                    <button class="flex-1 px-4 py-2 bg-yellow-500/10 text-yellow-400 rounded-lg hover:bg-yellow-500/20 transition-colors text-sm font-medium"
-                            onclick="fetch('/api/service/restart', {method: 'POST'})">
-                        Restart Display
-                    </button>
-                    <button class="flex-1 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
-                            onclick="fetch('/api/display/clear', {method: 'POST'})">
-                        Clear Matrix
-                    </button>
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>pihole-FTL.service</span>
+                    </div>
+                    <span class="text-sm text-green-400">running</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>tailscaled.service</span>
+                    </div>
+                    <span class="text-sm text-green-400">running</span>
                 </div>
             </div>
-
-            <!-- Quick Stats Summary -->
-            <div class="bg-sense-card rounded-xl border border-sense-border p-6">
-                <h2 class="text-lg font-semibold mb-4">Quick Stats</h2>
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <span class="text-sm text-gray-400">Data Sources</span>
-                        <span class="text-lg font-semibold text-cyan-400">6</span>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <span class="text-sm text-gray-400">Cache TTL</span>
-                        <span class="text-lg font-semibold text-green-400">{{ config.cache.ttl }}s</span>
-                    </div>
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                        <span class="text-sm text-gray-400">Poll Interval</span>
-                        <span class="text-lg font-semibold text-blue-400">{{ config.cache.poll_interval }}s</span>
-                    </div>
-                </div>
+            <div class="mt-4 flex gap-2">
+                <button class="flex-1 px-4 py-2 bg-yellow-500/10 text-yellow-400 rounded-lg hover:bg-yellow-500/20 transition-colors text-sm font-medium"
+                        onclick="fetch('/api/service/restart', {method: 'POST'})">
+                    Restart Display
+                </button>
+                <button class="flex-1 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
+                        onclick="fetch('/api/display/clear', {method: 'POST'})">
+                    Clear Matrix
+                </button>
             </div>
         </div>
     </main>
