@@ -123,6 +123,7 @@ async def async_main() -> int:
         SenseHatDataSource,
         SystemStatsDataSource,
         TailscaleDataSource,
+        WeatherDataSource,
     )
 
     # Determine config path
@@ -143,12 +144,14 @@ async def async_main() -> int:
     # =========================================================================
     # Create AppContext - single source of truth for all dependencies
     # =========================================================================
-    logger.info("Creating AppContext (TTL=60s, Poll=30s)")
+    logger.info(
+        f"Creating AppContext (TTL={config.cache.ttl}s, Poll={config.cache.poll_interval}s)"
+    )
     context = AppContext.create(
         config=config,
         config_path=config_path,
-        cache_ttl=60.0,
-        poll_interval=30.0,
+        cache_ttl=config.cache.ttl,
+        poll_interval=config.cache.poll_interval,
     )
 
     # Add all data sources to context
@@ -157,6 +160,7 @@ async def async_main() -> int:
     context.add_data_source(SystemStatsDataSource())
     context.add_data_source(SenseHatDataSource())
     context.add_data_source(Aranet4DataSource(config.aranet4))
+    context.add_data_source(WeatherDataSource(config.weather))
 
     # Start context (initializes sources, registers with cache, starts polling)
     await context.start()
