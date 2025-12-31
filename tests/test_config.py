@@ -8,9 +8,11 @@ import yaml
 from sense_pulse.config import (
     Aranet4SensorConfig,
     AuthConfig,
+    CacheConfig,
     Config,
     DisplayConfig,
     PiholeConfig,
+    WeatherConfig,
     find_config_file,
     load_config,
 )
@@ -46,6 +48,19 @@ class TestConfigDataclasses:
         assert sensor.label == "Office"
         assert sensor.mac_address == "AA:BB:CC:DD:EE:FF"
         assert sensor.enabled is True
+
+    def test_cache_config_defaults(self):
+        """Test CacheConfig defaults"""
+        config = CacheConfig()
+        assert config.ttl == 60.0
+        assert config.poll_interval == 30.0
+
+    def test_weather_config_defaults(self):
+        """Test WeatherConfig defaults"""
+        config = WeatherConfig()
+        assert config.enabled is True
+        assert config.location == ""
+        assert config.cache_duration == 300
 
 
 class TestConfigLoading:
@@ -192,3 +207,69 @@ class TestConfigLoading:
         found = find_config_file()
         # May be None or a valid path depending on system
         assert found is None or isinstance(found, Path)
+
+    def test_load_config_with_cache_settings(self):
+        """Test loading cache configuration from YAML"""
+        config_data = {
+            "cache": {
+                "ttl": 120.0,
+                "poll_interval": 45.0,
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config_data, f)
+            config_path = f.name
+
+        try:
+            config = load_config(config_path)
+
+            assert config.cache.ttl == 120.0
+            assert config.cache.poll_interval == 45.0
+        finally:
+            Path(config_path).unlink()
+
+    def test_load_config_with_weather_settings(self):
+        """Test loading weather configuration from YAML"""
+        config_data = {
+            "weather": {
+                "enabled": True,
+                "location": "London",
+                "cache_duration": 600,
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config_data, f)
+            config_path = f.name
+
+        try:
+            config = load_config(config_path)
+
+            assert config.weather.enabled is True
+            assert config.weather.location == "London"
+            assert config.weather.cache_duration == 600
+        finally:
+            Path(config_path).unlink()
+
+    def test_load_config_cache_and_weather_defaults(self):
+        """Test that cache and weather use defaults when not specified"""
+        config_data = {"pihole": {"host": "http://test"}}
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(config_data, f)
+            config_path = f.name
+
+        try:
+            config = load_config(config_path)
+
+            # Cache defaults
+            assert config.cache.ttl == 60.0
+            assert config.cache.poll_interval == 30.0
+
+            # Weather defaults
+            assert config.weather.enabled is True
+            assert config.weather.location == ""
+            assert config.weather.cache_duration == 300
+        finally:
+            Path(config_path).unlink()

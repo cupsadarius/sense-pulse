@@ -101,10 +101,23 @@ class Aranet4ConfigUpdate(BaseModel):
     cache_duration: Optional[int] = None
 
 
+class CacheConfigUpdate(BaseModel):
+    ttl: Optional[float] = None
+    poll_interval: Optional[float] = None
+
+
+class WeatherConfigUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    location: Optional[str] = None
+    cache_duration: Optional[int] = None
+
+
 class ConfigUpdate(BaseModel):
     display: Optional[DisplayConfigUpdate] = None
     sleep: Optional[SleepConfigUpdate] = None
     aranet4: Optional[Aranet4ConfigUpdate] = None
+    cache: Optional[CacheConfigUpdate] = None
+    weather: Optional[WeatherConfigUpdate] = None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -130,6 +143,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "system": await cache.get("system", {}),
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
+            "weather": await cache.get("weather", {}),
             "aranet4_status": await _get_aranet4_status(),
         },
     )
@@ -183,6 +197,7 @@ async def get_status_cards(request: Request):
             "system": await cache.get("system", {}),
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
+            "weather": await cache.get("weather", {}),
             "sense_hat_available": sensehat.is_sense_hat_available(),
             "aranet4_available": await _is_aranet4_available(),
             "config": config,
@@ -257,6 +272,7 @@ async def sensors_websocket(websocket: WebSocket):
                 "system": await cache.get("system", {}),
                 "sensors": await cache.get("sensors", {}),
                 "co2": await cache.get("co2", {}),
+                "weather": await cache.get("weather", {}),
             }
 
             await websocket.send_json(data)
@@ -290,6 +306,15 @@ async def get_config_endpoint(username: str = Depends(require_auth)) -> dict[str
         },
         "update": {
             "interval": config.update.interval,
+        },
+        "cache": {
+            "ttl": config.cache.ttl,
+            "poll_interval": config.cache.poll_interval,
+        },
+        "weather": {
+            "enabled": config.weather.enabled,
+            "location": config.weather.location,
+            "cache_duration": config.weather.cache_duration,
         },
     }
 
@@ -348,6 +373,47 @@ async def update_config_endpoint(
 
             if "disable_pi_leds" in sleep_updates:
                 updates["sleep"]["disable_pi_leds"] = bool(sleep_updates["disable_pi_leds"])
+
+        if "cache" in body:
+            cache_updates = body["cache"]
+            updates["cache"] = {}
+
+            if "ttl" in cache_updates:
+                ttl = float(cache_updates["ttl"])
+                if ttl > 0:
+                    updates["cache"]["ttl"] = ttl
+                    logger.warning(
+                        "Cache TTL updated. Please restart the application for changes to take effect."
+                    )
+
+            if "poll_interval" in cache_updates:
+                poll_interval = float(cache_updates["poll_interval"])
+                if poll_interval > 0:
+                    updates["cache"]["poll_interval"] = poll_interval
+                    logger.warning(
+                        "Cache poll interval updated. Please restart the application for changes to take effect."
+                    )
+
+        if "weather" in body:
+            weather_updates = body["weather"]
+            updates["weather"] = {}
+
+            if "enabled" in weather_updates:
+                updates["weather"]["enabled"] = bool(weather_updates["enabled"])
+                logger.warning(
+                    "Weather data source enabled/disabled. Please restart the application for changes to take effect."
+                )
+
+            if "location" in weather_updates:
+                updates["weather"]["location"] = str(weather_updates["location"])
+                logger.warning(
+                    "Weather location updated. Please restart the application for changes to take effect."
+                )
+
+            if "cache_duration" in weather_updates:
+                duration = int(weather_updates["cache_duration"])
+                if duration > 0:
+                    updates["weather"]["cache_duration"] = duration
 
         # Update config via context (writes to disk and reloads)
         config = context.update_config(updates)

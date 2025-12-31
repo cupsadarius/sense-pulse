@@ -161,6 +161,66 @@
     </div>
 </div>
 
+<!-- Weather Card Row -->
+{% if weather and weather.weather_temp is defined and config.weather.enabled %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 fade-in">
+    <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-cyan-500/50 transition-colors">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-cyan-500/10 rounded-lg flex items-center justify-center">
+                <svg class="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-400">Weather</h3>
+                <p class="text-lg font-bold text-cyan-400">{{ weather.weather_location|default("Unknown") }}</p>
+            </div>
+        </div>
+        <div class="pt-4 border-t border-sense-border">
+            <!-- Current conditions -->
+            <div class="text-center mb-4">
+                <div id="weather-temp" class="text-5xl font-bold text-cyan-400">{{ weather.weather_temp|default(0)|round(1) }}°C</div>
+                <div id="weather-conditions" class="text-lg text-gray-300 mt-1">{{ weather.weather_conditions|default("Unknown") }}</div>
+                {% if weather.weather_temp != weather.weather_feels_like %}
+                <div class="text-sm text-gray-500 mt-1">Feels like {{ weather.weather_feels_like|default(0)|round(1) }}°C</div>
+                {% endif %}
+            </div>
+            <!-- Additional details -->
+            <div class="space-y-2 mt-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-blue-400">💧</span>
+                        <span class="text-sm text-gray-400">Humidity</span>
+                    </div>
+                    <span id="weather-humidity" class="text-sm font-semibold text-blue-400">{{ weather.weather_humidity|default(0) }}%</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">🌬️</span>
+                        <span class="text-sm text-gray-400">Wind</span>
+                    </div>
+                    <span id="weather-wind" class="text-sm font-semibold text-gray-300">{{ weather.weather_wind|default(0)|round(1) }} km/h {{ weather.weather_wind_dir|default("") }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">🔘</span>
+                        <span class="text-sm text-gray-400">Pressure</span>
+                    </div>
+                    <span id="weather-pressure" class="text-sm font-semibold text-gray-300">{{ weather.weather_pressure|default(0)|int }} mb</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-yellow-400">☀️</span>
+                        <span class="text-sm text-gray-400">UV Index</span>
+                    </div>
+                    <span id="weather-uv" class="text-sm font-semibold text-yellow-400">{{ weather.weather_uv_index|default(0) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- CO2 Sensors Row - Aranet4 Style Display -->
 {% if aranet4_available or (co2 and co2|length > 0) %}
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 fade-in">
