@@ -108,6 +108,10 @@ def get_config():
     """Get or initialize configuration"""
     global _config, _config_path
 
+    # Ensure _config_path is always set for config updates
+    if _config_path is None:
+        _config_path = find_config_file()
+
     # Prefer config from context if available
     context = get_app_context()
     if context:
@@ -115,7 +119,6 @@ def get_config():
 
     # Fall back to loading config directly (legacy mode)
     if _config is None:
-        _config_path = find_config_file()
         _config = load_config()
         # Initialize hardware settings from config
         sensehat.set_web_rotation_offset(_config.display.web_rotation_offset)
@@ -395,6 +398,11 @@ async def update_config_endpoint(
         # Reload config
         _config = reload_config()
 
+        # Also update context.config if AppContext is available
+        context = get_app_context()
+        if context:
+            context.config = _config
+
         # Return success with full config state
         return {
             "status": "success",
@@ -495,6 +503,11 @@ async def update_aranet4_config(
 
         # Reload config
         _config = reload_config()
+
+        # Also update context.config if AppContext is available
+        context = get_app_context()
+        if context:
+            context.config = _config
 
         # NOTE: Sensor changes require application restart to take effect
         # The Aranet4DataSource is initialized at startup with the config
