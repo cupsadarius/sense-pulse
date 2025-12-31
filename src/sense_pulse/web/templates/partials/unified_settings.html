@@ -1,0 +1,362 @@
+<div class="bg-sense-card rounded-xl border border-sense-border overflow-hidden">
+    <!-- Settings Header -->
+    <div class="px-6 py-4 border-b border-sense-border bg-gray-800/50">
+        <h2 class="text-lg font-semibold">Settings</h2>
+        <p class="text-sm text-gray-400 mt-1">Configure your Sense Pulse dashboard</p>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="settings-toast" class="hidden fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300">
+        <div class="flex items-center gap-2">
+            <span id="toast-icon"></span>
+            <span id="toast-message" class="text-sm font-medium"></span>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-sense-border bg-gray-800/30 overflow-x-auto">
+        <button class="settings-tab active px-6 py-3 text-sm font-medium border-b-2 border-cyan-500 text-cyan-400 whitespace-nowrap" data-tab="display">
+            Display
+        </button>
+        <button class="settings-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300 whitespace-nowrap" data-tab="sleep">
+            Sleep Mode
+        </button>
+        <button class="settings-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300 whitespace-nowrap" data-tab="cache">
+            Cache
+        </button>
+        <button class="settings-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300 whitespace-nowrap" data-tab="weather">
+            Weather
+        </button>
+        <button class="settings-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300 whitespace-nowrap" data-tab="sensors">
+            Sensors
+        </button>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="p-6">
+        <!-- Display Tab -->
+        <div id="tab-display" class="settings-tab-content">
+            <div class="space-y-4">
+                <!-- Show Icons Toggle -->
+                <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+                    <div>
+                        <p class="font-medium">Show Icons</p>
+                        <p class="text-sm text-gray-400">Display 8x8 pixel art before text</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="show-icons" class="sr-only peer"
+                               {% if config.display.show_icons %}checked{% endif %}
+                               onchange="settingsManager.saveDisplaySetting('show_icons', this.checked)">
+                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                </div>
+
+                <!-- Display Rotation -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <label class="block font-medium mb-2">Display Rotation</label>
+                    <p class="text-sm text-gray-400 mb-3">Physical display rotation</p>
+                    <select id="rotation" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            onchange="settingsManager.saveDisplaySetting('rotation', parseInt(this.value))">
+                        <option value="0" {% if config.display.rotation == 0 %}selected{% endif %}>0°</option>
+                        <option value="90" {% if config.display.rotation == 90 %}selected{% endif %}>90°</option>
+                        <option value="180" {% if config.display.rotation == 180 %}selected{% endif %}>180°</option>
+                        <option value="270" {% if config.display.rotation == 270 %}selected{% endif %}>270°</option>
+                    </select>
+                </div>
+
+                <!-- Scroll Speed -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="font-medium">Scroll Speed</label>
+                        <span id="scroll-speed-value" class="text-sm text-cyan-400">{{ config.display.scroll_speed }}</span>
+                    </div>
+                    <input type="range" id="scroll-speed" min="0.01" max="0.2" step="0.01"
+                           value="{{ config.display.scroll_speed }}"
+                           class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                           oninput="document.getElementById('scroll-speed-value').textContent = this.value"
+                           onchange="settingsManager.saveDisplaySetting('scroll_speed', parseFloat(this.value))">
+                </div>
+
+                <!-- Icon Duration -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="font-medium">Icon Duration (seconds)</label>
+                        <span id="icon-duration-value" class="text-sm text-cyan-400">{{ config.display.icon_duration }}</span>
+                    </div>
+                    <input type="range" id="icon-duration" min="0.5" max="5" step="0.1"
+                           value="{{ config.display.icon_duration }}"
+                           class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                           oninput="document.getElementById('icon-duration-value').textContent = this.value"
+                           onchange="settingsManager.saveDisplaySetting('icon_duration', parseFloat(this.value))">
+                </div>
+
+                <!-- Web Preview Offset -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <label class="block font-medium mb-2">Web Preview Offset</label>
+                    <p class="text-sm text-gray-400 mb-3">Adjust web preview to match physical display</p>
+                    <select id="web-offset" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            onchange="settingsManager.saveDisplaySetting('web_rotation_offset', parseInt(this.value))">
+                        <option value="0" {% if config.display.web_rotation_offset == 0 %}selected{% endif %}>0°</option>
+                        <option value="90" {% if config.display.web_rotation_offset == 90 %}selected{% endif %}>90°</option>
+                        <option value="180" {% if config.display.web_rotation_offset == 180 %}selected{% endif %}>180°</option>
+                        <option value="270" {% if config.display.web_rotation_offset == 270 %}selected{% endif %}>270°</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sleep Mode Tab -->
+        <div id="tab-sleep" class="settings-tab-content hidden">
+            <div class="space-y-4">
+                <!-- Sleep Schedule Info -->
+                <div class="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                    <div class="flex items-center gap-2 text-cyan-400 mb-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span class="font-medium">Current Schedule</span>
+                    </div>
+                    <p class="text-sm text-gray-300">Display turns off from {{ "%02d"|format(config.sleep.start_hour) }}:00 to {{ "%02d"|format(config.sleep.end_hour) }}:00</p>
+                </div>
+
+                <!-- Start Hour -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <label class="block font-medium mb-2">Sleep Start Hour</label>
+                    <input type="number" id="sleep-start" min="0" max="23" value="{{ config.sleep.start_hour }}"
+                           class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                           onchange="settingsManager.saveSleepSetting('start_hour', parseInt(this.value))">
+                </div>
+
+                <!-- End Hour -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <label class="block font-medium mb-2">Sleep End Hour</label>
+                    <input type="number" id="sleep-end" min="0" max="23" value="{{ config.sleep.end_hour }}"
+                           class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                           onchange="settingsManager.saveSleepSetting('end_hour', parseInt(this.value))">
+                </div>
+
+                <!-- Disable Pi LEDs -->
+                <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+                    <div>
+                        <p class="font-medium">Disable Pi LEDs</p>
+                        <p class="text-sm text-gray-400">Turn off red/green board LEDs during sleep</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="disable-pi-leds" class="sr-only peer"
+                               {% if config.sleep.disable_pi_leds %}checked{% endif %}
+                               onchange="settingsManager.saveSleepSetting('disable_pi_leds', this.checked)">
+                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cache Tab -->
+        <div id="tab-cache" class="settings-tab-content hidden">
+            <div class="space-y-4">
+                <div class="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <div class="flex items-center gap-2 text-yellow-400 mb-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span class="font-medium">Restart Required</span>
+                    </div>
+                    <p class="text-sm text-gray-300">Cache changes require application restart to take effect</p>
+                </div>
+
+                <!-- Cache TTL -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="font-medium">Cache TTL (seconds)</label>
+                        <span id="cache-ttl-value" class="text-sm text-cyan-400">{{ config.cache.ttl }}</span>
+                    </div>
+                    <p class="text-sm text-gray-400 mb-3">How long to keep cached data</p>
+                    <input type="range" id="cache-ttl" min="10" max="600" step="10"
+                           value="{{ config.cache.ttl }}"
+                           class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                           oninput="document.getElementById('cache-ttl-value').textContent = this.value"
+                           onchange="settingsManager.saveCacheSetting('ttl', parseFloat(this.value))">
+                </div>
+
+                <!-- Poll Interval -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="font-medium">Poll Interval (seconds)</label>
+                        <span id="poll-interval-value" class="text-sm text-cyan-400">{{ config.cache.poll_interval }}</span>
+                    </div>
+                    <p class="text-sm text-gray-400 mb-3">How often to update data</p>
+                    <input type="range" id="poll-interval" min="5" max="300" step="5"
+                           value="{{ config.cache.poll_interval }}"
+                           class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                           oninput="document.getElementById('poll-interval-value').textContent = this.value"
+                           onchange="settingsManager.saveCacheSetting('poll_interval', parseFloat(this.value))">
+                </div>
+            </div>
+        </div>
+
+        <!-- Weather Tab -->
+        <div id="tab-weather" class="settings-tab-content hidden">
+            <div class="space-y-4">
+                <!-- Weather Enabled -->
+                <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
+                    <div>
+                        <p class="font-medium">Enable Weather</p>
+                        <p class="text-sm text-gray-400">Show weather information on display and web</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="weather-enabled" class="sr-only peer"
+                               {% if config.weather.enabled %}checked{% endif %}
+                               onchange="settingsManager.saveWeatherSetting('enabled', this.checked)">
+                        <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                    </label>
+                </div>
+
+                <!-- Location -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <label class="block font-medium mb-2">Location</label>
+                    <p class="text-sm text-gray-400 mb-3">City name, coordinates, or landmark (e.g., "London", "~Eiffel+Tower")</p>
+                    <input type="text" id="weather-location" value="{{ config.weather.location }}"
+                           placeholder="e.g. London, New York, ~Eiffel+Tower"
+                           class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                           onchange="settingsManager.saveWeatherSetting('location', this.value)">
+                </div>
+
+                <!-- Cache Duration -->
+                <div class="p-4 bg-gray-800/50 rounded-lg">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="font-medium">Cache Duration (seconds)</label>
+                        <span id="weather-cache-value" class="text-sm text-cyan-400">{{ config.weather.cache_duration }}</span>
+                    </div>
+                    <p class="text-sm text-gray-400 mb-3">Weather updates hourly</p>
+                    <input type="range" id="weather-cache" min="60" max="3600" step="60"
+                           value="{{ config.weather.cache_duration }}"
+                           class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                           oninput="document.getElementById('weather-cache-value').textContent = this.value"
+                           onchange="settingsManager.saveWeatherSetting('cache_duration', parseInt(this.value))">
+                </div>
+            </div>
+        </div>
+
+        <!-- Sensors Tab -->
+        <div id="tab-sensors" class="settings-tab-content hidden">
+            <div id="aranet4-controls">
+                {% include "partials/aranet4_controls.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.settings-tab.active {
+    border-color: rgb(34, 211, 238);
+    color: rgb(34, 211, 238);
+}
+</style>
+
+<script>
+// Settings Manager with Auto-save
+const settingsManager = {
+    saveTimeout: null,
+    loading: false,
+
+    showToast(message, type = 'success') {
+        const toast = document.getElementById('settings-toast');
+        const icon = document.getElementById('toast-icon');
+        const msg = document.getElementById('toast-message');
+
+        // Set icon and colors
+        if (type === 'success') {
+            toast.className = 'fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg bg-green-500/20 border border-green-500/50 text-green-400';
+            icon.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+        } else if (type === 'error') {
+            toast.className = 'fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg bg-red-500/20 border border-red-500/50 text-red-400';
+            icon.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+        } else {
+            toast.className = 'fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg bg-blue-500/20 border border-blue-500/50 text-blue-400';
+            icon.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>';
+        }
+
+        msg.textContent = message;
+        toast.classList.remove('hidden');
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 3000);
+    },
+
+    async saveConfig(updates, requiresRestart = false) {
+        if (this.loading) return;
+        this.loading = true;
+
+        try {
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                if (requiresRestart) {
+                    this.showToast('Settings saved. Restart required.', 'info');
+                } else {
+                    this.showToast('Settings saved successfully', 'success');
+                }
+            } else {
+                this.showToast('Error: ' + (data.message || 'Failed to save'), 'error');
+            }
+        } catch (error) {
+            this.showToast('Network error: ' + error.message, 'error');
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    saveDisplaySetting(key, value) {
+        const updates = { display: {} };
+        updates.display[key] = value;
+        this.saveConfig(updates);
+    },
+
+    saveSleepSetting(key, value) {
+        const updates = { sleep: {} };
+        updates.sleep[key] = value;
+        this.saveConfig(updates);
+    },
+
+    saveCacheSetting(key, value) {
+        const updates = { cache: {} };
+        updates.cache[key] = value;
+        this.saveConfig(updates, true);
+    },
+
+    saveWeatherSetting(key, value) {
+        const updates = { weather: {} };
+        updates.weather[key] = value;
+        this.saveConfig(updates, true);
+    }
+};
+
+// Tab switching
+document.querySelectorAll('.settings-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+
+        // Update tab buttons
+        document.querySelectorAll('.settings-tab').forEach(t => {
+            t.classList.remove('active', 'border-cyan-500', 'text-cyan-400');
+            t.classList.add('border-transparent', 'text-gray-400');
+        });
+        tab.classList.add('active', 'border-cyan-500', 'text-cyan-400');
+        tab.classList.remove('border-transparent', 'text-gray-400');
+
+        // Update tab content
+        document.querySelectorAll('.settings-tab-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+        document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+    });
+});
+</script>
