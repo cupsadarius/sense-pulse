@@ -90,6 +90,23 @@ class Aranet4Config:
 
 
 @dataclass
+class CacheConfig:
+    """Configuration for data cache polling"""
+
+    ttl: float = 60.0  # Cache time-to-live in seconds
+    poll_interval: float = 30.0  # Background poll interval in seconds
+
+
+@dataclass
+class WeatherConfig:
+    """Configuration for weather data source"""
+
+    enabled: bool = True
+    location: str = ""  # Location for weather (e.g., "London", "New York", "~Eiffel+Tower")
+    cache_duration: int = 300  # Cache weather data for 5 minutes (API updates hourly)
+
+
+@dataclass
 class Config:
     pihole: PiholeConfig = field(default_factory=PiholeConfig)
     tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
@@ -100,6 +117,8 @@ class Config:
     web: WebConfig = field(default_factory=WebConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
     aranet4: Aranet4Config = field(default_factory=Aranet4Config)
+    cache: CacheConfig = field(default_factory=CacheConfig)
+    weather: WeatherConfig = field(default_factory=WeatherConfig)
 
 
 def find_config_file() -> Optional[Path]:
@@ -168,4 +187,6 @@ def load_config(config_path: Optional[str] = None) -> Config:
         web=WebConfig(**data.get("web", {})),
         auth=AuthConfig(**data.get("auth", {})),
         aranet4=aranet4_config,
+        cache=CacheConfig(**data.get("cache", {})),
+        weather=WeatherConfig(**data.get("weather", {})),
     )
