@@ -281,6 +281,83 @@ class StatsDisplay:
                         color=(0, 100, 255),
                     )
 
+    def _get_weather_icon(self, conditions: str) -> str:
+        """
+        Map weather conditions to icon name.
+
+        Args:
+            conditions: Weather condition string from wttr.in (e.g., "Sunny", "Partly cloudy")
+
+        Returns:
+            Icon name for the weather condition
+        """
+        conditions_lower = conditions.lower()
+
+        # Map common weather conditions to icons
+        if any(word in conditions_lower for word in ["clear", "sunny"]):
+            return "sunny"
+        elif any(word in conditions_lower for word in ["partly cloudy", "partly"]):
+            return "partly_cloudy"
+        elif any(word in conditions_lower for word in ["overcast", "cloudy", "cloud"]):
+            return "cloudy"
+        elif any(word in conditions_lower for word in ["thunder", "thunderstorm", "lightning"]):
+            return "thunderstorm"
+        elif any(word in conditions_lower for word in ["rain", "drizzle", "shower"]):
+            return "rainy"
+        elif any(word in conditions_lower for word in ["snow", "sleet", "blizzard"]):
+            return "snowy"
+        elif any(word in conditions_lower for word in ["mist", "fog", "haze"]):
+            return "mist"
+        else:
+            # Default to cloudy for unknown conditions
+            return "cloudy"
+
+    async def display_weather(self):
+        """Display current weather conditions (from cache)"""
+        if not self.config.weather.enabled:
+            return
+
+        weather_data = await self.cache.get("weather", {})
+        if not weather_data or "weather_temp" not in weather_data:
+            logger.debug("No weather data available")
+            return
+
+        logger.info("Displaying weather data...")
+
+        # Extract weather data
+        temperature = weather_data.get("weather_temp")
+        conditions = weather_data.get("weather_conditions", "Unknown")
+        location = weather_data.get("weather_location", "")
+
+        # Display temperature with weather icon
+        if temperature is not None:
+            icon = self._get_weather_icon(conditions)
+            if self.show_icons:
+                await self.display.show_icon_with_text(
+                    icon,
+                    f"{temperature:.0f}°C",
+                    text_color=(255, 200, 0),
+                )
+            else:
+                await self.display.show_text(
+                    f"Weather: {temperature:.0f}°C",
+                    color=(255, 200, 0),
+                )
+
+        # Display weather conditions
+        if conditions and conditions != "Unknown":
+            if self.show_icons:
+                # Show conditions with location if available
+                text = f"{conditions}"
+                if location:
+                    text = f"{location}: {conditions}"
+                await self.display.show_text(text, color=(100, 200, 255))
+            else:
+                await self.display.show_text(
+                    f"Conditions: {conditions}",
+                    color=(100, 200, 255),
+                )
+
     async def run_cycle(self):
         """Run one complete display cycle"""
         is_sleeping = self.sleep_schedule.is_sleep_time()
@@ -309,6 +386,7 @@ class StatsDisplay:
             await self.display_tailscale_status()
             await self.display_pihole_stats()
             await self.display_sensor_data()
+            await self.display_weather()
             await self.display_co2_levels()
             await self.display_system_stats()
             logger.info("Display cycle completed successfully")
