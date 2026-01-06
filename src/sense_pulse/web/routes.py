@@ -155,33 +155,13 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
     config = _get_config()
     cache = _get_cache()
 
-    # Get data with timestamps for each source
-    tailscale_data = await cache.get("tailscale", {}, include_timestamp=True)
-    pihole_data = await cache.get("pihole", {}, include_timestamp=True)
-    system_data = await cache.get("system", {}, include_timestamp=True)
-    sensors_data = await cache.get("sensors", {}, include_timestamp=True)
-    co2_data = await cache.get("co2", {}, include_timestamp=True)
-    weather_data = await cache.get("weather", {}, include_timestamp=True)
-
     return {
-        "tailscale": (
-            tailscale_data.get("data", {}) if isinstance(tailscale_data, dict) else tailscale_data
-        ),
-        "pihole": pihole_data.get("data", {}) if isinstance(pihole_data, dict) else pihole_data,
-        "system": system_data.get("data", {}) if isinstance(system_data, dict) else system_data,
-        "sensors": sensors_data.get("data", {}) if isinstance(sensors_data, dict) else sensors_data,
-        "co2": co2_data.get("data", {}) if isinstance(co2_data, dict) else co2_data,
-        "weather": weather_data.get("data", {}) if isinstance(weather_data, dict) else weather_data,
-        "timestamps": {
-            "tailscale": (
-                tailscale_data.get("timestamp") if isinstance(tailscale_data, dict) else None
-            ),
-            "pihole": pihole_data.get("timestamp") if isinstance(pihole_data, dict) else None,
-            "system": system_data.get("timestamp") if isinstance(system_data, dict) else None,
-            "sensors": sensors_data.get("timestamp") if isinstance(sensors_data, dict) else None,
-            "co2": co2_data.get("timestamp") if isinstance(co2_data, dict) else None,
-            "weather": weather_data.get("timestamp") if isinstance(weather_data, dict) else None,
-        },
+        "tailscale": await cache.get("tailscale", {}),
+        "pihole": await cache.get("pihole", {}),
+        "system": await cache.get("system", {}),
+        "sensors": await cache.get("sensors", {}),
+        "co2": await cache.get("co2", {}),
+        "weather": await cache.get("weather", {}),
         "hardware": {
             "sense_hat_available": sensehat.is_sense_hat_available(),
             "aranet4_available": await _is_aranet4_available(),
@@ -286,54 +266,14 @@ async def sensors_websocket(websocket: WebSocket):
 
     try:
         while True:
-            # Get sensor data with timestamps
-            tailscale_data = await cache.get("tailscale", {}, include_timestamp=True)
-            pihole_data = await cache.get("pihole", {}, include_timestamp=True)
-            system_data = await cache.get("system", {}, include_timestamp=True)
-            sensors_data = await cache.get("sensors", {}, include_timestamp=True)
-            co2_data = await cache.get("co2", {}, include_timestamp=True)
-            weather_data = await cache.get("weather", {}, include_timestamp=True)
-
-            # Gather all sensor data
+            # Gather all sensor data (each sensor has value and timestamp embedded)
             data = {
-                "tailscale": (
-                    tailscale_data.get("data", {})
-                    if isinstance(tailscale_data, dict)
-                    else tailscale_data
-                ),
-                "pihole": (
-                    pihole_data.get("data", {}) if isinstance(pihole_data, dict) else pihole_data
-                ),
-                "system": (
-                    system_data.get("data", {}) if isinstance(system_data, dict) else system_data
-                ),
-                "sensors": (
-                    sensors_data.get("data", {}) if isinstance(sensors_data, dict) else sensors_data
-                ),
-                "co2": co2_data.get("data", {}) if isinstance(co2_data, dict) else co2_data,
-                "weather": (
-                    weather_data.get("data", {}) if isinstance(weather_data, dict) else weather_data
-                ),
-                "timestamps": {
-                    "tailscale": (
-                        tailscale_data.get("timestamp")
-                        if isinstance(tailscale_data, dict)
-                        else None
-                    ),
-                    "pihole": (
-                        pihole_data.get("timestamp") if isinstance(pihole_data, dict) else None
-                    ),
-                    "system": (
-                        system_data.get("timestamp") if isinstance(system_data, dict) else None
-                    ),
-                    "sensors": (
-                        sensors_data.get("timestamp") if isinstance(sensors_data, dict) else None
-                    ),
-                    "co2": co2_data.get("timestamp") if isinstance(co2_data, dict) else None,
-                    "weather": (
-                        weather_data.get("timestamp") if isinstance(weather_data, dict) else None
-                    ),
-                },
+                "tailscale": await cache.get("tailscale", {}),
+                "pihole": await cache.get("pihole", {}),
+                "system": await cache.get("system", {}),
+                "sensors": await cache.get("sensors", {}),
+                "co2": await cache.get("co2", {}),
+                "weather": await cache.get("weather", {}),
             }
 
             await websocket.send_json(data)

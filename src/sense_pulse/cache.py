@@ -77,18 +77,16 @@ class DataCache:
         self._data_sources[metadata.source_id] = source
         logger.info(f"Registered data source: {metadata.name} (id={metadata.source_id})")
 
-    async def get(self, key: str, default: Any = None, include_timestamp: bool = False) -> Any:
+    async def get(self, key: str, default: Any = None) -> Any:
         """
         Get cached data by key.
 
         Args:
             key: Cache key
             default: Default value if key not found or expired
-            include_timestamp: If True, returns {"data": ..., "timestamp": ...}
 
         Returns:
-            Cached data (or dict with data and timestamp if include_timestamp=True),
-            or default value
+            Cached data or default value
         """
         async with self._lock:
             cached = self._cache.get(key)
@@ -101,9 +99,6 @@ class DataCache:
                 return default
 
             logger.debug(f"Cache hit: {key} (age: {cached.age:.1f}s)")
-
-            if include_timestamp:
-                return {"data": cached.data, "timestamp": cached.timestamp}
             return cached.data
 
     async def set(self, key: str, data: Any) -> None:
@@ -168,10 +163,13 @@ class DataCache:
             logger.debug(f"Polling data source: {metadata.name}")
             readings = await source.fetch_readings()
 
-            # Convert readings to dict format
+            # Convert readings to dict format with values and timestamps
             data = {}
             for reading in readings:
-                data[reading.sensor_id] = reading.value
+                data[reading.sensor_id] = {
+                    "value": reading.value,
+                    "timestamp": reading.timestamp.timestamp(),
+                }
 
             await self.set(key, data)
             logger.debug(f"Successfully polled: {metadata.name} ({len(readings)} readings)")
