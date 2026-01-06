@@ -64,7 +64,7 @@ git diff origin/main <file>           # Detailed diff per file
 **For each changed file, provide:**
 - **What:** Brief description of the change
 - **Why:** Reason for the change
-- **Used for:** What the file/component does
+- **Used for:** What the change is used for and where (which components/flows use it)
 
 **Format as concise bullet points** - keep it brief and clear.
 
