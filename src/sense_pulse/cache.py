@@ -77,16 +77,18 @@ class DataCache:
         self._data_sources[metadata.source_id] = source
         logger.info(f"Registered data source: {metadata.name} (id={metadata.source_id})")
 
-    async def get(self, key: str, default: Any = None) -> Any:
+    async def get(self, key: str, default: Any = None, include_timestamp: bool = False) -> Any:
         """
         Get cached data by key.
 
         Args:
             key: Cache key
             default: Default value if key not found or expired
+            include_timestamp: If True, returns {"data": ..., "timestamp": ...}
 
         Returns:
-            Cached data or default value
+            Cached data (or dict with data and timestamp if include_timestamp=True),
+            or default value
         """
         async with self._lock:
             cached = self._cache.get(key)
@@ -99,6 +101,9 @@ class DataCache:
                 return default
 
             logger.debug(f"Cache hit: {key} (age: {cached.age:.1f}s)")
+
+            if include_timestamp:
+                return {"data": cached.data, "timestamp": cached.timestamp}
             return cached.data
 
     async def set(self, key: str, data: Any) -> None:

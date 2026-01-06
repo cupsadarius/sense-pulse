@@ -184,6 +184,26 @@
             }
         }
 
+        function formatRelativeTime(timestamp) {
+            if (!timestamp) return '';
+
+            const now = Date.now() / 1000; // Current time in seconds
+            const diff = now - timestamp; // Difference in seconds
+
+            if (diff < 60) {
+                return 'Updated just now';
+            } else if (diff < 3600) {
+                const minutes = Math.floor(diff / 60);
+                return `Updated ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+            } else if (diff < 86400) {
+                const hours = Math.floor(diff / 3600);
+                return `Updated ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+            } else {
+                const days = Math.floor(diff / 86400);
+                return `Updated ${days} ${days === 1 ? 'day' : 'days'} ago`;
+            }
+        }
+
         function rgbToHex(r, g, b) {
             return '#' + [r, g, b].map(x => {
                 const hex = x.toString(16);
@@ -265,6 +285,7 @@
 
         function updateStatusCards(data) {
             const cache = window.sensePulseWS.statusCache;
+            const timestamps = data.timestamps || {};
 
             // Update Tailscale card
             const tailscale = data.tailscale || {};
@@ -302,6 +323,12 @@
                 }
             }
 
+            // Update Tailscale timestamp
+            const tsTimestamp = getCachedElement('ts-timestamp');
+            if (tsTimestamp && timestamps.tailscale) {
+                tsTimestamp.textContent = formatRelativeTime(timestamps.tailscale);
+            }
+
             // Update Pi-hole card
             const pihole = data.pihole || {};
             const phQueriesValue = pihole.queries_today || 0;
@@ -332,6 +359,12 @@
                 }
             }
 
+            // Update Pi-hole timestamp
+            const phTimestamp = getCachedElement('ph-timestamp');
+            if (phTimestamp && timestamps.pihole) {
+                phTimestamp.textContent = formatRelativeTime(timestamps.pihole);
+            }
+
             // Update Sensors card
             const sensors = data.sensors || {};
             const sensTemperature = sensors.temperature;
@@ -360,6 +393,12 @@
                 if (sensPressure) {
                     sensPressure.textContent = sensPressureValue ? sensPressureValue.toFixed(0) + ' hPa' : 'N/A';
                 }
+            }
+
+            // Update Sensors timestamp
+            const sensTimestamp = getCachedElement('sens-timestamp');
+            if (sensTimestamp && timestamps.sensors) {
+                sensTimestamp.textContent = formatRelativeTime(timestamps.sensors);
             }
 
             // Update System card
@@ -409,6 +448,18 @@
                 if (sysTemp) {
                     sysTemp.textContent = cpuTemp ? cpuTemp.toFixed(1) + '°C' : 'N/A';
                 }
+            }
+
+            // Update System timestamp
+            const sysTimestamp = getCachedElement('sys-timestamp');
+            if (sysTimestamp && timestamps.system) {
+                sysTimestamp.textContent = formatRelativeTime(timestamps.system);
+            }
+
+            // Update Weather timestamp
+            const weatherTimestamp = getCachedElement('weather-timestamp');
+            if (weatherTimestamp && timestamps.weather) {
+                weatherTimestamp.textContent = formatRelativeTime(timestamps.weather);
             }
 
             // Update CO2 cards for all sensors dynamically
@@ -474,6 +525,12 @@
                     if (co2Humidity) {
                         co2Humidity.textContent = humidity.toFixed(0) + '%';
                     }
+                }
+
+                // Update CO2 timestamp
+                const co2Timestamp = getCachedElement(`co2-${sensorId}-timestamp`);
+                if (co2Timestamp && timestamps.co2) {
+                    co2Timestamp.textContent = formatRelativeTime(timestamps.co2);
                 }
             }
         }
