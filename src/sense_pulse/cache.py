@@ -163,10 +163,13 @@ class DataCache:
             logger.debug(f"Polling data source: {metadata.name}")
             readings = await source.fetch_readings()
 
-            # Convert readings to dict format
+            # Convert readings to dict format with values and timestamps
             data = {}
             for reading in readings:
-                data[reading.sensor_id] = reading.value
+                data[reading.sensor_id] = {
+                    "value": reading.value,
+                    "timestamp": reading.timestamp.timestamp(),
+                }
 
             await self.set(key, data)
             logger.debug(f"Successfully polled: {metadata.name} ({len(readings)} readings)")

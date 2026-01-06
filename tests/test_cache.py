@@ -79,7 +79,10 @@ class TestDataCache:
 
         await cache._poll_data_source(source)
         result = await cache.get("test_key")
-        assert result == {"test": "data"}
+        assert result is not None
+        assert "test" in result
+        assert result["test"]["value"] == "data"
+        assert "timestamp" in result["test"]
 
     async def test_poll_data_source_error(self):
         """Test polling handles errors gracefully"""
