@@ -285,12 +285,12 @@
 
         function updateStatusCards(data) {
             const cache = window.sensePulseWS.statusCache;
-            const timestamps = data.timestamps || {};
 
             // Update Tailscale card
             const tailscale = data.tailscale || {};
-            const tsConnected = tailscale.connected;
-            const tsDeviceCount = tailscale.device_count || '0';
+            const tsConnected = tailscale.connected?.value;
+            const tsDeviceCount = tailscale.device_count?.value || '0';
+            const tsTimestamp = tailscale.connected?.timestamp || tailscale.device_count?.timestamp;
 
             // Only update if changed
             if (cache.tsConnected !== tsConnected) {
@@ -324,16 +324,17 @@
             }
 
             // Update Tailscale timestamp
-            const tsTimestamp = getCachedElement('ts-timestamp');
-            if (tsTimestamp && timestamps.tailscale) {
-                tsTimestamp.textContent = formatRelativeTime(timestamps.tailscale);
+            const tsTimestampEl = getCachedElement('ts-timestamp');
+            if (tsTimestampEl && tsTimestamp) {
+                tsTimestampEl.textContent = formatRelativeTime(tsTimestamp);
             }
 
             // Update Pi-hole card
             const pihole = data.pihole || {};
-            const phQueriesValue = pihole.queries_today || 0;
-            const phBlockedValue = pihole.ads_blocked_today || 0;
-            const phRateValue = pihole.ads_percentage_today || 0;
+            const phQueriesValue = pihole.queries_today?.value || 0;
+            const phBlockedValue = pihole.ads_blocked_today?.value || 0;
+            const phRateValue = pihole.ads_percentage_today?.value || 0;
+            const phTimestamp = pihole.queries_today?.timestamp || pihole.ads_blocked_today?.timestamp;
 
             if (cache.phQueries !== phQueriesValue) {
                 cache.phQueries = phQueriesValue;
@@ -360,16 +361,17 @@
             }
 
             // Update Pi-hole timestamp
-            const phTimestamp = getCachedElement('ph-timestamp');
-            if (phTimestamp && timestamps.pihole) {
-                phTimestamp.textContent = formatRelativeTime(timestamps.pihole);
+            const phTimestampEl = getCachedElement('ph-timestamp');
+            if (phTimestampEl && phTimestamp) {
+                phTimestampEl.textContent = formatRelativeTime(phTimestamp);
             }
 
             // Update Sensors card
             const sensors = data.sensors || {};
-            const sensTemperature = sensors.temperature;
-            const sensHumidityValue = sensors.humidity;
-            const sensPressureValue = sensors.pressure;
+            const sensTemperature = sensors.temperature?.value;
+            const sensHumidityValue = sensors.humidity?.value;
+            const sensPressureValue = sensors.pressure?.value;
+            const sensTimestamp = sensors.temperature?.timestamp || sensors.humidity?.timestamp;
 
             if (cache.sensTemperature !== sensTemperature) {
                 cache.sensTemperature = sensTemperature;
@@ -396,17 +398,18 @@
             }
 
             // Update Sensors timestamp
-            const sensTimestamp = getCachedElement('sens-timestamp');
-            if (sensTimestamp && timestamps.sensors) {
-                sensTimestamp.textContent = formatRelativeTime(timestamps.sensors);
+            const sensTimestampEl = getCachedElement('sens-timestamp');
+            if (sensTimestampEl && sensTimestamp) {
+                sensTimestampEl.textContent = formatRelativeTime(sensTimestamp);
             }
 
             // Update System card
             const system = data.system || {};
-            const cpuPercent = system.cpu_percent || 0;
-            const memPercent = system.memory_percent || 0;
-            const load1min = system.load_1min;
-            const cpuTemp = system.cpu_temp;
+            const cpuPercent = system.cpu_percent?.value || 0;
+            const memPercent = system.memory_percent?.value || 0;
+            const load1min = system.load_1min?.value;
+            const cpuTemp = system.cpu_temp?.value;
+            const sysTimestamp = system.cpu_percent?.timestamp || system.memory_percent?.timestamp;
 
             if (cache.sysCpu !== cpuPercent) {
                 cache.sysCpu = cpuPercent;
@@ -451,15 +454,17 @@
             }
 
             // Update System timestamp
-            const sysTimestamp = getCachedElement('sys-timestamp');
-            if (sysTimestamp && timestamps.system) {
-                sysTimestamp.textContent = formatRelativeTime(timestamps.system);
+            const sysTimestampEl = getCachedElement('sys-timestamp');
+            if (sysTimestampEl && sysTimestamp) {
+                sysTimestampEl.textContent = formatRelativeTime(sysTimestamp);
             }
 
-            // Update Weather timestamp
-            const weatherTimestamp = getCachedElement('weather-timestamp');
-            if (weatherTimestamp && timestamps.weather) {
-                weatherTimestamp.textContent = formatRelativeTime(timestamps.weather);
+            // Update Weather timestamp (weather data is handled separately, extract any sensor timestamp)
+            const weather = data.weather || {};
+            const weatherTimestamp = weather.weather_temp?.timestamp || weather.weather_location?.timestamp;
+            const weatherTimestampEl = getCachedElement('weather-timestamp');
+            if (weatherTimestampEl && weatherTimestamp) {
+                weatherTimestampEl.textContent = formatRelativeTime(weatherTimestamp);
             }
 
             // Update CO2 cards for all sensors dynamically
@@ -480,10 +485,11 @@
                 }
 
                 const sensorCache = cache.co2[cacheKey];
-                const co2Level = sensorData.co2 || 0;
+                const co2Level = sensorData.co2?.value || 0;
                 const hasError = !!sensorData.error;
-                const temperature = sensorData.temperature || 0;
-                const humidity = sensorData.humidity || 0;
+                const temperature = sensorData.temperature?.value || 0;
+                const humidity = sensorData.humidity?.value || 0;
+                const co2Timestamp = sensorData.co2?.timestamp || sensorData.temperature?.timestamp;
 
                 // Only update CO2 value if changed
                 if (sensorCache.level !== co2Level || sensorCache.error !== hasError) {
@@ -528,9 +534,9 @@
                 }
 
                 // Update CO2 timestamp
-                const co2Timestamp = getCachedElement(`co2-${sensorId}-timestamp`);
-                if (co2Timestamp && timestamps.co2) {
-                    co2Timestamp.textContent = formatRelativeTime(timestamps.co2);
+                const co2TimestampEl = getCachedElement(`co2-${sensorId}-timestamp`);
+                if (co2TimestampEl && co2Timestamp) {
+                    co2TimestampEl.textContent = formatRelativeTime(co2Timestamp);
                 }
             }
         }

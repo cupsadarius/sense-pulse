@@ -206,7 +206,8 @@ class TestCacheIntegration:
         data = await cache.get("test")
         assert data is not None
         assert "test_test" in data  # sensor_id from default reading
-        assert data["test_test"] == 42
+        assert data["test_test"]["value"] == 42
+        assert "timestamp" in data["test_test"]
 
     @pytest.mark.asyncio
     async def test_cache_polling_with_data_source(self):
@@ -234,9 +235,11 @@ class TestCacheIntegration:
         data = await cache.get("test")
         assert data is not None
         assert "temp" in data
-        assert data["temp"] == 25.5
+        assert data["temp"]["value"] == 25.5
+        assert "timestamp" in data["temp"]
         assert "humidity" in data
-        assert data["humidity"] == 60
+        assert data["humidity"]["value"] == 60
+        assert "timestamp" in data["humidity"]
 
         # Stop polling
         await cache.stop_polling()
@@ -271,11 +274,13 @@ class TestCacheIntegration:
 
         assert data1 is not None
         assert "sensor1" in data1
-        assert data1["sensor1"] == 100
+        assert data1["sensor1"]["value"] == 100
+        assert "timestamp" in data1["sensor1"]
 
         assert data2 is not None
         assert "sensor2" in data2
-        assert data2["sensor2"] == 200
+        assert data2["sensor2"]["value"] == 200
+        assert "timestamp" in data2["sensor2"]
 
     @pytest.mark.asyncio
     async def test_cache_handles_source_errors(self):
