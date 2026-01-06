@@ -27,6 +27,7 @@
             <span class="text-sm text-gray-400">Online Devices</span>
             <span id="ts-devices" class="text-2xl font-bold text-cyan-400">{{ tailscale.device_count|default(0) }}</span>
         </div>
+        <div class="mt-2 text-xs text-gray-500" id="ts-timestamp"></div>
     </div>
 
     <!-- Pi-hole Card -->
@@ -58,6 +59,7 @@
                 <span id="ph-rate" class="text-lg font-semibold text-orange-400">{{ "%.1f"|format(pihole.ads_percentage_today|default(0)) }}%</span>
             </div>
         </div>
+        <div class="mt-2 text-xs text-gray-500" id="ph-timestamp"></div>
     </div>
 
     <!-- Sensors Card -->
@@ -98,6 +100,7 @@
                 <span id="sens-pressure" class="text-lg font-semibold text-gray-300">{{ sensors.pressure|default(0)|int }} mb</span>
             </div>
         </div>
+        <div class="mt-2 text-xs text-gray-500" id="sens-timestamp"></div>
         {% else %}
         <!-- Unavailable state -->
         <div class="pt-4 border-t border-sense-border">
@@ -158,6 +161,7 @@
                 <span id="sys-temp" class="text-lg font-semibold text-purple-400">{{ system.cpu_temp|default(0) }}°C</span>
             </div>
         </div>
+        <div class="mt-2 text-xs text-gray-500" id="sys-timestamp"></div>
     </div>
 </div>
 
@@ -218,6 +222,7 @@
                 </div>
             </div>
         </div>
+        <div class="mt-2 text-xs text-gray-500" id="weather-timestamp"></div>
     </div>
 
     <!-- 3-Day Forecast Card -->
@@ -304,6 +309,8 @@
             <div class="flex-1 bg-yellow-500 {% if co2_level >= 1000 and co2_level < 1500 %}opacity-100{% else %}opacity-30{% endif %}"></div>
             <div class="flex-1 bg-red-500 {% if co2_level >= 1500 %}opacity-100{% else %}opacity-30{% endif %}"></div>
         </div>
+        <!-- Timestamp display -->
+        <div class="px-4 py-2 text-xs text-gray-500" id="co2-{{ sensor_label | replace(' ', '-') | lower }}-timestamp"></div>
         {% else %}
         <!-- Offline state -->
         <div class="px-4 py-8 text-center">
