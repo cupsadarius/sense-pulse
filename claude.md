@@ -50,6 +50,24 @@ uv run pre-commit install
 uv run pre-commit run --all-files
 ```
 
+## End Summary (After Commit)
+
+**After committing changes, generate a diff summary vs main:**
+
+```bash
+git fetch origin
+git diff origin/main --stat           # Overview of changes
+git diff origin/main --name-only      # List changed files
+git diff origin/main <file>           # Detailed diff per file
+```
+
+**For each changed file, provide:**
+- **What:** Brief description of the change
+- **Why:** Reason for the change
+- **Used for:** What the file/component does
+
+**Format as concise bullet points** - keep it brief and clear.
+
 ## Testing
 
 ```bash
