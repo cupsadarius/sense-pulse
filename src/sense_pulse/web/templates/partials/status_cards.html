@@ -166,7 +166,7 @@
 </div>
 
 <!-- Weather Card Row -->
-{% if weather and weather.weather_temp.value is defined and config.weather.enabled %}
+{% if weather and weather.get("weather_temp", {}).get("value") is not none and config.weather.enabled %}
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 fade-in">
     <!-- Current Weather Card -->
     <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-cyan-500/50 transition-colors">
@@ -178,16 +178,16 @@
             </div>
             <div>
                 <h3 class="text-sm font-medium text-gray-400">Weather</h3>
-                <p class="text-lg font-bold text-cyan-400">{{ weather.weather_location.value|default("Unknown") }}</p>
+                <p class="text-lg font-bold text-cyan-400">{{ weather.get("weather_location", {}).get("value", "Unknown") }}</p>
             </div>
         </div>
         <div class="pt-4 border-t border-sense-border">
             <!-- Current conditions -->
             <div class="text-center mb-4">
-                <div id="weather-temp" class="text-5xl font-bold text-cyan-400">{{ weather.weather_temp.value|default(0)|round(1) }}°C</div>
-                <div id="weather-conditions" class="text-lg text-gray-300 mt-1">{{ weather.weather_conditions.value|default("Unknown") }}</div>
-                {% if weather.weather_temp.value != weather.weather_feels_like.value %}
-                <div class="text-sm text-gray-500 mt-1">Feels like {{ weather.weather_feels_like.value|default(0)|round(1) }}°C</div>
+                <div id="weather-temp" class="text-5xl font-bold text-cyan-400">{{ weather.get("weather_temp", {}).get("value", 0)|round(1) }}°C</div>
+                <div id="weather-conditions" class="text-lg text-gray-300 mt-1">{{ weather.get("weather_conditions", {}).get("value", "Unknown") }}</div>
+                {% if weather.get("weather_temp", {}).get("value", 0) != weather.get("weather_feels_like", {}).get("value", 0) %}
+                <div class="text-sm text-gray-500 mt-1">Feels like {{ weather.get("weather_feels_like", {}).get("value", 0)|round(1) }}°C</div>
                 {% endif %}
             </div>
             <!-- Additional details -->
@@ -197,28 +197,28 @@
                         <span class="text-blue-400">💧</span>
                         <span class="text-sm text-gray-400">Humidity</span>
                     </div>
-                    <span id="weather-humidity" class="text-sm font-semibold text-blue-400">{{ weather.weather_humidity.value|default(0) }}%</span>
+                    <span id="weather-humidity" class="text-sm font-semibold text-blue-400">{{ weather.get("weather_humidity", {}).get("value", 0) }}%</span>
                 </div>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">🌬️</span>
                         <span class="text-sm text-gray-400">Wind</span>
                     </div>
-                    <span id="weather-wind" class="text-sm font-semibold text-gray-300">{{ weather.weather_wind.value|default(0)|round(1) }} km/h {{ weather.weather_wind_dir.value|default("") }}</span>
+                    <span id="weather-wind" class="text-sm font-semibold text-gray-300">{{ weather.get("weather_wind", {}).get("value", 0)|round(1) }} km/h {{ weather.get("weather_wind_dir", {}).get("value", "") }}</span>
                 </div>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">🔘</span>
                         <span class="text-sm text-gray-400">Pressure</span>
                     </div>
-                    <span id="weather-pressure" class="text-sm font-semibold text-gray-300">{{ weather.weather_pressure.value|default(0)|int }} mb</span>
+                    <span id="weather-pressure" class="text-sm font-semibold text-gray-300">{{ weather.get("weather_pressure", {}).get("value", 0)|int }} mb</span>
                 </div>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-yellow-400">☀️</span>
                         <span class="text-sm text-gray-400">UV Index</span>
                     </div>
-                    <span id="weather-uv" class="text-sm font-semibold text-yellow-400">{{ weather.weather_uv_index.value|default(0) }}</span>
+                    <span id="weather-uv" class="text-sm font-semibold text-yellow-400">{{ weather.get("weather_uv_index", {}).get("value", 0) }}</span>
                 </div>
             </div>
         </div>
@@ -226,11 +226,11 @@
     </div>
 
     <!-- 3-Day Forecast Card -->
-    {% if weather.weather_forecast.value %}
+    {% if weather.get("weather_forecast", {}).get("value") %}
     <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-cyan-500/50 transition-colors">
         <h2 class="text-lg font-semibold mb-4">3-Day Forecast</h2>
         <div class="space-y-3">
-            {% for day in weather.weather_forecast.value %}
+            {% for day in weather.get("weather_forecast", {}).get("value", []) %}
             <div class="bg-gray-800/50 rounded-lg p-4">
                 <div class="flex items-center justify-between">
                     <div>
