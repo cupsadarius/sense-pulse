@@ -69,7 +69,7 @@ class StatsDisplay:
         logger.info("Displaying Tailscale status...")
         status = await self.cache.get("tailscale", {})
 
-        is_connected = status["connected"]
+        is_connected = status.get("connected", {}).get("value", False)
 
         if self.show_icons:
             icon_name = "tailscale_connected" if is_connected else "tailscale_disconnected"
@@ -82,7 +82,7 @@ class StatsDisplay:
             await self.display.show_text(status_text, color=color)
 
         if is_connected:
-            device_count = status["device_count"]
+            device_count = status.get("device_count", {}).get("value", 0)
             if self.show_icons:
                 await self.display.show_icon_with_text(
                     "devices",
@@ -100,33 +100,37 @@ class StatsDisplay:
         logger.info("Displaying Pi-hole stats...")
         stats = await self.cache.get("pihole", {})
 
+        queries_today = stats.get("queries_today", {}).get("value", 0)
+        ads_blocked_today = stats.get("ads_blocked_today", {}).get("value", 0)
+        ads_percentage_today = stats.get("ads_percentage_today", {}).get("value", 0.0)
+
         if self.show_icons:
             await self.display.show_icon_with_text(
                 "query",
-                f"Queries: {stats['queries_today']}",
+                f"Queries: {queries_today}",
                 text_color=(0, 255, 0),
             )
             await self.display.show_icon_with_text(
                 "block",
-                f"Blocked: {stats['ads_blocked_today']}",
+                f"Blocked: {ads_blocked_today}",
                 text_color=(255, 0, 0),
             )
             await self.display.show_icon_with_text(
                 "pihole_shield",
-                f"{stats['ads_percentage_today']:.1f}% Blocked",
+                f"{ads_percentage_today:.1f}% Blocked",
                 text_color=(255, 165, 0),
             )
         else:
             await self.display.show_text(
-                f"Queries: {stats['queries_today']}",
+                f"Queries: {queries_today}",
                 color=(0, 255, 0),
             )
             await self.display.show_text(
-                f"Blocked: {stats['ads_blocked_today']}",
+                f"Blocked: {ads_blocked_today}",
                 color=(255, 0, 0),
             )
             await self.display.show_text(
-                f"Block%: {stats['ads_percentage_today']:.1f}%",
+                f"Block%: {ads_percentage_today:.1f}%",
                 color=(255, 165, 0),
             )
 
@@ -135,33 +139,37 @@ class StatsDisplay:
         logger.info("Displaying sensor data...")
         sensors = await self.cache.get("sensors", {})
 
+        temperature = sensors.get("temperature", {}).get("value", 0.0)
+        humidity = sensors.get("humidity", {}).get("value", 0.0)
+        pressure = sensors.get("pressure", {}).get("value", 0.0)
+
         if self.show_icons:
             await self.display.show_icon_with_text(
                 "thermometer",
-                f"{sensors['temperature']:.1f}C",
+                f"{temperature:.1f}C",
                 text_color=(255, 100, 0),
             )
             await self.display.show_icon_with_text(
                 "water_drop",
-                f"{sensors['humidity']:.1f}%",
+                f"{humidity:.1f}%",
                 text_color=(0, 100, 255),
             )
             await self.display.show_icon_with_text(
                 "pressure_gauge",
-                f"{sensors['pressure']:.0f}mb",
+                f"{pressure:.0f}mb",
                 text_color=(200, 200, 200),
             )
         else:
             await self.display.show_text(
-                f"Temp: {sensors['temperature']:.1f}C",
+                f"Temp: {temperature:.1f}C",
                 color=(255, 100, 0),
             )
             await self.display.show_text(
-                f"Humid: {sensors['humidity']:.1f}%",
+                f"Humid: {humidity:.1f}%",
                 color=(0, 100, 255),
             )
             await self.display.show_text(
-                f"Press: {sensors['pressure']:.0f}mb",
+                f"Press: {pressure:.0f}mb",
                 color=(200, 200, 200),
             )
 
@@ -170,33 +178,37 @@ class StatsDisplay:
         logger.info("Displaying system stats...")
         stats = await self.cache.get("system", {})
 
+        cpu_percent = stats.get("cpu_percent", {}).get("value", 0.0)
+        memory_percent = stats.get("memory_percent", {}).get("value", 0.0)
+        load_1min = stats.get("load_1min", {}).get("value", 0.0)
+
         if self.show_icons:
             await self.display.show_icon_with_text(
                 "cpu",
-                f"CPU: {stats['cpu_percent']:.0f}%",
+                f"CPU: {cpu_percent:.0f}%",
                 text_color=(255, 200, 0),
             )
             await self.display.show_icon_with_text(
                 "memory",
-                f"Mem: {stats['memory_percent']:.0f}%",
+                f"Mem: {memory_percent:.0f}%",
                 text_color=(0, 200, 255),
             )
             await self.display.show_icon_with_text(
                 "load",
-                f"Load: {stats['load_1min']:.2f}",
+                f"Load: {load_1min:.2f}",
                 text_color=(255, 0, 255),
             )
         else:
             await self.display.show_text(
-                f"CPU: {stats['cpu_percent']:.0f}%",
+                f"CPU: {cpu_percent:.0f}%",
                 color=(255, 200, 0),
             )
             await self.display.show_text(
-                f"Mem: {stats['memory_percent']:.0f}%",
+                f"Mem: {memory_percent:.0f}%",
                 color=(0, 200, 255),
             )
             await self.display.show_text(
-                f"Load: {stats['load_1min']:.2f}",
+                f"Load: {load_1min:.2f}",
                 color=(255, 0, 255),
             )
 
@@ -232,10 +244,11 @@ class StatsDisplay:
             if sensor_label == "available" or not isinstance(sensor_data, dict):
                 continue
 
-            # Extract sensor readings
-            temperature = sensor_data.get("temperature")
-            co2 = sensor_data.get("co2")
-            humidity = sensor_data.get("humidity")
+            # Extract sensor readings from nested value structure
+            value_data = sensor_data.get("value", {})
+            temperature = value_data.get("temperature")
+            co2 = value_data.get("co2")
+            humidity = value_data.get("humidity")
 
             # Display temperature
             if temperature is not None:
@@ -324,10 +337,10 @@ class StatsDisplay:
 
         logger.info("Displaying weather data...")
 
-        # Extract weather data
-        temperature = weather_data.get("weather_temp")
-        conditions = weather_data.get("weather_conditions", "Unknown")
-        location = weather_data.get("weather_location", "")
+        # Extract weather data from nested value structure
+        temperature = weather_data.get("weather_temp", {}).get("value")
+        conditions = weather_data.get("weather_conditions", {}).get("value", "Unknown")
+        location = weather_data.get("weather_location", {}).get("value", "")
 
         # Display temperature with weather icon
         if temperature is not None:
