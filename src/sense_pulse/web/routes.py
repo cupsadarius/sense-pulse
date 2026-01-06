@@ -161,6 +161,7 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
         "system": await cache.get("system", {}),
         "sensors": await cache.get("sensors", {}),
         "co2": await cache.get("co2", {}),
+        "weather": await cache.get("weather", {}),
         "hardware": {
             "sense_hat_available": sensehat.is_sense_hat_available(),
             "aranet4_available": await _is_aranet4_available(),
@@ -265,7 +266,7 @@ async def sensors_websocket(websocket: WebSocket):
 
     try:
         while True:
-            # Gather all sensor data
+            # Gather all sensor data (each sensor has value and timestamp embedded)
             data = {
                 "tailscale": await cache.get("tailscale", {}),
                 "pihole": await cache.get("pihole", {}),
