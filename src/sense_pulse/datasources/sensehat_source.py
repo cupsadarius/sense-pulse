@@ -1,16 +1,16 @@
 """Sense HAT onboard sensors data source implementation"""
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="sensehat")
 
 
 class SenseHatDataSource(DataSource):
@@ -36,13 +36,13 @@ class SenseHatDataSource(DataSource):
             # Initialize hardware in thread pool (blocking operation)
             self._sense_hat = await asyncio.to_thread(SenseHat)
             self._available = True
-            logger.info("Sense HAT data source initialized successfully")
+            logger.info("Sense HAT data source initialized")
 
         except ImportError:
-            logger.warning("sense_hat module not installed - sensor data unavailable")
+            logger.warning("Sense HAT module not installed", available=False)
             self._available = False
         except Exception as e:
-            logger.warning(f"Sense HAT hardware not available: {e}")
+            logger.warning("Sense HAT hardware not available", error=str(e))
             self._available = False
 
     def _read_sensors_sync(self) -> dict[str, Optional[float]]:
@@ -55,13 +55,20 @@ class SenseHatDataSource(DataSource):
             }
 
         try:
-            return {
+            data = {
                 "temperature": round(self._sense_hat.get_temperature(), 1),
                 "humidity": round(self._sense_hat.get_humidity(), 1),
                 "pressure": round(self._sense_hat.get_pressure(), 1),
             }
+            logger.debug(
+                "Sense HAT sensors read",
+                temperature=data["temperature"],
+                humidity=data["humidity"],
+                pressure=data["pressure"],
+            )
+            return data
         except Exception as e:
-            logger.error(f"Failed to read Sense HAT sensors: {e}")
+            logger.error("Failed to read Sense HAT sensors", error=str(e))
             return {
                 "temperature": None,
                 "humidity": None,
@@ -118,7 +125,7 @@ class SenseHatDataSource(DataSource):
             return readings
 
         except Exception as e:
-            logger.error(f"Error fetching Sense HAT readings: {e}")
+            logger.error("Error fetching Sense HAT readings", error=str(e))
             return []
 
     def get_metadata(self) -> DataSourceMetadata:
@@ -142,7 +149,7 @@ class SenseHatDataSource(DataSource):
             data = await asyncio.to_thread(self._read_sensors_sync)
             return any(v is not None for v in data.values())
         except Exception as e:
-            logger.debug(f"Sense HAT health check failed: {e}")
+            logger.debug("Sense HAT health check failed", error=str(e))
             return False
 
     def is_available(self) -> bool:

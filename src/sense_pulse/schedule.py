@@ -1,9 +1,10 @@
 """Sleep schedule management for display"""
 
-import logging
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from .web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="schedule")
 
 
 class SleepSchedule:
@@ -19,7 +20,7 @@ class SleepSchedule:
         """
         self.sleep_start = sleep_start
         self.sleep_end = sleep_end
-        logger.info(f"Sleep schedule: {sleep_start}:00 - {sleep_end}:00")
+        logger.info("Sleep schedule configured", start_hour=sleep_start, end_hour=sleep_end)
 
     def is_sleep_time(self) -> bool:
         """Check if current time is within sleep hours"""
@@ -33,6 +34,6 @@ class SleepSchedule:
             is_sleeping = current_hour >= self.sleep_start or current_hour < self.sleep_end
 
         if is_sleeping:
-            logger.debug(f"Sleep time active (current hour: {current_hour})")
+            logger.debug("Sleep time active", current_hour=current_hour)
 
         return is_sleeping

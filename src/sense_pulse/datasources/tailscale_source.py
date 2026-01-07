@@ -1,13 +1,13 @@
 """Tailscale data source implementation"""
 
-import logging
 from datetime import datetime
 
 from ..config import TailscaleConfig
 from ..devices.tailscale import TailscaleStatus
+from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="tailscale")
 
 
 class TailscaleDataSource(DataSource):
@@ -43,6 +43,12 @@ class TailscaleDataSource(DataSource):
             summary = await self._status.get_status_summary()
             now = datetime.now()
 
+            logger.debug(
+                "Tailscale status fetched",
+                connected=summary["connected"],
+                device_count=summary["device_count"],
+            )
+
             return [
                 SensorReading(
                     sensor_id="connected",
@@ -60,7 +66,7 @@ class TailscaleDataSource(DataSource):
             ]
 
         except Exception as e:
-            logger.error(f"Error fetching Tailscale readings: {e}")
+            logger.error("Error fetching Tailscale readings", error=str(e))
             # Return empty readings on error
             return []
 
@@ -82,7 +88,7 @@ class TailscaleDataSource(DataSource):
             # Even if not connected, if we can run the command, it's healthy
             return summary is not None
         except Exception as e:
-            logger.debug(f"Tailscale health check failed: {e}")
+            logger.debug("Tailscale health check failed", error=str(e))
             return False
 
     async def shutdown(self) -> None:

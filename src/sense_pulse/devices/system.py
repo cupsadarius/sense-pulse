@@ -1,12 +1,13 @@
 """System statistics (CPU, memory, load)"""
 
 import asyncio
-import logging
 import os
 
 import psutil
 
-logger = logging.getLogger(__name__)
+from ..web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="system")
 
 
 class SystemStats:
@@ -36,19 +37,24 @@ class SystemStats:
                 # Temperature sensors not available
                 pass
 
-            logger.debug(
-                f"System stats - CPU: {cpu:.1f}%, "
-                f"Memory: {memory:.1f}%, Load: {load:.2f}, Temp: {cpu_temp:.1f}°C"
-            )
-
-            return {
+            result = {
                 "cpu_percent": round(cpu, 1),
                 "memory_percent": round(memory, 1),
                 "load_1min": round(load, 2),
                 "cpu_temp": round(cpu_temp, 1),
             }
+
+            logger.debug(
+                "System stats collected",
+                cpu_percent=result["cpu_percent"],
+                memory_percent=result["memory_percent"],
+                load_1min=result["load_1min"],
+                cpu_temp=result["cpu_temp"],
+            )
+
+            return result
         except Exception as e:
-            logger.error(f"Failed to get system stats: {e}")
+            logger.error("Failed to get system stats", error=str(e))
             return {
                 "cpu_percent": 0.0,
                 "memory_percent": 0.0,

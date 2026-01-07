@@ -1,10 +1,11 @@
 """Control Raspberry Pi onboard LEDs (PWR and ACT)"""
 
-import logging
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from .web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="pi_leds")
 
 # Raspberry Pi LED paths - try multiple locations for compatibility
 LED_PATHS = {
@@ -35,7 +36,7 @@ def _read_file(path: Path) -> Optional[str]:
     try:
         return path.read_text().strip()
     except (PermissionError, OSError) as e:
-        logger.debug(f"Cannot read {path}: {e}")
+        logger.debug("Cannot read file", path=str(path), error=str(e))
         return None
 
 
@@ -45,7 +46,7 @@ def _write_file(path: Path, value: str) -> bool:
         path.write_text(value)
         return True
     except (PermissionError, OSError) as e:
-        logger.warning(f"Cannot write to {path}: {e}")
+        logger.warning("Cannot write to file", path=str(path), error=str(e))
         return False
 
 
@@ -90,7 +91,7 @@ def disable_led(led_name: str) -> dict[str, str]:
         trigger = _get_current_trigger(led_path)
         if trigger:
             _original_triggers[led_name] = trigger
-            logger.debug(f"Saved original trigger for {led_name}: {trigger}")
+            logger.debug("Saved original trigger", led=led_name, trigger=trigger)
 
     # Set trigger to none to allow manual control
     trigger_path = led_path / "trigger"
@@ -100,7 +101,7 @@ def disable_led(led_name: str) -> dict[str, str]:
     # Set brightness to 0 (off)
     brightness_path = led_path / "brightness"
     if _write_file(brightness_path, "0"):
-        logger.info(f"Disabled {led_name.upper()} LED")
+        logger.info("Disabled LED", led=led_name.upper())
         return {"status": "ok", "message": f"{led_name} LED disabled"}
     else:
         return {"status": "error", "message": f"Cannot set brightness for {led_name}"}
@@ -126,7 +127,7 @@ def enable_led(led_name: str) -> dict[str, str]:
     original = _original_triggers.get(led_name)
     if original:
         if _write_file(trigger_path, original):
-            logger.info(f"Restored {led_name.upper()} LED trigger to {original}")
+            logger.info("Restored LED trigger", led=led_name.upper(), trigger=original)
             return {"status": "ok", "message": f"{led_name} LED restored to {original}"}
     else:
         # Use default triggers if we don't have original
@@ -136,7 +137,7 @@ def enable_led(led_name: str) -> dict[str, str]:
         }
         default = default_triggers.get(led_name, "default-on")
         if _write_file(trigger_path, default):
-            logger.info(f"Enabled {led_name.upper()} LED with default trigger {default}")
+            logger.info("Enabled LED with default trigger", led=led_name.upper(), trigger=default)
             return {"status": "ok", "message": f"{led_name} LED enabled with {default}"}
 
     return {"status": "error", "message": f"Cannot restore trigger for {led_name}"}
