@@ -12,10 +12,10 @@ from sense_pulse import __version__
 
 
 def setup_logging(level: str, log_file: Optional[str]) -> None:
-    """Configure logging handlers"""
+    """Configure logging handlers including WebSocket handler for log streaming"""
     log_level = getattr(logging, level.upper(), logging.INFO)
 
-    handlers = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
 
     # Add file handler if log file is specified and writable
     if log_file:
@@ -27,9 +27,16 @@ def setup_logging(level: str, log_file: Optional[str]) -> None:
                 file=sys.stderr,
             )
 
+    # Add WebSocket log handler for streaming logs to web UI
+    # This must be initialized early to capture all startup logs
+    from sense_pulse.web.log_handler import setup_websocket_logging
+
+    ws_handler = setup_websocket_logging()
+    handlers.append(ws_handler)
+
     logging.basicConfig(
         level=log_level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         handlers=handlers,
     )
 
@@ -136,16 +143,23 @@ async def async_main() -> int:
     log_level = "DEBUG" if args.verbose else config.logging.level
     setup_logging(log_level, config.logging.file)
 
-    logger = logging.getLogger(__name__)
-    logger.info("=" * 50)
-    logger.info("Starting sense-pulse")
-    logger.info("=" * 50)
+    from sense_pulse.web.log_handler import get_structured_logger
+
+    logger = get_structured_logger(__name__, component="cli")
+    logger.info(
+        "Starting sense-pulse",
+        version=__version__,
+        config_path=str(config_path) if config_path else None,
+        log_level=log_level,
+    )
 
     # =========================================================================
     # Create AppContext - single source of truth for all dependencies
     # =========================================================================
     logger.info(
-        f"Creating AppContext (TTL={config.cache.ttl}s, Poll={config.cache.poll_interval}s)"
+        "Creating AppContext",
+        cache_ttl=config.cache.ttl,
+        poll_interval=config.cache.poll_interval,
     )
     context = AppContext.create(
         config=config,
@@ -181,7 +195,7 @@ async def async_main() -> int:
     main_task: Optional[asyncio.Task] = None
 
     def signal_handler(sig: signal.Signals) -> None:
-        logger.info(f"Received signal {sig.name}, initiating graceful shutdown...")
+        logger.info("Received shutdown signal", signal=sig.name)
         shutdown_event.set()
         # Also cancel the main task to interrupt any blocking operations
         if main_task and not main_task.done():
@@ -200,7 +214,7 @@ async def async_main() -> int:
 
             from sense_pulse.web.app import create_app
 
-            logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
+            logger.info("Starting web server", host=args.web_host, port=args.web_port)
             app = create_app(context=context)  # Inject context
 
             config_uvicorn = uvicorn.Config(
@@ -227,7 +241,7 @@ async def async_main() -> int:
 
             from sense_pulse.web.app import create_app
 
-            logger.info(f"Starting web server on {args.web_host}:{args.web_port}")
+            logger.info("Starting web server", host=args.web_host, port=args.web_port)
             app = create_app(context=context)  # Inject context
 
             config_uvicorn = uvicorn.Config(
