@@ -15,9 +15,9 @@ from sense_pulse.context import AppContext
 from sense_pulse.devices import sensehat
 from sense_pulse.web.app import get_app_context
 from sense_pulse.web.auth import require_auth
-from sense_pulse.web.log_handler import setup_websocket_logging
+from sense_pulse.web.log_handler import get_structured_logger, setup_websocket_logging
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="routes")
 router = APIRouter()
 
 

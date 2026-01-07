@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ..config import Aranet4Config
+from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
 if TYPE_CHECKING:
     from ..devices.aranet4 import Aranet4Sensor
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="aranet4")
 
 
 class Aranet4DataSource(DataSource):
@@ -61,17 +61,21 @@ class Aranet4DataSource(DataSource):
                     )
                     self._sensors[sensor_config.label] = sensor
                     logger.info(
-                        f"Registered Aranet4 sensor: {sensor_config.label} "
-                        f"({sensor_config.mac_address})"
+                        "Registered Aranet4 sensor",
+                        label=sensor_config.label,
+                        mac_address=sensor_config.mac_address,
                     )
 
-            logger.info(f"Aranet4 data source initialized with {len(self._sensors)} sensor(s)")
+            logger.info(
+                "Aranet4 data source initialized",
+                sensor_count=len(self._sensors),
+            )
 
         except ImportError:
-            logger.error("aranet4 package not installed, cannot initialize sensors")
+            logger.error("aranet4 package not installed")
             self._enabled = False
         except Exception as e:
-            logger.error(f"Error initializing Aranet4 data source: {e}")
+            logger.error("Error initializing Aranet4", error=str(e))
             self._enabled = False
 
     async def fetch_readings(self) -> list[SensorReading]:
@@ -96,7 +100,7 @@ class Aranet4DataSource(DataSource):
             from ..devices.aranet4 import do_ble_scan, get_scan_lock
 
             # Perform a single BLE scan for all sensors
-            logger.debug("Aranet4: Starting BLE scan...")
+            logger.info("Starting BLE scan", duration=self._scan_duration)
 
             def locked_scan():
                 """Run scan with lock held"""
@@ -106,11 +110,22 @@ class Aranet4DataSource(DataSource):
             # Run scan in thread pool (blocking operation)
             scan_results = await asyncio.to_thread(locked_scan)
 
+            logger.info("BLE scan completed", devices_found=len(scan_results))
+
             # Update each sensor with its reading from the scan
             for label, sensor in self._sensors.items():
                 if sensor.mac_address in scan_results:
                     reading_data = scan_results[sensor.mac_address]
                     sensor.update_reading(reading_data)
+
+                    logger.info(
+                        "Aranet4 reading",
+                        sensor=label,
+                        co2=reading_data.co2,
+                        temperature=reading_data.temperature,
+                        humidity=reading_data.humidity,
+                        battery=reading_data.battery,
+                    )
 
                     # Create sensor reading for cache
                     readings.append(
@@ -129,10 +144,14 @@ class Aranet4DataSource(DataSource):
                     )
                 else:
                     sensor.set_error("Not found in scan")
-                    logger.warning(f"Sensor {label} ({sensor.mac_address}) not found in BLE scan")
+                    logger.warning(
+                        "Sensor not found in BLE scan",
+                        sensor=label,
+                        mac_address=sensor.mac_address,
+                    )
 
         except Exception as e:
-            logger.error(f"Error fetching Aranet4 readings: {e}")
+            logger.error("Error fetching Aranet4 readings", error=str(e))
 
         return readings
 
@@ -165,14 +184,9 @@ class Aranet4DataSource(DataSource):
     async def shutdown(self) -> None:
         """Clean up resources"""
         try:
-            logger.info("Stopping Aranet4 data source...")
-
-            # Clear sensors
-            for label in list(self._sensors.keys()):
-                logger.debug(f"Unregistered Aranet4 sensor: {label}")
+            sensor_count = len(self._sensors)
             self._sensors.clear()
-
-            logger.info("Aranet4 data source shut down")
+            logger.info("Aranet4 data source shut down", sensors_cleared=sensor_count)
 
         except Exception as e:
-            logger.error(f"Error shutting down Aranet4 data source: {e}")
+            logger.error("Error shutting down Aranet4", error=str(e))

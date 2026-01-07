@@ -1,13 +1,13 @@
 """Pi-hole data source implementation"""
 
-import logging
 from datetime import datetime
 
 from ..config import PiholeConfig
 from ..devices.pihole import PiHoleStats
+from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="pihole")
 
 
 class PiHoleDataSource(DataSource):
@@ -33,9 +33,13 @@ class PiHoleDataSource(DataSource):
         if self._enabled and self._config.password:
             try:
                 await self._stats._authenticate()
-                logger.info("Pi-hole data source initialized successfully")
+                logger.info("Pi-hole data source initialized", host=self._config.host)
             except Exception as e:
-                logger.warning(f"Pi-hole authentication failed during init: {e}")
+                logger.warning(
+                    "Pi-hole authentication failed during init",
+                    host=self._config.host,
+                    error=str(e),
+                )
                 # Don't fail initialization - we'll retry on first fetch
 
     async def fetch_readings(self) -> list[SensorReading]:
@@ -52,6 +56,13 @@ class PiHoleDataSource(DataSource):
         try:
             summary = await self._stats.get_summary()
             now = datetime.now()
+
+            logger.debug(
+                "Pi-hole readings fetched",
+                queries=summary["queries_today"],
+                blocked=summary["ads_blocked_today"],
+                block_percent=round(summary["ads_percentage_today"], 1),
+            )
 
             return [
                 SensorReading(
@@ -75,7 +86,7 @@ class PiHoleDataSource(DataSource):
             ]
 
         except Exception as e:
-            logger.error(f"Error fetching Pi-hole readings: {e}")
+            logger.error("Error fetching Pi-hole readings", error=str(e))
             # Return empty readings on error - cache will use last known good data
             return []
 
@@ -99,7 +110,7 @@ class PiHoleDataSource(DataSource):
             await self._stats.get_summary()
             return True
         except Exception as e:
-            logger.debug(f"Pi-hole health check failed: {e}")
+            logger.debug("Pi-hole health check failed", error=str(e))
             return False
 
     async def shutdown(self) -> None:

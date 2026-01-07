@@ -1,15 +1,15 @@
 """Weather data source implementation using wttr.io API"""
 
-import logging
 from datetime import datetime
 from typing import Optional
 
 import httpx
 
 from ..config import WeatherConfig
+from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="weather")
 
 
 class WeatherDataSource(DataSource):
@@ -36,7 +36,8 @@ class WeatherDataSource(DataSource):
         """Initialize HTTP client for weather API"""
         self._client = httpx.AsyncClient(timeout=10.0)
         logger.info(
-            f"Weather data source initialized (location: {self._config.location or 'auto'})"
+            "Weather data source initialized",
+            location=self._config.location or "auto",
         )
 
     async def fetch_readings(self) -> list[SensorReading]:
@@ -51,7 +52,7 @@ class WeatherDataSource(DataSource):
             return []
 
         if not self._config.location:
-            logger.debug("Weather location not configured, skipping fetch")
+            logger.debug("Weather location not configured")
             return []
 
         # Check internal cache (wttr.in updates hourly, no need to spam API)
@@ -68,7 +69,7 @@ class WeatherDataSource(DataSource):
             # Fetch weather data from wttr.in
             # Format: j1 gives JSON with current conditions and forecast
             url = f"https://wttr.in/{self._config.location}?format=j1"
-            logger.debug(f"Fetching weather from: {url}")
+            logger.info("Fetching weather", location=self._config.location, url=url)
 
             response = await self._client.get(url)
             response.raise_for_status()
@@ -83,13 +84,13 @@ class WeatherDataSource(DataSource):
             return self._create_readings_from_data(data, now)
 
         except httpx.TimeoutException:
-            logger.warning(f"Weather API timeout for location: {self._config.location}")
+            logger.warning("Weather API timeout", location=self._config.location)
             return self._fallback_readings(now)
         except httpx.HTTPError as e:
-            logger.error(f"Weather API HTTP error: {e}")
+            logger.error("Weather API HTTP error", error=str(e))
             return self._fallback_readings(now)
         except Exception as e:
-            logger.error(f"Error fetching weather data: {e}")
+            logger.error("Error fetching weather data", error=str(e))
             return self._fallback_readings(now)
 
     def _create_readings_from_data(self, data: dict, timestamp: datetime) -> list[SensorReading]:

@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import logging
 import time
 from typing import Any, Optional
 
@@ -13,7 +12,9 @@ from tenacity import (
     wait_exponential,
 )
 
-logger = logging.getLogger(__name__)
+from ..web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="tailscale")
 
 
 class TailscaleStatus:
@@ -29,7 +30,7 @@ class TailscaleStatus:
         self._cached_data: Optional[dict] = None
         self._last_fetch: float = 0
         self._cache_duration = cache_duration
-        logger.info(f"Initialized Tailscale status checker (cache: {cache_duration}s)")
+        logger.info("Initialized Tailscale status checker", cache_duration=cache_duration)
 
     @retry(
         retry=retry_if_exception_type(asyncio.TimeoutError),
@@ -69,16 +70,16 @@ class TailscaleStatus:
                 return None
 
         except asyncio.TimeoutError as e:
-            logger.warning(f"Tailscale status check timed out (will retry): {e}")
+            logger.warning("Tailscale status check timed out (will retry)", error=str(e))
             raise
         except FileNotFoundError:
             logger.error("Tailscale command not found - is it installed?")
             return None
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Tailscale JSON output: {e}")
+            logger.error("Failed to parse Tailscale JSON output", error=str(e))
             return None
         except Exception as e:
-            logger.error(f"Error checking Tailscale status: {e}")
+            logger.error("Error checking Tailscale status", error=str(e))
             return None
 
     async def is_connected(self) -> bool:
@@ -98,7 +99,7 @@ class TailscaleStatus:
         peers = status.get("Peer", {})
         online_count = sum(1 for peer in peers.values() if peer.get("Online", False))
 
-        logger.debug(f"Tailscale: {online_count} devices online out of {len(peers)} total peers")
+        logger.debug("Tailscale device count", online=online_count, total_peers=len(peers))
         return online_count
 
     async def get_status_summary(self) -> dict[str, Any]:
