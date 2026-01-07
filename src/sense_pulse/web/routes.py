@@ -145,6 +145,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "co2": await cache.get("co2", {}),
             "weather": await cache.get("weather", {}),
             "aranet4_status": await _get_aranet4_status(),
+            "datasource_status": cache.get_all_source_status(),
         },
     )
 
@@ -229,6 +230,13 @@ async def health_check():
     }
 
 
+@router.get("/api/datasources/status")
+async def get_datasources_status() -> list[dict[str, Any]]:
+    """Get status of all data sources"""
+    cache = _get_cache()
+    return cache.get_all_source_status()
+
+
 # ============================================================================
 # WebSocket Endpoints
 # ============================================================================
@@ -274,6 +282,7 @@ async def sensors_websocket(websocket: WebSocket):
                 "sensors": await cache.get("sensors", {}),
                 "co2": await cache.get("co2", {}),
                 "weather": await cache.get("weather", {}),
+                "datasource_status": cache.get_all_source_status(),
             }
 
             await websocket.send_json(data)

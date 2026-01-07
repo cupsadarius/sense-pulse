@@ -74,41 +74,28 @@
             {% include "partials/unified_settings.html" %}
         </div>
 
-        <!-- Service Status & Actions -->
+        <!-- Data Source Status -->
         <div class="bg-sense-card rounded-xl border border-sense-border p-6">
-            <h2 class="text-lg font-semibold mb-4">Service Status</h2>
-            <div class="space-y-3">
-                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+            <h2 class="text-lg font-semibold mb-4">Data Source Status</h2>
+            <div id="datasource-status-list" class="space-y-3">
+                {% for source in datasource_status %}
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg" data-source-id="{{ source.source_id }}">
                     <div class="flex items-center gap-3">
-                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                        <span>sense-pulse.service</span>
+                        <span class="datasource-indicator w-2 h-2 rounded-full {% if source.success %}bg-green-500{% else %}bg-red-500{% endif %}"></span>
+                        <span class="datasource-name">{{ source.name }}</span>
                     </div>
-                    <span class="text-sm text-green-400">running</span>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                    <div class="flex items-center gap-3">
-                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                        <span>pihole-FTL.service</span>
+                    <div class="flex flex-col items-end">
+                        <span class="datasource-status text-sm {% if source.success %}text-green-400{% else %}text-red-400{% endif %}">
+                            {% if source.success %}ok{% else %}error{% endif %}
+                        </span>
+                        {% if source.error %}
+                        <span class="datasource-error text-xs text-red-400 max-w-[200px] truncate" title="{{ source.error }}">{{ source.error }}</span>
+                        {% endif %}
                     </div>
-                    <span class="text-sm text-green-400">running</span>
                 </div>
-                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                    <div class="flex items-center gap-3">
-                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                        <span>tailscaled.service</span>
-                    </div>
-                    <span class="text-sm text-green-400">running</span>
-                </div>
-            </div>
-            <div class="mt-4 flex gap-2">
-                <button class="flex-1 px-4 py-2 bg-yellow-500/10 text-yellow-400 rounded-lg hover:bg-yellow-500/20 transition-colors text-sm font-medium"
-                        onclick="fetch('/api/service/restart', {method: 'POST'})">
-                    Restart Display
-                </button>
-                <button class="flex-1 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
-                        onclick="fetch('/api/display/clear', {method: 'POST'})">
-                    Clear Matrix
-                </button>
+                {% else %}
+                <div class="text-gray-500 text-sm">No data sources registered yet</div>
+                {% endfor %}
             </div>
         </div>
     </main>
@@ -541,6 +528,82 @@
             }
         }
 
+        function updateDataSourceStatus(datasourceStatus) {
+            if (!datasourceStatus || !Array.isArray(datasourceStatus)) return;
+
+            const container = document.getElementById('datasource-status-list');
+            if (!container) return;
+
+            // Build a map of existing sources
+            const existingMap = new Map();
+            container.querySelectorAll('[data-source-id]').forEach(el => {
+                existingMap.set(el.dataset.sourceId, el);
+            });
+
+            // Update or create entries
+            datasourceStatus.forEach(source => {
+                let el = existingMap.get(source.source_id);
+
+                if (!el) {
+                    // Create new element
+                    el = document.createElement('div');
+                    el.className = 'flex items-center justify-between p-3 bg-gray-800/50 rounded-lg';
+                    el.dataset.sourceId = source.source_id;
+                    el.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <span class="datasource-indicator w-2 h-2 rounded-full"></span>
+                            <span class="datasource-name"></span>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <span class="datasource-status text-sm"></span>
+                            <span class="datasource-error text-xs text-red-400 max-w-[200px] truncate hidden"></span>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                }
+
+                // Update values
+                const indicator = el.querySelector('.datasource-indicator');
+                const name = el.querySelector('.datasource-name');
+                const status = el.querySelector('.datasource-status');
+                const errorEl = el.querySelector('.datasource-error');
+
+                if (indicator) {
+                    indicator.className = 'datasource-indicator w-2 h-2 rounded-full ' +
+                        (source.success ? 'bg-green-500' : 'bg-red-500');
+                }
+                if (name) {
+                    name.textContent = source.name;
+                }
+                if (status) {
+                    status.textContent = source.success ? 'ok' : 'error';
+                    status.className = 'datasource-status text-sm ' +
+                        (source.success ? 'text-green-400' : 'text-red-400');
+                }
+                if (errorEl) {
+                    if (source.error) {
+                        errorEl.textContent = source.error;
+                        errorEl.title = source.error;
+                        errorEl.classList.remove('hidden');
+                    } else {
+                        errorEl.textContent = '';
+                        errorEl.classList.add('hidden');
+                    }
+                }
+
+                existingMap.delete(source.source_id);
+            });
+
+            // Remove old entries that no longer exist
+            existingMap.forEach(el => el.remove());
+
+            // Remove "No data sources" message if we have sources
+            if (datasourceStatus.length > 0) {
+                const noDataMsg = container.querySelector('.text-gray-500');
+                if (noDataMsg) noDataMsg.remove();
+            }
+        }
+
         // Unified config update function
         async function updateConfig(updates) {
             try {
@@ -703,6 +766,11 @@
 
                     // Update status cards with sensor data
                     updateStatusCards(data);
+
+                    // Update data source status
+                    if (data.datasource_status) {
+                        updateDataSourceStatus(data.datasource_status);
+                    }
 
                     // Update timestamp
                     updateLastUpdateTime();
