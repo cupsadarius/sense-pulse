@@ -37,6 +37,22 @@ class CachedData:
         return time.time() - self.timestamp
 
 
+@dataclass
+class DataSourceStatus:
+    """Status information for a data source."""
+
+    source_id: str
+    name: str
+    success: bool
+    error: Optional[str] = None
+    last_update: float = field(default_factory=time.time)
+
+    @property
+    def age(self) -> float:
+        """Get age of status in seconds."""
+        return time.time() - self.last_update
+
+
 class DataCache:
     """
     Centralized data cache with background polling.
@@ -61,6 +77,7 @@ class DataCache:
         self._polling_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
         self._data_sources: dict[str, DataSource] = {}
+        self._source_status: dict[str, DataSourceStatus] = {}
 
         logger.info(
             f"DataCache initialized with {cache_ttl}s TTL and {poll_interval}s poll interval"
@@ -172,8 +189,20 @@ class DataCache:
                 }
 
             await self.set(key, data)
+            self._source_status[key] = DataSourceStatus(
+                source_id=key,
+                name=metadata.name,
+                success=True,
+                error=None,
+            )
             logger.debug(f"Successfully polled: {metadata.name} ({len(readings)} readings)")
         except Exception as e:
+            self._source_status[key] = DataSourceStatus(
+                source_id=key,
+                name=metadata.name,
+                success=False,
+                error=str(e),
+            )
             logger.error(f"Error polling {metadata.name}: {e}", exc_info=True)
 
     async def _polling_loop(self) -> None:
@@ -308,3 +337,22 @@ class DataCache:
             True if source is registered, False otherwise
         """
         return source_id in self._data_sources
+
+    def get_all_source_status(self) -> list[dict[str, Any]]:
+        """
+        Get status information for all registered data sources.
+
+        Returns:
+            List of status dicts with source_id, name, success, error, and last_update
+        """
+        return [
+            {
+                "source_id": status.source_id,
+                "name": status.name,
+                "success": status.success,
+                "error": status.error,
+                "last_update": status.last_update,
+                "age": status.age,
+            }
+            for status in self._source_status.values()
+        ]
