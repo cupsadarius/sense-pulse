@@ -1,12 +1,12 @@
 """System statistics data source implementation"""
 
-import logging
 from datetime import datetime
 
 from ..devices.system import SystemStats
+from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="system")
 
 
 class SystemStatsDataSource(DataSource):
@@ -34,6 +34,14 @@ class SystemStatsDataSource(DataSource):
         try:
             stats = await self._stats.get_stats()
             now = datetime.now()
+
+            logger.debug(
+                "System stats fetched",
+                cpu_percent=stats["cpu_percent"],
+                memory_percent=stats["memory_percent"],
+                load_1min=round(stats["load_1min"], 2),
+                cpu_temp=stats["cpu_temp"],
+            )
 
             return [
                 SensorReading(
@@ -63,7 +71,7 @@ class SystemStatsDataSource(DataSource):
             ]
 
         except Exception as e:
-            logger.error(f"Error fetching system stats readings: {e}")
+            logger.error("Error fetching system stats readings", error=str(e))
             # Return empty readings on error
             return []
 
@@ -85,7 +93,7 @@ class SystemStatsDataSource(DataSource):
             # If we get any non-zero values, system is healthy
             return any(v > 0 for v in stats.values())
         except Exception as e:
-            logger.debug(f"System stats health check failed: {e}")
+            logger.debug("System stats health check failed", error=str(e))
             return False
 
     async def shutdown(self) -> None:

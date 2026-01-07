@@ -1,7 +1,6 @@
 """Sense HAT LED display handling"""
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -9,8 +8,9 @@ if TYPE_CHECKING:
 
 from sense_pulse import icons
 from sense_pulse.devices import sensehat
+from sense_pulse.web.log_handler import get_structured_logger
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="display")
 
 
 class SenseHatDisplay:
@@ -52,9 +52,13 @@ class SenseHatDisplay:
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
             self.icon_duration = icon_duration
-            logger.info(f"Initialized Sense HAT display with rotation: {rotation}")
+            logger.info(
+                "Initialized Sense HAT display",
+                rotation=rotation,
+                scroll_speed=scroll_speed,
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize Sense HAT display: {e}")
+            logger.error("Failed to initialize Sense HAT display", error=str(e))
             raise
 
     async def show_text(
@@ -66,14 +70,14 @@ class SenseHatDisplay:
         """Display scrolling text on LED matrix (async to prevent blocking)"""
         try:
             speed = scroll_speed if scroll_speed is not None else self.scroll_speed
-            logger.debug(f"Displaying text: {text}")
+            logger.debug("Displaying text", text=text[:50] if len(text) > 50 else text)
             # Run blocking show_message in thread pool to prevent blocking event loop
             # This allows WebSocket to continue sending pixel updates during scrolling
             await asyncio.to_thread(
                 self.sense.show_message, text, scroll_speed=speed, text_colour=color
             )
         except Exception as e:
-            logger.error(f"Failed to display text: {e}")
+            logger.error("Failed to display text", error=str(e))
 
     async def show_icon(
         self, icon_pixels: list[list[int]], duration: Optional[float] = None, mode: str = "icon"
@@ -88,12 +92,12 @@ class SenseHatDisplay:
         """
         try:
             display_time = duration if duration is not None else self.icon_duration
-            logger.debug("Displaying icon")
+            logger.debug("Displaying icon", mode=mode, duration=display_time)
             # Use hardware module for matrix operations (handles state tracking)
             await sensehat.set_pixels(icon_pixels, mode)
             await asyncio.sleep(display_time)
         except Exception as e:
-            logger.error(f"Failed to display icon: {e}")
+            logger.error("Failed to display icon", error=str(e))
 
     async def show_icon_with_text(
         self,
@@ -126,4 +130,4 @@ class SenseHatDisplay:
             # Use hardware module for matrix operations (handles state tracking)
             await sensehat.clear_display()
         except Exception as e:
-            logger.error(f"Failed to clear display: {e}")
+            logger.error("Failed to clear display", error=str(e))

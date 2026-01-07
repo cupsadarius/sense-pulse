@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import logging
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -12,8 +11,9 @@ from sense_pulse.config import Config
 from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.pi_leds import disable_all_leds, enable_all_leds
 from sense_pulse.schedule import SleepSchedule
+from sense_pulse.web.log_handler import get_structured_logger
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="display")
 
 
 class StatsDisplay:
@@ -33,7 +33,11 @@ class StatsDisplay:
             cache: DataCache instance for accessing sensor data
             sense_hat_instance: Optional SenseHat hardware instance
         """
-        logger.info("Initializing StatsDisplay...")
+        logger.info(
+            "Initializing StatsDisplay",
+            show_icons=config.display.show_icons,
+            rotation=config.display.rotation,
+        )
 
         self.config = config
         self.cache = cache
@@ -50,7 +54,7 @@ class StatsDisplay:
         self._was_sleeping = False
         self._disable_pi_leds = config.sleep.disable_pi_leds
 
-        logger.info("StatsDisplay initialized (async_init required)")
+        logger.info("StatsDisplay initialized")
 
     async def async_init(self) -> None:
         """Complete async initialization (call this after __init__)"""
@@ -66,10 +70,15 @@ class StatsDisplay:
 
     async def display_tailscale_status(self):
         """Display Tailscale connection status and device count (from cache)"""
-        logger.info("Displaying Tailscale status...")
         status = await self.cache.get("tailscale", {})
 
         is_connected = status.get("connected", {}).get("value", False)
+        device_count = status.get("device_count", {}).get("value", 0)
+        logger.info(
+            "Displaying Tailscale",
+            connected=is_connected,
+            device_count=device_count,
+        )
 
         if self.show_icons:
             icon_name = "tailscale_connected" if is_connected else "tailscale_disconnected"
@@ -82,7 +91,6 @@ class StatsDisplay:
             await self.display.show_text(status_text, color=color)
 
         if is_connected:
-            device_count = status.get("device_count", {}).get("value", 0)
             if self.show_icons:
                 await self.display.show_icon_with_text(
                     "devices",
@@ -97,12 +105,18 @@ class StatsDisplay:
 
     async def display_pihole_stats(self):
         """Display Pi-hole statistics (from cache)"""
-        logger.info("Displaying Pi-hole stats...")
         stats = await self.cache.get("pihole", {})
 
         queries_today = stats.get("queries_today", {}).get("value", 0)
         ads_blocked_today = stats.get("ads_blocked_today", {}).get("value", 0)
         ads_percentage_today = stats.get("ads_percentage_today", {}).get("value", 0.0)
+
+        logger.info(
+            "Displaying Pi-hole",
+            queries=queries_today,
+            blocked=ads_blocked_today,
+            block_percent=round(ads_percentage_today, 1),
+        )
 
         if self.show_icons:
             await self.display.show_icon_with_text(
@@ -136,12 +150,18 @@ class StatsDisplay:
 
     async def display_sensor_data(self):
         """Display Sense HAT sensor data (from cache)"""
-        logger.info("Displaying sensor data...")
         sensors = await self.cache.get("sensors", {})
 
         temperature = sensors.get("temperature", {}).get("value", 0.0)
         humidity = sensors.get("humidity", {}).get("value", 0.0)
         pressure = sensors.get("pressure", {}).get("value", 0.0)
+
+        logger.info(
+            "Displaying SenseHAT sensors",
+            temperature=round(temperature, 1),
+            humidity=round(humidity, 1),
+            pressure=round(pressure, 0),
+        )
 
         if self.show_icons:
             await self.display.show_icon_with_text(
@@ -175,12 +195,18 @@ class StatsDisplay:
 
     async def display_system_stats(self):
         """Display system resource statistics (from cache)"""
-        logger.info("Displaying system stats...")
         stats = await self.cache.get("system", {})
 
         cpu_percent = stats.get("cpu_percent", {}).get("value", 0.0)
         memory_percent = stats.get("memory_percent", {}).get("value", 0.0)
         load_1min = stats.get("load_1min", {}).get("value", 0.0)
+
+        logger.info(
+            "Displaying system stats",
+            cpu_percent=round(cpu_percent, 0),
+            memory_percent=round(memory_percent, 0),
+            load_1min=round(load_1min, 2),
+        )
 
         if self.show_icons:
             await self.display.show_icon_with_text(
@@ -236,8 +262,6 @@ class StatsDisplay:
         if not co2_data:
             return
 
-        logger.info("Displaying Aranet4 sensor data...")
-
         # Display all sensors dynamically
         for sensor_label, sensor_data in co2_data.items():
             # Skip the 'available' key if present
@@ -249,6 +273,14 @@ class StatsDisplay:
             temperature = value_data.get("temperature")
             co2 = value_data.get("co2")
             humidity = value_data.get("humidity")
+
+            logger.info(
+                "Displaying Aranet4 sensor",
+                sensor=sensor_label,
+                co2=co2,
+                temperature=temperature,
+                humidity=humidity,
+            )
 
             # Display temperature
             if temperature is not None:
@@ -335,12 +367,17 @@ class StatsDisplay:
             logger.debug("No weather data available")
             return
 
-        logger.info("Displaying weather data...")
-
         # Extract weather data from nested value structure
         temperature = weather_data.get("weather_temp", {}).get("value")
         conditions = weather_data.get("weather_conditions", {}).get("value", "Unknown")
         location = weather_data.get("weather_location", {}).get("value", "")
+
+        logger.info(
+            "Displaying weather",
+            location=location,
+            temperature=temperature,
+            conditions=conditions,
+        )
 
         # Display temperature with weather icon
         if temperature is not None:
@@ -379,21 +416,21 @@ class StatsDisplay:
         if self._disable_pi_leds:
             if is_sleeping and not self._was_sleeping:
                 # Entering sleep mode - disable Pi LEDs
-                logger.info("Entering sleep mode - disabling Pi onboard LEDs")
+                logger.info("Entering sleep mode", action="disable_leds")
                 disable_all_leds()
             elif not is_sleeping and self._was_sleeping:
                 # Exiting sleep mode - re-enable Pi LEDs
-                logger.info("Exiting sleep mode - re-enabling Pi onboard LEDs")
+                logger.info("Exiting sleep mode", action="enable_leds")
                 enable_all_leds()
 
         self._was_sleeping = is_sleeping
 
         if is_sleeping:
-            logger.info("Sleep time - display off")
+            logger.debug("Sleep time - display off")
             await self.display.clear()
             return
 
-        logger.info("Starting display cycle...")
+        logger.info("Starting display cycle")
 
         try:
             await self.display_tailscale_status()
@@ -402,9 +439,9 @@ class StatsDisplay:
             await self.display_weather()
             await self.display_co2_levels()
             await self.display_system_stats()
-            logger.info("Display cycle completed successfully")
+            logger.info("Display cycle completed", status="ok")
         except Exception as e:
-            logger.error(f"Error during display cycle: {e}")
+            logger.error("Display cycle failed", error=str(e), exc_info=True)
             await self.display.clear()
 
     async def run_until_shutdown(
@@ -418,27 +455,27 @@ class StatsDisplay:
             interval: Update interval in seconds (uses config default if not specified)
         """
         update_interval = interval or self.config.update.interval
-        logger.info(f"Starting continuous display with {update_interval}s interval...")
+        logger.info("Starting continuous display", interval=update_interval)
 
         try:
             while not shutdown_event.is_set():
                 await self.run_cycle()
-                logger.debug(f"Waiting {update_interval} seconds before next cycle...")
+                logger.debug("Waiting before next cycle", wait_seconds=update_interval)
                 # Wait for either the interval or shutdown signal
                 with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(shutdown_event.wait(), timeout=update_interval)
         except asyncio.CancelledError:
-            logger.info("Display loop cancelled by signal")
+            logger.info("Display loop cancelled")
             raise  # Re-raise so finally block runs, then caller handles it
         except Exception as e:
-            logger.error(f"Fatal error in continuous loop: {e}")
+            logger.error("Fatal error in continuous loop", error=str(e), exc_info=True)
             raise
         finally:
-            logger.info("Cleaning up display...")
+            logger.info("Cleaning up display")
             await self.display.clear()
             # Re-enable Pi LEDs on shutdown if they were managed
             if self._disable_pi_leds and self._was_sleeping:
-                logger.info("Re-enabling Pi onboard LEDs on shutdown")
+                logger.info("Re-enabling Pi LEDs on shutdown")
                 enable_all_leds()
 
     async def run_continuous(self, interval: Optional[int] = None):

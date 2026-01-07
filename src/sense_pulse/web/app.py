@@ -1,6 +1,5 @@
 """FastAPI application for Sense Pulse web interface."""
 
-import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -11,7 +10,9 @@ from fastapi.templating import Jinja2Templates
 if TYPE_CHECKING:
     from sense_pulse.context import AppContext
 
-logger = logging.getLogger(__name__)
+from sense_pulse.web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="webapp")
 
 # Module-level reference to context (set by create_app)
 # This is necessary because FastAPI's lifespan function cannot receive parameters
@@ -40,22 +41,20 @@ async def lifespan(app: FastAPI):
     The context is created and started by the CLI before the web app starts.
     This function only handles web-specific startup/shutdown.
     """
-    logger.info("Web application starting...")
+    logger.info("Web application starting")
 
     # Verify context is available and started
     if _app_context:
         if not _app_context.is_started:
-            logger.warning(
-                "AppContext provided but not started - " "this may indicate a configuration issue"
-            )
+            logger.warning("AppContext provided but not started")
         else:
-            logger.info(f"Using AppContext with {len(_app_context.data_sources)} data source(s)")
+            logger.info("Using AppContext", data_sources=len(_app_context.data_sources))
     else:
-        logger.warning("No AppContext provided - running in legacy mode with global cache")
+        logger.warning("No AppContext provided - running in legacy mode")
 
     yield  # Application runs here
 
-    logger.info("Web application shutting down...")
+    logger.info("Web application shutting down")
     # Note: Context shutdown is handled by CLI, not here
 
 
@@ -119,8 +118,8 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
     app.include_router(router)
 
     if context:
-        logger.info("FastAPI application created with AppContext")
+        logger.info("FastAPI application created", mode="context")
     else:
-        logger.info("FastAPI application created in legacy mode")
+        logger.info("FastAPI application created", mode="legacy")
 
     return app

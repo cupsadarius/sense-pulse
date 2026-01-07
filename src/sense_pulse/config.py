@@ -1,13 +1,14 @@
 """Configuration loading and validation"""
 
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 import yaml
 
-logger = logging.getLogger(__name__)
+from .web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="config")
 
 # Default config search paths (in order)
 CONFIG_PATHS = [
@@ -137,7 +138,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
         logger.warning("No config file found, using defaults")
         return Config()
 
-    logger.info(f"Loading config from: {path}")
+    logger.info("Loading config", path=str(path))
 
     with open(path) as f:
         data = yaml.safe_load(f) or {}
