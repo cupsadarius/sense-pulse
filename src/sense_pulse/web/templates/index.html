@@ -98,6 +98,60 @@
                 {% endfor %}
             </div>
         </div>
+
+        <!-- Log Viewer -->
+        <div class="bg-sense-card rounded-xl border border-sense-border mt-8" id="log-viewer-section">
+            <!-- Header with toggle -->
+            <div class="flex items-center justify-between p-4 border-b border-sense-border cursor-pointer" onclick="toggleLogViewer()">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 text-gray-400 transition-transform" id="log-viewer-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                    <h2 class="text-lg font-semibold">Application Logs</h2>
+                    <span class="px-2 py-0.5 bg-gray-700 text-gray-300 rounded text-xs" id="log-count">0 logs</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <!-- Connection status -->
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 bg-yellow-500 rounded-full" id="log-ws-indicator"></span>
+                        <span class="text-xs text-gray-400" id="log-ws-status">Disconnected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expandable content -->
+            <div class="hidden" id="log-viewer-content">
+                <!-- Controls bar -->
+                <div class="flex items-center justify-between p-4 bg-gray-800/30 border-b border-sense-border">
+                    <!-- Log level filter -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-400">Level:</span>
+                        <div class="flex gap-1" id="log-level-filters">
+                            <button onclick="setLogLevel('DEBUG')" data-level="DEBUG" class="log-level-btn px-2 py-1 text-xs rounded bg-gray-600 text-gray-300 hover:bg-gray-500 transition-colors">DEBUG</button>
+                            <button onclick="setLogLevel('INFO')" data-level="INFO" class="log-level-btn px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-500 transition-colors active">INFO</button>
+                            <button onclick="setLogLevel('WARNING')" data-level="WARNING" class="log-level-btn px-2 py-1 text-xs rounded bg-yellow-600 text-white hover:bg-yellow-500 transition-colors">WARNING</button>
+                            <button onclick="setLogLevel('ERROR')" data-level="ERROR" class="log-level-btn px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-500 transition-colors">ERROR</button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-2 text-sm text-gray-400">
+                            <input type="checkbox" id="log-autoscroll" checked class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500">
+                            Auto-scroll
+                        </label>
+                        <button onclick="clearLogs()" class="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded transition-colors">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Log entries -->
+                <div class="overflow-y-auto font-mono text-sm" style="max-height: 500px;" id="log-entries">
+                    <div class="p-4 text-gray-500 text-center" id="log-empty-state">
+                        Connecting to log stream...
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -797,5 +851,353 @@
             connectGridWebSocket();
             connectSensorsWebSocket();
         }
+
+        // =====================================================================
+        // Log Viewer WebSocket and UI
+        // =====================================================================
+
+        // Log viewer state
+        if (!window.logViewer) {
+            window.logViewer = {
+                ws: null,
+                reconnectTimeout: null,
+                isExpanded: false,
+                currentLevel: 'DEBUG',
+                logs: [],
+                maxLogs: 1000,
+                levelColors: {
+                    DEBUG: { bg: 'bg-gray-700', text: 'text-gray-300', border: 'border-gray-600' },
+                    INFO: { bg: 'bg-cyan-900/50', text: 'text-cyan-300', border: 'border-cyan-700' },
+                    WARNING: { bg: 'bg-yellow-900/50', text: 'text-yellow-300', border: 'border-yellow-700' },
+                    ERROR: { bg: 'bg-red-900/50', text: 'text-red-300', border: 'border-red-700' },
+                    CRITICAL: { bg: 'bg-red-800', text: 'text-red-200', border: 'border-red-600' }
+                },
+                levelNums: { DEBUG: 10, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50 }
+            };
+        }
+
+        // Toggle log viewer panel
+        window.toggleLogViewer = function() {
+            const content = document.getElementById('log-viewer-content');
+            const chevron = document.getElementById('log-viewer-chevron');
+
+            window.logViewer.isExpanded = !window.logViewer.isExpanded;
+
+            if (window.logViewer.isExpanded) {
+                content.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+                // Connect to log WebSocket when expanded
+                connectLogsWebSocket();
+            } else {
+                content.classList.add('hidden');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        };
+
+        // Set log level filter
+        window.setLogLevel = function(level) {
+            window.logViewer.currentLevel = level;
+
+            // Update button styles
+            document.querySelectorAll('.log-level-btn').forEach(btn => {
+                const btnLevel = btn.dataset.level;
+                const isActive = window.logViewer.levelNums[btnLevel] >= window.logViewer.levelNums[level];
+                btn.classList.toggle('ring-2', btnLevel === level);
+                btn.classList.toggle('ring-white', btnLevel === level);
+                btn.classList.toggle('opacity-50', !isActive);
+            });
+
+            // Send level change to server
+            if (window.logViewer.ws && window.logViewer.ws.readyState === WebSocket.OPEN) {
+                window.logViewer.ws.send(JSON.stringify({ type: 'set_level', level: level }));
+            }
+
+            // Re-render logs with new filter
+            renderLogs();
+        };
+
+        // Clear logs
+        window.clearLogs = function() {
+            window.logViewer.logs = [];
+            renderLogs();
+            updateLogCount();
+        };
+
+        // Format timestamp
+        function formatLogTimestamp(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }) + '.' + String(date.getMilliseconds()).padStart(3, '0');
+        }
+
+        // Toggle log entry expansion
+        window.toggleLogEntry = function(logId) {
+            const details = document.getElementById('log-details-' + logId);
+            const chevron = document.getElementById('log-chevron-' + logId);
+            if (details && chevron) {
+                details.classList.toggle('hidden');
+                chevron.style.transform = details.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        };
+
+        // Try to parse JSON from message
+        function tryParseJson(message) {
+            // Check if the message looks like it contains JSON
+            const jsonMatch = message.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+            if (jsonMatch) {
+                try {
+                    return JSON.parse(jsonMatch[1]);
+                } catch (e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        // Create a single log entry element
+        function createLogEntry(log, index) {
+            const colors = window.logViewer.levelColors[log.level] || window.logViewer.levelColors.DEBUG;
+            const hasDetails = log.exc_info || log.extra || tryParseJson(log.message);
+            const parsedJson = tryParseJson(log.message);
+            const logId = 'log-' + index + '-' + log.timestamp;
+
+            // Escape HTML in message
+            const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            let html = `
+                <div class="log-entry border-b border-gray-800 hover:bg-gray-800/50 ${colors.bg} transition-colors">
+                    <div class="flex items-start gap-2 px-3 py-2 ${hasDetails ? 'cursor-pointer' : ''}" ${hasDetails ? `onclick="toggleLogEntry('${logId}')"` : ''}>
+                        ${hasDetails ? `
+                        <svg class="w-4 h-4 mt-0.5 text-gray-500 transition-transform flex-shrink-0" id="log-chevron-${logId}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                        ` : '<span class="w-4"></span>'}
+                        <span class="text-gray-500 flex-shrink-0 w-20">${formatLogTimestamp(log.timestamp)}</span>
+                        <span class="px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 w-16 text-center ${colors.text} ${colors.border} border">${log.level}</span>
+                        <span class="text-gray-400 flex-shrink-0 w-32 truncate" title="${escapeHtml(log.logger)}">${escapeHtml(log.logger.split('.').pop())}</span>
+                        <span class="text-gray-200 flex-1 break-all">${escapeHtml(log.message)}</span>
+                    </div>
+            `;
+
+            // Add expandable details section
+            if (hasDetails) {
+                html += `<div id="log-details-${logId}" class="hidden px-3 pb-3 ml-6">`;
+
+                // Show source location
+                html += `<div class="text-xs text-gray-500 mb-2">${escapeHtml(log.module)}.${escapeHtml(log.function)}:${log.line}</div>`;
+
+                // Show parsed JSON if present
+                if (parsedJson) {
+                    html += `
+                        <div class="mb-2">
+                            <div class="text-xs text-gray-400 mb-1">JSON Data:</div>
+                            <pre class="bg-gray-900 p-2 rounded text-xs overflow-x-auto text-green-300">${escapeHtml(JSON.stringify(parsedJson, null, 2))}</pre>
+                        </div>
+                    `;
+                }
+
+                // Show exception info
+                if (log.exc_info) {
+                    html += `
+                        <div class="mb-2">
+                            <div class="text-xs text-gray-400 mb-1">Exception:</div>
+                            <pre class="bg-red-900/30 p-2 rounded text-xs overflow-x-auto text-red-300 whitespace-pre-wrap">${escapeHtml(log.exc_info)}</pre>
+                        </div>
+                    `;
+                }
+
+                // Show extra fields
+                if (log.extra && Object.keys(log.extra).length > 0) {
+                    html += `
+                        <div>
+                            <div class="text-xs text-gray-400 mb-1">Extra Fields:</div>
+                            <pre class="bg-gray-900 p-2 rounded text-xs overflow-x-auto text-cyan-300">${escapeHtml(JSON.stringify(log.extra, null, 2))}</pre>
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+            }
+
+            html += `</div>`;
+            return html;
+        }
+
+        // Render all logs
+        function renderLogs() {
+            const container = document.getElementById('log-entries');
+            const emptyState = document.getElementById('log-empty-state');
+            const minLevelNum = window.logViewer.levelNums[window.logViewer.currentLevel] || 10;
+
+            // Filter logs by level
+            const filteredLogs = window.logViewer.logs.filter(log =>
+                (window.logViewer.levelNums[log.level] || 10) >= minLevelNum
+            );
+
+            if (filteredLogs.length === 0) {
+                container.innerHTML = `<div class="p-4 text-gray-500 text-center" id="log-empty-state">No logs at ${window.logViewer.currentLevel} level or above</div>`;
+                return;
+            }
+
+            // Build HTML for all logs
+            let html = '';
+            filteredLogs.forEach((log, index) => {
+                html += createLogEntry(log, index);
+            });
+
+            container.innerHTML = html;
+
+            // Auto-scroll if enabled
+            const autoScroll = document.getElementById('log-autoscroll');
+            if (autoScroll && autoScroll.checked) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // Add a single log entry (for streaming)
+        function addLogEntry(log) {
+            window.logViewer.logs.push(log);
+
+            // Trim logs if exceeding max
+            if (window.logViewer.logs.length > window.logViewer.maxLogs) {
+                window.logViewer.logs = window.logViewer.logs.slice(-window.logViewer.maxLogs);
+            }
+
+            // Check if this log should be displayed
+            const minLevelNum = window.logViewer.levelNums[window.logViewer.currentLevel] || 10;
+            const logLevelNum = window.logViewer.levelNums[log.level] || 10;
+
+            if (logLevelNum >= minLevelNum) {
+                const container = document.getElementById('log-entries');
+                const emptyState = document.getElementById('log-empty-state');
+
+                // Remove empty state if present
+                if (emptyState) {
+                    emptyState.remove();
+                }
+
+                // Create and append new entry
+                const entryHtml = createLogEntry(log, window.logViewer.logs.length - 1);
+                container.insertAdjacentHTML('beforeend', entryHtml);
+
+                // Auto-scroll if enabled
+                const autoScroll = document.getElementById('log-autoscroll');
+                if (autoScroll && autoScroll.checked) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+
+            updateLogCount();
+        }
+
+        // Update log count display
+        function updateLogCount() {
+            const countEl = document.getElementById('log-count');
+            if (countEl) {
+                const count = window.logViewer.logs.length;
+                countEl.textContent = `${count} log${count !== 1 ? 's' : ''}`;
+            }
+        }
+
+        // Update log WebSocket status indicator
+        function updateLogWSStatus(connected) {
+            const indicator = document.getElementById('log-ws-indicator');
+            const status = document.getElementById('log-ws-status');
+
+            if (indicator && status) {
+                if (connected) {
+                    indicator.className = 'w-2 h-2 bg-green-500 rounded-full';
+                    status.textContent = 'Connected';
+                    status.className = 'text-xs text-green-400';
+                } else {
+                    indicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
+                    status.textContent = 'Disconnected';
+                    status.className = 'text-xs text-gray-400';
+                }
+            }
+        }
+
+        // Connect to logs WebSocket
+        function connectLogsWebSocket() {
+            if (window.logViewer.ws &&
+                (window.logViewer.ws.readyState === WebSocket.OPEN ||
+                 window.logViewer.ws.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/logs?level=' + window.logViewer.currentLevel;
+
+            window.logViewer.ws = new WebSocket(wsUrl);
+
+            window.logViewer.ws.onopen = function() {
+                console.log('Logs WebSocket connected');
+                updateLogWSStatus(true);
+
+                if (window.logViewer.reconnectTimeout) {
+                    clearTimeout(window.logViewer.reconnectTimeout);
+                    window.logViewer.reconnectTimeout = null;
+                }
+            };
+
+            window.logViewer.ws.onmessage = function(event) {
+                try {
+                    const message = JSON.parse(event.data);
+
+                    switch (message.type) {
+                        case 'history':
+                            // Load historical logs
+                            if (message.data && Array.isArray(message.data)) {
+                                window.logViewer.logs = message.data;
+                                renderLogs();
+                                updateLogCount();
+                            }
+                            break;
+
+                        case 'log':
+                            // Add new log entry
+                            if (message.data) {
+                                addLogEntry(message.data);
+                            }
+                            break;
+
+                        case 'heartbeat':
+                            // Ignore heartbeat messages
+                            break;
+
+                        case 'level_changed':
+                            console.log('Log level changed to:', message.level);
+                            break;
+
+                        default:
+                            console.log('Unknown log message type:', message.type);
+                    }
+                } catch (e) {
+                    console.error('Failed to parse Logs WebSocket message:', e);
+                }
+            };
+
+            window.logViewer.ws.onclose = function() {
+                console.log('Logs WebSocket disconnected');
+                updateLogWSStatus(false);
+
+                // Only reconnect if log viewer is still expanded
+                if (window.logViewer.isExpanded) {
+                    window.logViewer.reconnectTimeout = setTimeout(connectLogsWebSocket, 2000);
+                }
+            };
+
+            window.logViewer.ws.onerror = function(error) {
+                console.error('Logs WebSocket error:', error);
+                window.logViewer.ws.close();
+            };
+        }
+
+        // Initialize log level button styles
+        window.setLogLevel('DEBUG');
     </script>
 {% endblock %}
