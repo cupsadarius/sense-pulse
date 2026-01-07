@@ -332,11 +332,13 @@ async def logs_websocket(websocket: WebSocket):
         if history:
             # Send only the last N logs based on history_count
             history_to_send = history[-history_count:] if len(history) > history_count else history
-            await websocket.send_json({
-                "type": "history",
-                "data": history_to_send,
-                "total": len(history),
-            })
+            await websocket.send_json(
+                {
+                    "type": "history",
+                    "data": history_to_send,
+                    "total": len(history),
+                }
+            )
 
         # Keep connection alive and listen for client messages
         while True:
@@ -351,10 +353,12 @@ async def logs_websocket(websocket: WebSocket):
                 if message.get("type") == "set_level":
                     new_level = message.get("level", "DEBUG").upper()
                     min_level = LOG_LEVELS.get(new_level, logging.DEBUG)
-                    await websocket.send_json({
-                        "type": "level_changed",
-                        "level": new_level,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "level_changed",
+                            "level": new_level,
+                        }
+                    )
 
             except asyncio.TimeoutError:
                 # Send heartbeat to keep connection alive

@@ -87,9 +87,7 @@ class WebSocketLogHandler(logging.Handler):
             # Broadcast to clients if we have any
             if self._clients and self._loop:
                 # Schedule the broadcast in the event loop
-                asyncio.run_coroutine_threadsafe(
-                    self._broadcast_log(entry), self._loop
-                )
+                asyncio.run_coroutine_threadsafe(self._broadcast_log(entry), self._loop)
         except Exception:
             self.handleError(record)
 
@@ -198,11 +196,7 @@ class WebSocketLogHandler(logging.Handler):
         Returns:
             List of log entries as dictionaries
         """
-        return [
-            entry.to_dict()
-            for entry in self._buffer
-            if entry.level_num >= min_level
-        ]
+        return [entry.to_dict() for entry in self._buffer if entry.level_num >= min_level]
 
     @property
     def client_count(self) -> int:
