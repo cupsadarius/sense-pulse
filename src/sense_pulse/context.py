@@ -19,7 +19,6 @@ Usage:
     await context.shutdown()
 """
 
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -33,8 +32,9 @@ if TYPE_CHECKING:
 
 from sense_pulse.cache import DataCache
 from sense_pulse.config import Config, load_config
+from sense_pulse.web.log_handler import get_structured_logger
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="context")
 
 
 @dataclass
@@ -88,7 +88,11 @@ class AppContext:
             await context.start()
         """
         cache = DataCache(cache_ttl=cache_ttl, poll_interval=poll_interval)
-        logger.debug(f"Created AppContext with cache TTL={cache_ttl}s, poll={poll_interval}s")
+        logger.debug(
+            "Created AppContext",
+            cache_ttl=cache_ttl,
+            poll_interval=poll_interval,
+        )
         return cls(config=config, cache=cache, config_path=config_path)
 
     def add_data_source(self, source: "DataSource") -> "AppContext":
@@ -106,7 +110,11 @@ class AppContext:
         """
         self.data_sources.append(source)
         metadata = source.get_metadata()
-        logger.debug(f"Added data source: {metadata.name} (id={metadata.source_id})")
+        logger.debug(
+            "Added data source",
+            source_name=metadata.name,
+            source_id=metadata.source_id,
+        )
         return self
 
     async def start(self) -> None:
@@ -129,7 +137,8 @@ class AppContext:
             logger.warning("AppContext already started, ignoring start() call")
             return
 
-        logger.info(f"Starting AppContext with {len(self.data_sources)} data source(s)...")
+        total_sources = len(self.data_sources)
+        logger.info("Starting AppContext", total_sources=total_sources)
 
         # Initialize all data sources
         initialized_count = 0
@@ -139,16 +148,29 @@ class AppContext:
                 await source.initialize()
                 self.cache.register_data_source(source)
                 initialized_count += 1
-                logger.info(f"✓ Initialized: {metadata.name}")
+                logger.info(
+                    "Data source initialized",
+                    source_name=metadata.name,
+                    source_id=metadata.source_id,
+                    status="ok",
+                )
             except Exception as e:
-                logger.error(f"✗ Failed to initialize {metadata.name}: {e}")
+                logger.error(
+                    "Data source initialization failed",
+                    source_name=metadata.name,
+                    source_id=metadata.source_id,
+                    error=str(e),
+                    status="error",
+                )
 
         # Start background polling
         await self.cache.start_polling()
         self._started = True
 
         logger.info(
-            f"AppContext started: {initialized_count}/{len(self.data_sources)} sources initialized"
+            "AppContext started",
+            initialized=initialized_count,
+            total=total_sources,
         )
 
     async def shutdown(self) -> None:
@@ -165,7 +187,7 @@ class AppContext:
             logger.debug("AppContext not started, nothing to shutdown")
             return
 
-        logger.info("Shutting down AppContext...")
+        logger.info("Shutting down AppContext")
 
         # Stop polling first
         await self.cache.stop_polling()
@@ -177,12 +199,20 @@ class AppContext:
             try:
                 await source.shutdown()
                 shutdown_count += 1
-                logger.debug(f"✓ Shutdown: {metadata.name}")
+                logger.debug(
+                    "Data source shutdown",
+                    source_name=metadata.name,
+                    status="ok",
+                )
             except Exception as e:
-                logger.error(f"✗ Error shutting down {metadata.name}: {e}")
+                logger.error(
+                    "Data source shutdown failed",
+                    source_name=metadata.name,
+                    error=str(e),
+                )
 
         self._started = False
-        logger.info(f"AppContext shutdown complete ({shutdown_count} sources)")
+        logger.info("AppContext shutdown complete", sources_shutdown=shutdown_count)
 
     @property
     def is_started(self) -> bool:
@@ -218,7 +248,7 @@ class AppContext:
             raise RuntimeError("Cannot reload config: config_path not set")
 
         self.config = load_config(str(self.config_path))
-        logger.info(f"Reloaded config from {self.config_path}")
+        logger.info("Reloaded config", path=str(self.config_path))
         return self.config
 
     def update_config(self, updates: dict[str, Any]) -> Config:
