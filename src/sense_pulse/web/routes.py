@@ -15,6 +15,7 @@ from sense_pulse.context import AppContext
 from sense_pulse.devices import sensehat
 from sense_pulse.web.app import get_app_context
 from sense_pulse.web.auth import require_auth
+from sense_pulse.web.log_handler import setup_websocket_logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -291,6 +292,85 @@ async def sensors_websocket(websocket: WebSocket):
         pass
     except Exception:
         pass
+
+
+# Log level name to number mapping
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+
+@router.websocket("/ws/logs")
+async def logs_websocket(websocket: WebSocket):
+    """
+    WebSocket endpoint for streaming application logs.
+
+    Query parameters:
+        level: Minimum log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        history: Number of historical logs to send on connect (default: 100)
+    """
+    await websocket.accept()
+
+    # Parse query parameters
+    level_name = websocket.query_params.get("level", "DEBUG").upper()
+    min_level = LOG_LEVELS.get(level_name, logging.DEBUG)
+    history_count = int(websocket.query_params.get("history", "100"))
+
+    # Get or setup the log handler
+    log_handler = setup_websocket_logging()
+
+    # Register this client
+    await log_handler.register_client(websocket)
+
+    try:
+        # Send historical logs
+        history = log_handler.get_buffer(min_level)
+        if history:
+            # Send only the last N logs based on history_count
+            history_to_send = history[-history_count:] if len(history) > history_count else history
+            await websocket.send_json(
+                {
+                    "type": "history",
+                    "data": history_to_send,
+                    "total": len(history),
+                }
+            )
+
+        # Keep connection alive and listen for client messages
+        while True:
+            try:
+                # Wait for messages from client (for level changes, etc.)
+                message = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=30.0,  # Heartbeat interval
+                )
+
+                # Handle level change requests
+                if message.get("type") == "set_level":
+                    new_level = message.get("level", "DEBUG").upper()
+                    min_level = LOG_LEVELS.get(new_level, logging.DEBUG)
+                    await websocket.send_json(
+                        {
+                            "type": "level_changed",
+                            "level": new_level,
+                        }
+                    )
+
+            except asyncio.TimeoutError:
+                # Send heartbeat to keep connection alive
+                await websocket.send_json({"type": "heartbeat"})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        # Unregister client on disconnect
+        await log_handler.unregister_client(websocket)
 
 
 # ============================================================================
