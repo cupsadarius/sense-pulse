@@ -1,13 +1,14 @@
 """Hardware abstraction - graceful degradation when Sense HAT unavailable"""
 
 import asyncio
-import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-logger = logging.getLogger(__name__)
+from ..web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="sensehat")
 
 # Try to import Sense HAT, but don't fail if unavailable
 _sense_hat: Optional["SenseHat"] = None
@@ -36,10 +37,10 @@ def _init_sense_hat() -> None:
         _sense_hat_available = True
         logger.info("Sense HAT initialized successfully")
     except ImportError:
-        logger.warning("sense_hat module not installed - sensor data unavailable")
+        logger.warning("Sense HAT module not installed", available=False)
         _sense_hat_available = False
     except Exception as e:
-        logger.warning(f"Sense HAT hardware not available: {e}")
+        logger.warning("Sense HAT hardware not available", error=str(e))
         _sense_hat_available = False
 
 
@@ -68,14 +69,21 @@ def _get_sensor_data_sync() -> dict[str, Any]:
         }
 
     try:
-        return {
+        data = {
             "temperature": round(_sense_hat.get_temperature(), 1),
             "humidity": round(_sense_hat.get_humidity(), 1),
             "pressure": round(_sense_hat.get_pressure(), 1),
             "available": True,
         }
+        logger.debug(
+            "Sensor data read",
+            temperature=data["temperature"],
+            humidity=data["humidity"],
+            pressure=data["pressure"],
+        )
+        return data
     except Exception as e:
-        logger.error(f"Failed to read sensors: {e}")
+        logger.error("Failed to read sensors", error=str(e))
         return {
             "temperature": None,
             "humidity": None,

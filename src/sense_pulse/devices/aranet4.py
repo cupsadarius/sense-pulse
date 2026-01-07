@@ -1,6 +1,5 @@
 """Aranet4 CO2 sensor communication via aranet4 package scan"""
 
-import logging
 import threading
 import time
 from dataclasses import dataclass
@@ -13,7 +12,9 @@ from tenacity import (
     wait_exponential,
 )
 
-logger = logging.getLogger(__name__)
+from ..web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="aranet4")
 
 
 @dataclass
@@ -64,9 +65,12 @@ class Aranet4Sensor:
             self._cached_reading = reading
             self._last_error = None
         logger.info(
-            f"Aranet4 {self.name}: CO2={reading.co2}ppm, "
-            f"T={reading.temperature}°C, H={reading.humidity}%, "
-            f"Battery={reading.battery}%"
+            "Aranet4 reading updated",
+            sensor=self.name,
+            co2=reading.co2,
+            temperature=reading.temperature,
+            humidity=reading.humidity,
+            battery=reading.battery,
         )
 
     def set_error(self, error: str) -> None:
@@ -138,10 +142,10 @@ def do_ble_scan(scan_duration: int = 8) -> dict[str, Aranet4Reading]:
         time_since_last_scan = time.time() - _last_scan_time
         if time_since_last_scan < _scan_cooldown:
             wait_time = _scan_cooldown - time_since_last_scan
-            logger.debug(f"Aranet4: Scan cooldown, waiting {wait_time:.1f}s")
+            logger.debug("Aranet4 scan cooldown", wait_seconds=round(wait_time, 1))
             time.sleep(wait_time)
 
-        logger.info("Aranet4: Running BLE scan...")
+        logger.info("Aranet4 running BLE scan", duration=scan_duration)
         _last_scan_time = time.time()
         readings: dict[str, Aranet4Reading] = {}
 
@@ -158,17 +162,21 @@ def do_ble_scan(scan_duration: int = 8) -> dict[str, Aranet4Reading]:
                     ago=advertisement.readings.ago,
                     timestamp=time.time(),
                 )
-                logger.debug(f"Aranet4: Found {address} CO2={advertisement.readings.co2}")
+                logger.debug(
+                    "Aranet4 device found",
+                    address=address,
+                    co2=advertisement.readings.co2,
+                )
 
         aranet4.client.find_nearby(on_detect, duration=scan_duration)
-        logger.info(f"Aranet4: Scan found {len(readings)} device(s)")
+        logger.info("Aranet4 scan completed", devices_found=len(readings))
         return readings
 
     except ImportError:
-        logger.error("Aranet4: aranet4 package not installed")
+        logger.error("Aranet4 package not installed")
         return {}
     except Exception as e:
-        logger.warning(f"Aranet4: Scan error (may retry): {e}")
+        logger.warning("Aranet4 scan error (may retry)", error=str(e))
         raise
 
 
@@ -199,10 +207,10 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
             time_since_last_scan = time.time() - _last_scan_time
             if time_since_last_scan < _scan_cooldown:
                 wait_time = _scan_cooldown - time_since_last_scan
-                logger.debug(f"Aranet4 discovery: Scan cooldown, waiting {wait_time:.1f}s")
+                logger.debug("Aranet4 discovery scan cooldown", wait_seconds=round(wait_time, 1))
                 time.sleep(wait_time)
 
-            logger.info(f"Scanning for Aranet4 devices ({duration}s)...")
+            logger.info("Scanning for Aranet4 devices", duration=duration)
             _last_scan_time = time.time()
 
             found_devices: list[dict[str, Any]] = []
@@ -221,18 +229,22 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
                         device_info["temperature"] = advertisement.readings.temperature
                         device_info["humidity"] = advertisement.readings.humidity
                     found_devices.append(device_info)
-                    logger.info(f"Found: {device_info['name']} ({device_info['address']})")
+                    logger.info(
+                        "Aranet4 device found",
+                        name=device_info["name"],
+                        address=device_info["address"],
+                    )
 
             aranet4.client.find_nearby(on_detect, duration=duration)
 
-            logger.info(f"Scan complete: found {len(found_devices)} Aranet4 device(s)")
+            logger.info("Aranet4 scan complete", devices_found=len(found_devices))
             return found_devices
 
     except ImportError:
-        logger.error("aranet4 library not installed - cannot scan")
+        logger.error("Aranet4 library not installed - cannot scan")
         return []
     except Exception as e:
-        logger.error(f"BLE scan error: {e}")
+        logger.error("BLE scan error", error=str(e))
         return []
 
 

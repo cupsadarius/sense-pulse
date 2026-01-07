@@ -1,11 +1,11 @@
 """Data source registry for managing all data sources"""
 
-import logging
 from typing import Optional
 
+from ..web.log_handler import get_structured_logger
 from .base import DataSource
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__, component="registry")
 
 
 class DataSourceRegistry:
@@ -36,7 +36,7 @@ class DataSourceRegistry:
             raise ValueError(f"Data source '{source_id}' is already registered")
 
         self._sources[source_id] = source
-        logger.info(f"Registered data source: {metadata.name} (id={source_id})")
+        logger.info("Registered data source", name=metadata.name, source_id=source_id)
 
     def unregister(self, source_id: str) -> None:
         """
@@ -47,9 +47,9 @@ class DataSourceRegistry:
         """
         if source_id in self._sources:
             del self._sources[source_id]
-            logger.info(f"Unregistered data source: {source_id}")
+            logger.info("Unregistered data source", source_id=source_id)
         else:
-            logger.warning(f"Attempted to unregister unknown source: {source_id}")
+            logger.warning("Attempted to unregister unknown source", source_id=source_id)
 
     def get(self, source_id: str) -> Optional[DataSource]:
         """
@@ -83,23 +83,23 @@ class DataSourceRegistry:
 
     async def initialize_all(self) -> None:
         """Initialize all registered data sources"""
-        logger.info(f"Initializing {len(self._sources)} data source(s)...")
+        logger.info("Initializing data sources", count=len(self._sources))
 
         for source_id, source in self._sources.items():
             try:
                 await source.initialize()
             except Exception as e:
-                logger.error(f"Error initializing data source '{source_id}': {e}")
+                logger.error("Error initializing data source", source_id=source_id, error=str(e))
 
     async def shutdown_all(self) -> None:
         """Shutdown all registered data sources"""
-        logger.info(f"Shutting down {len(self._sources)} data source(s)...")
+        logger.info("Shutting down data sources", count=len(self._sources))
 
         for source_id, source in self._sources.items():
             try:
                 await source.shutdown()
             except Exception as e:
-                logger.error(f"Error shutting down data source '{source_id}': {e}")
+                logger.error("Error shutting down data source", source_id=source_id, error=str(e))
 
     def __len__(self) -> int:
         """Return number of registered sources"""
