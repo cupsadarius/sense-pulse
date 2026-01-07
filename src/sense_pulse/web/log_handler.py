@@ -10,6 +10,58 @@ from typing import Any, Optional
 
 from fastapi import WebSocket
 
+# =============================================================================
+# Structured Logging Helpers
+# =============================================================================
+
+
+class StructuredLoggerAdapter(logging.LoggerAdapter):
+    """
+    Logger adapter that supports structured logging with extra fields.
+
+    Usage:
+        logger = get_structured_logger(__name__)
+        logger.info("User logged in", user_id=123, ip="192.168.1.1")
+        logger.error("Request failed", status_code=500, path="/api/data")
+    """
+
+    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        """Process log message and extract extra fields."""
+        # Extract any extra kwargs that aren't standard logging kwargs
+        standard_kwargs = {"exc_info", "stack_info", "stacklevel", "extra"}
+        extra = kwargs.pop("extra", {})
+
+        # Move non-standard kwargs to extra
+        for key in list(kwargs.keys()):
+            if key not in standard_kwargs:
+                extra[key] = kwargs.pop(key)
+
+        # Merge with adapter's extra
+        if self.extra:
+            extra = {**self.extra, **extra}
+
+        kwargs["extra"] = extra
+        return msg, kwargs
+
+
+def get_structured_logger(name: str, **default_extra: Any) -> StructuredLoggerAdapter:
+    """
+    Get a structured logger that supports extra keyword arguments.
+
+    Args:
+        name: Logger name (usually __name__)
+        **default_extra: Default extra fields to include in all logs
+
+    Returns:
+        A StructuredLoggerAdapter instance
+
+    Example:
+        logger = get_structured_logger(__name__, component="cache")
+        logger.info("Cache hit", key="user_123", age_seconds=5.2)
+    """
+    base_logger = logging.getLogger(name)
+    return StructuredLoggerAdapter(base_logger, default_extra)
+
 
 @dataclass
 class LogEntry:
@@ -218,16 +270,12 @@ def get_log_handler() -> WebSocketLogHandler:
 
 def setup_websocket_logging() -> WebSocketLogHandler:
     """
-    Set up WebSocket logging by adding the handler to the root logger.
+    Get or create the WebSocket log handler.
+
+    The handler should be added to logging.basicConfig() handlers list
+    during app initialization to capture all logs from startup.
 
     Returns:
-        The WebSocket log handler
+        The WebSocket log handler (singleton)
     """
-    handler = get_log_handler()
-
-    # Add handler to root logger to capture all logs
-    root_logger = logging.getLogger()
-    if handler not in root_logger.handlers:
-        root_logger.addHandler(handler)
-
-    return handler
+    return get_log_handler()
