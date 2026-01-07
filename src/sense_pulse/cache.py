@@ -9,7 +9,6 @@ This module provides a centralized caching layer that:
 
 import asyncio
 import contextlib
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional
@@ -17,7 +16,9 @@ from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     from .datasources.base import DataSource, DataSourceMetadata
 
-logger = logging.getLogger(__name__)
+from sense_pulse.web.log_handler import get_structured_logger
+
+logger = get_structured_logger(__name__, component="cache")
 
 
 @dataclass
@@ -79,9 +80,7 @@ class DataCache:
         self._data_sources: dict[str, DataSource] = {}
         self._source_status: dict[str, DataSourceStatus] = {}
 
-        logger.info(
-            f"DataCache initialized with {cache_ttl}s TTL and {poll_interval}s poll interval"
-        )
+        logger.info("DataCache initialized", cache_ttl=cache_ttl, poll_interval=poll_interval)
 
     def register_data_source(self, source: "DataSource") -> None:
         """
@@ -92,7 +91,11 @@ class DataCache:
         """
         metadata = source.get_metadata()
         self._data_sources[metadata.source_id] = source
-        logger.info(f"Registered data source: {metadata.name} (id={metadata.source_id})")
+        logger.info(
+            "Registered data source",
+            source_name=metadata.name,
+            source_id=metadata.source_id,
+        )
 
     async def get(self, key: str, default: Any = None) -> Any:
         """
@@ -108,14 +111,14 @@ class DataCache:
         async with self._lock:
             cached = self._cache.get(key)
             if cached is None:
-                logger.debug(f"Cache miss: {key}")
+                logger.debug("Cache miss", key=key)
                 return default
 
             if cached.is_expired(self.cache_ttl):
-                logger.debug(f"Cache expired: {key} (age: {cached.age:.1f}s)")
+                logger.debug("Cache expired", key=key, age=round(cached.age, 1))
                 return default
 
-            logger.debug(f"Cache hit: {key} (age: {cached.age:.1f}s)")
+            logger.debug("Cache hit", key=key, age=round(cached.age, 1))
             return cached.data
 
     async def set(self, key: str, data: Any) -> None:
@@ -128,7 +131,7 @@ class DataCache:
         """
         async with self._lock:
             self._cache[key] = CachedData(data)
-            logger.debug(f"Cache updated: {key}")
+            logger.debug("Cache updated", key=key)
 
     async def get_all(self) -> dict[str, Any]:
         """
@@ -177,7 +180,7 @@ class DataCache:
         key = metadata.source_id
 
         try:
-            logger.debug(f"Polling data source: {metadata.name}")
+            logger.debug("Polling data source", source_name=metadata.name, source_id=key)
             readings = await source.fetch_readings()
 
             # Convert readings to dict format with values and timestamps
@@ -195,7 +198,12 @@ class DataCache:
                 success=True,
                 error=None,
             )
-            logger.debug(f"Successfully polled: {metadata.name} ({len(readings)} readings)")
+            logger.debug(
+                "Poll completed",
+                source_name=metadata.name,
+                source_id=key,
+                readings_count=len(readings),
+            )
         except Exception as e:
             self._source_status[key] = DataSourceStatus(
                 source_id=key,
@@ -203,7 +211,13 @@ class DataCache:
                 success=False,
                 error=str(e),
             )
-            logger.error(f"Error polling {metadata.name}: {e}", exc_info=True)
+            logger.error(
+                "Poll failed",
+                source_name=metadata.name,
+                source_id=key,
+                error=str(e),
+                exc_info=True,
+            )
 
     async def _polling_loop(self) -> None:
         """Background polling loop that fetches fresh data periodically."""
@@ -224,7 +238,11 @@ class DataCache:
             wait_time = max(0, self.poll_interval - elapsed)
 
             if wait_time > 0:
-                logger.debug(f"Polling cycle completed in {elapsed:.2f}s, waiting {wait_time:.2f}s")
+                logger.debug(
+                    "Polling cycle completed",
+                    elapsed=round(elapsed, 2),
+                    wait_time=round(wait_time, 2),
+                )
                 with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(self._stop_event.wait(), timeout=wait_time)
 
@@ -266,8 +284,9 @@ class DataCache:
     async def clear(self) -> None:
         """Clear all cached data."""
         async with self._lock:
+            count = len(self._cache)
             self._cache.clear()
-            logger.info("Cache cleared")
+            logger.info("Cache cleared", entries_cleared=count)
 
     # =========================================================================
     # PUBLIC API FOR DATA SOURCE ACCESS
