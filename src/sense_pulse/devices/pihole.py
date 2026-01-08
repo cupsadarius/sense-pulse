@@ -111,7 +111,7 @@ class PiHoleStats:
                 headers=self._get_headers(),
             )
             response.raise_for_status()
-            data = response.json()
+            data: dict = response.json()
             logger.debug("Successfully fetched Pi-hole stats", host=self.host)
             return data
 

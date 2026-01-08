@@ -181,7 +181,8 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
 async def get_sensors() -> dict[str, Any]:
     """Get Sense HAT sensor readings (from cache)"""
     cache = _get_cache()
-    return await cache.get("sensors", {})
+    result: dict[str, Any] = await cache.get("sensors", {})
+    return result
 
 
 @router.get("/api/status/cards", response_class=HTMLResponse)
@@ -573,7 +574,8 @@ async def get_aranet4_status() -> dict[str, Any]:
 async def get_aranet4_data() -> dict[str, Any]:
     """Get CO2 sensor readings from Aranet4 devices (from cache)"""
     cache = _get_cache()
-    return await cache.get("co2", {})
+    result: dict[str, Any] = await cache.get("co2", {})
+    return result
 
 
 @router.post("/api/aranet4/config")

@@ -1,7 +1,7 @@
 """Control Raspberry Pi onboard LEDs (PWR and ACT)"""
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .web.log_handler import get_structured_logger
 
@@ -159,9 +159,9 @@ def enable_all_leds() -> dict[str, dict[str, str]]:
     }
 
 
-def get_led_status() -> dict[str, dict[str, any]]:
+def get_led_status() -> dict[str, dict[str, Any]]:
     """Get current status of Pi onboard LEDs"""
-    status = {}
+    status: dict[str, dict[str, Any]] = {}
     for led_name in ["pwr", "act"]:
         led_path = _find_led_path(led_name)
         if led_path is None:
