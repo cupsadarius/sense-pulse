@@ -60,7 +60,7 @@ class TailscaleStatus:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
 
             if process.returncode == 0:
-                data = json.loads(stdout.decode())
+                data: dict[Any, Any] = json.loads(stdout.decode())
                 self._cached_data = data
                 self._last_fetch = current_time
                 logger.debug("Successfully fetched Tailscale status")
