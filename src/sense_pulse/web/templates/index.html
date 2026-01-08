@@ -994,26 +994,26 @@
                 <div class="log-entry border-b border-gray-800 hover:bg-gray-800/50 ${colors.bg} transition-colors">
                     <div class="px-2 sm:px-3 py-1.5 sm:py-2 ${hasDetails ? 'cursor-pointer' : ''}" ${hasDetails ? `onclick="toggleLogEntry('${logId}')"` : ''}>
                         <!-- Mobile layout: stacked -->
-                        <div class="flex items-center gap-1.5 sm:hidden">
+                        <div class="flex items-center gap-2 sm:hidden">
                             ${hasDetails ? `
                             <svg class="w-3 h-3 text-gray-500 transition-transform flex-shrink-0" id="log-chevron-mobile-${logId}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
                             ` : ''}
-                            <span class="text-gray-500 text-xs">${formatLogTimestampShort(log.timestamp)}</span>
-                            <span class="px-1 py-0.5 rounded text-xs font-medium ${colors.text} ${colors.border} border">${getShortLevel(log.level)}</span>
+                            <span class="text-gray-500 font-mono text-xs flex-shrink-0">${formatLogTimestampShort(log.timestamp)}</span>
+                            <span class="px-1 py-0.5 rounded text-xs font-medium flex-shrink-0 ${colors.text} ${colors.border} border">${getShortLevel(log.level)}</span>
                             <span class="text-gray-200 flex-1 truncate">${escapeHtml(log.message)}</span>
                         </div>
                         <!-- Desktop layout: inline -->
-                        <div class="hidden sm:flex items-start gap-2">
+                        <div class="hidden sm:flex items-start gap-3">
                             ${hasDetails ? `
                             <svg class="w-4 h-4 mt-0.5 text-gray-500 transition-transform flex-shrink-0" id="log-chevron-${logId}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
                             ` : '<span class="w-4"></span>'}
-                            <span class="text-gray-500 flex-shrink-0 w-20">${formatLogTimestamp(log.timestamp)}</span>
+                            <span class="text-gray-500 font-mono text-sm flex-shrink-0 w-28">${formatLogTimestamp(log.timestamp)}</span>
                             <span class="px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 w-14 text-center ${colors.text} ${colors.border} border">${log.level}</span>
-                            <span class="text-gray-400 flex-shrink-0 w-24 truncate" title="${escapeHtml(log.logger)}">${escapeHtml(log.logger.split('.').pop())}</span>
+                            <span class="text-gray-400 flex-shrink-0 w-28 truncate" title="${escapeHtml(log.logger)}">${escapeHtml(log.logger.split('.').pop())}</span>
                             <span class="text-gray-200 flex-1 break-words">${escapeHtml(log.message)}</span>
                         </div>
                     </div>
