@@ -3,7 +3,7 @@
 import asyncio
 import os
 
-import psutil
+import psutil  # type: ignore[import-untyped]
 
 from ..web.log_handler import get_structured_logger
 

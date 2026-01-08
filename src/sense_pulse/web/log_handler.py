@@ -5,6 +5,7 @@ import json
 import logging
 import traceback
 from collections import deque
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -25,7 +26,9 @@ class StructuredLoggerAdapter(logging.LoggerAdapter):
         logger.error("Request failed", status_code=500, path="/api/data")
     """
 
-    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def process(
+        self, msg: str, kwargs: MutableMapping[str, Any]
+    ) -> tuple[str, MutableMapping[str, Any]]:
         """Process log message and extract extra fields."""
         # Extract any extra kwargs that aren't standard logging kwargs
         standard_kwargs = {"exc_info", "stack_info", "stacklevel", "extra"}
