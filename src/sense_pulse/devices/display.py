@@ -73,6 +73,7 @@ class SenseHatDisplay:
             logger.debug("Displaying text", text=text[:50] if len(text) > 50 else text)
             # Run blocking show_message in thread pool to prevent blocking event loop
             # This allows WebSocket to continue sending pixel updates during scrolling
+            assert self.sense is not None  # Guaranteed by __init__
             await asyncio.to_thread(
                 self.sense.show_message, text, scroll_speed=speed, text_colour=color
             )

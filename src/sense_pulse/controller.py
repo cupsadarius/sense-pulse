@@ -42,7 +42,7 @@ class StatsDisplay:
         self.config = config
         self.cache = cache
         self.show_icons = config.display.show_icons
-        self.display = None  # Will be initialized in async_init()
+        self.display: Optional[SenseHatDisplay] = None  # Will be initialized in async_init()
         self._sense_hat_instance = sense_hat_instance
 
         self.sleep_schedule = SleepSchedule(
@@ -70,6 +70,7 @@ class StatsDisplay:
 
     async def display_tailscale_status(self):
         """Display Tailscale connection status and device count (from cache)"""
+        assert self.display is not None  # Guaranteed by async_init()
         status = await self.cache.get("tailscale", {})
 
         is_connected = status.get("connected", {}).get("value", False)
@@ -105,6 +106,7 @@ class StatsDisplay:
 
     async def display_pihole_stats(self):
         """Display Pi-hole statistics (from cache)"""
+        assert self.display is not None  # Guaranteed by async_init()
         stats = await self.cache.get("pihole", {})
 
         queries_today = stats.get("queries_today", {}).get("value", 0)
@@ -150,6 +152,7 @@ class StatsDisplay:
 
     async def display_sensor_data(self):
         """Display Sense HAT sensor data (from cache)"""
+        assert self.display is not None  # Guaranteed by async_init()
         sensors = await self.cache.get("sensors", {})
 
         temperature = sensors.get("temperature", {}).get("value", 0.0)
@@ -195,6 +198,7 @@ class StatsDisplay:
 
     async def display_system_stats(self):
         """Display system resource statistics (from cache)"""
+        assert self.display is not None  # Guaranteed by async_init()
         stats = await self.cache.get("system", {})
 
         cpu_percent = stats.get("cpu_percent", {}).get("value", 0.0)
@@ -258,6 +262,7 @@ class StatsDisplay:
 
     async def display_co2_levels(self):
         """Display Aranet4 sensor data (temperature, CO2, humidity) from cache"""
+        assert self.display is not None  # Guaranteed by async_init()
         co2_data = await self.cache.get("co2", {})
         if not co2_data:
             return
@@ -359,6 +364,7 @@ class StatsDisplay:
 
     async def display_weather(self):
         """Display current weather conditions (from cache)"""
+        assert self.display is not None  # Guaranteed by async_init()
         if not self.config.weather.enabled:
             return
 
@@ -410,6 +416,7 @@ class StatsDisplay:
 
     async def run_cycle(self):
         """Run one complete display cycle"""
+        assert self.display is not None  # Guaranteed by async_init()
         is_sleeping = self.sleep_schedule.is_sleep_time()
 
         # Handle sleep state transitions for Pi LED control
@@ -454,6 +461,7 @@ class StatsDisplay:
             shutdown_event: Event that signals shutdown when set
             interval: Update interval in seconds (uses config default if not specified)
         """
+        assert self.display is not None  # Guaranteed by async_init()
         update_interval = interval or self.config.update.interval
         logger.info("Starting continuous display", interval=update_interval)
 
