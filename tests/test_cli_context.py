@@ -59,7 +59,7 @@ class TestCLIContextIntegration:
     @pytest.mark.asyncio
     async def test_context_passed_to_web_app(self):
         """Test context is correctly passed to create_app."""
-        from sense_pulse.web.app import create_app, get_app_context
+        from sense_pulse.web.app import create_app, get_context
 
         config = Config()
         context = AppContext.create(config, poll_interval=1.0)
@@ -68,8 +68,16 @@ class TestCLIContextIntegration:
         try:
             app = create_app(context=context)
 
+            # Context is stored in app.state
             assert app.state.context is context
-            assert get_app_context() is context
+
+            # get_context retrieves it from request.app.state
+            class MockRequest:
+                def __init__(self, app):
+                    self.app = app
+
+            mock_request = MockRequest(app)
+            assert get_context(mock_request) is context  # type: ignore
         finally:
             await context.shutdown()
 
