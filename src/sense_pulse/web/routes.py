@@ -9,11 +9,9 @@ from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from sense_pulse.cache import DataCache
-from sense_pulse.config import Config
 from sense_pulse.context import AppContext
 from sense_pulse.devices import sensehat
-from sense_pulse.web.app import get_app_context
+from sense_pulse.web.app import get_context
 from sense_pulse.web.auth import require_auth
 from sense_pulse.web.log_handler import get_structured_logger, setup_websocket_logging
 
@@ -21,58 +19,23 @@ logger = get_structured_logger(__name__, component="routes")
 router = APIRouter()
 
 
-def _get_context() -> AppContext:
-    """
-    Get AppContext.
-
-    Returns:
-        AppContext instance
-
-    Raises:
-        RuntimeError: If AppContext is not available
-    """
-    context = get_app_context()
-    if not context:
-        raise RuntimeError("AppContext not available. Web app must be initialized with context.")
-    return context
-
-
-def _get_cache() -> DataCache:
-    """Get cache from AppContext."""
-    return _get_context().cache
-
-
-def _get_config() -> Config:
-    """Get config from AppContext."""
-    return _get_context().config
-
-
 # Helper functions for Aranet4 DataSource access
-async def _is_aranet4_available() -> bool:
+async def _is_aranet4_available(context: AppContext) -> bool:
     """Check if Aranet4 sensors are available (configured and have data)"""
-    config = _get_config()
+    config = context.config
     # Check if any sensors are configured
     if not any(s.enabled for s in config.aranet4.sensors):
         return False
     # Check if cache has CO2 data
-    cache = _get_cache()
-    co2_data = await cache.get("co2", {})
+    co2_data = await context.cache.get("co2", {})
     return bool(co2_data)
 
 
-async def _get_aranet4_status() -> dict[str, Any]:
+async def _get_aranet4_status(context: AppContext) -> dict[str, Any]:
     """Get Aranet4 sensor status from DataSource via public API."""
-    cache = _get_cache()
-
     # Use public API to get data source status
-    status = cache.get_data_source_status("co2")
+    status = context.cache.get_data_source_status("co2")
     return status if status else {}
-
-
-async def _get_registered_sources() -> list[str]:
-    """Get list of registered data source IDs."""
-    cache = _get_cache()
-    return cache.list_registered_sources()
 
 
 # Pydantic models for configuration updates
@@ -122,11 +85,15 @@ class ConfigUpdate(BaseModel):
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request, username: str = Depends(require_auth)):
+async def index(
+    request: Request,
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+):
     """Render main dashboard (requires authentication)"""
     templates = request.app.state.templates
-    config = _get_config()
-    cache = _get_cache()
+    config = context.config
+    cache = context.cache
 
     # Convert aranet4 sensors to dicts for JSON serialization
     aranet4_sensors_dict = [asdict(sensor) for sensor in config.aranet4.sensors]
@@ -136,7 +103,7 @@ async def index(request: Request, username: str = Depends(require_auth)):
         {
             "request": request,
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": await _is_aranet4_available(),
+            "aranet4_available": await _is_aranet4_available(context),
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
             "tailscale": await cache.get("tailscale", {}),
@@ -145,17 +112,20 @@ async def index(request: Request, username: str = Depends(require_auth)):
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
             "weather": await cache.get("weather", {}),
-            "aranet4_status": await _get_aranet4_status(),
+            "aranet4_status": await _get_aranet4_status(context),
             "datasource_status": cache.get_all_source_status(),
         },
     )
 
 
 @router.get("/api/status")
-async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
+async def get_status(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
     """Get all status data as JSON (from cache) - requires authentication"""
-    config = _get_config()
-    cache = _get_cache()
+    config = context.config
+    cache = context.cache
 
     return {
         "tailscale": await cache.get("tailscale", {}),
@@ -166,7 +136,7 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
         "weather": await cache.get("weather", {}),
         "hardware": {
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": await _is_aranet4_available(),
+            "aranet4_available": await _is_aranet4_available(context),
         },
         "config": {
             "show_icons": config.display.show_icons,
@@ -178,19 +148,18 @@ async def get_status(username: str = Depends(require_auth)) -> dict[str, Any]:
 
 
 @router.get("/api/sensors")
-async def get_sensors() -> dict[str, Any]:
+async def get_sensors(context: AppContext = Depends(get_context)) -> dict[str, Any]:
     """Get Sense HAT sensor readings (from cache)"""
-    cache = _get_cache()
-    result: dict[str, Any] = await cache.get("sensors", {})
+    result: dict[str, Any] = await context.cache.get("sensors", {})
     return result
 
 
 @router.get("/api/status/cards", response_class=HTMLResponse)
-async def get_status_cards(request: Request):
+async def get_status_cards(request: Request, context: AppContext = Depends(get_context)):
     """HTMX partial: status cards grid (from cache)"""
-    config = _get_config()
+    config = context.config
     templates = request.app.state.templates
-    cache = _get_cache()
+    cache = context.cache
 
     return templates.TemplateResponse(
         "partials/status_cards.html",
@@ -203,7 +172,7 @@ async def get_status_cards(request: Request):
             "co2": await cache.get("co2", {}),
             "weather": await cache.get("weather", {}),
             "sense_hat_available": sensehat.is_sense_hat_available(),
-            "aranet4_available": await _is_aranet4_available(),
+            "aranet4_available": await _is_aranet4_available(context),
             "config": config,
         },
     )
@@ -233,10 +202,11 @@ async def health_check():
 
 
 @router.get("/api/datasources/status")
-async def get_datasources_status() -> list[dict[str, Any]]:
+async def get_datasources_status(
+    context: AppContext = Depends(get_context),
+) -> list[dict[str, Any]]:
     """Get status of all data sources"""
-    cache = _get_cache()
-    return cache.get_all_source_status()
+    return context.cache.get_all_source_status()
 
 
 # ============================================================================
@@ -249,6 +219,9 @@ async def grid_websocket(websocket: WebSocket):
     """WebSocket endpoint for LED matrix and hardware status (fast updates)"""
     await websocket.accept()
 
+    # Get context from app.state for WebSocket handlers
+    context: AppContext = websocket.app.state.context
+
     try:
         while True:
             # Send only grid/matrix data for smooth animation
@@ -256,7 +229,7 @@ async def grid_websocket(websocket: WebSocket):
                 "matrix": await sensehat.get_matrix_state(),
                 "hardware": {
                     "sense_hat_available": sensehat.is_sense_hat_available(),
-                    "aranet4_available": await _is_aranet4_available(),
+                    "aranet4_available": await _is_aranet4_available(context),
                 },
             }
 
@@ -272,7 +245,10 @@ async def grid_websocket(websocket: WebSocket):
 async def sensors_websocket(websocket: WebSocket):
     """WebSocket endpoint for sensor data (slower updates - 30s)"""
     await websocket.accept()
-    cache = _get_cache()
+
+    # Get context from app.state for WebSocket handlers
+    context: AppContext = websocket.app.state.context
+    cache = context.cache
 
     try:
         while True:
@@ -380,9 +356,12 @@ async def logs_websocket(websocket: WebSocket):
 
 
 @router.get("/api/config")
-async def get_config_endpoint(username: str = Depends(require_auth)) -> dict[str, Any]:
+async def get_config_endpoint(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
     """Get current configuration - requires authentication"""
-    config = _get_config()
+    config = context.config
     return {
         "display": {
             "rotation": config.display.rotation,
@@ -412,10 +391,11 @@ async def get_config_endpoint(username: str = Depends(require_auth)) -> dict[str
 
 @router.post("/api/config")
 async def update_config_endpoint(
-    request: Request, username: str = Depends(require_auth)
+    request: Request,
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
 ) -> dict[str, Any]:
     """Update configuration and persist to config.yaml - requires authentication"""
-    context = _get_context()
 
     if context.config_path is None or not context.config_path.exists():
         return {"status": "error", "message": "No config file found"}
@@ -560,30 +540,32 @@ async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[st
 
 
 @router.get("/api/aranet4/status")
-async def get_aranet4_status() -> dict[str, Any]:
+async def get_aranet4_status_endpoint(
+    context: AppContext = Depends(get_context),
+) -> dict[str, Any]:
     """Get Aranet4 sensor status and readings"""
-    cache = _get_cache()
+    cache = context.cache
     return {
-        "status": await _get_aranet4_status(),
+        "status": await _get_aranet4_status(context),
         "data": await cache.get("co2", {}),
-        "available": await _is_aranet4_available(),
+        "available": await _is_aranet4_available(context),
     }
 
 
 @router.get("/api/aranet4/data")
-async def get_aranet4_data() -> dict[str, Any]:
+async def get_aranet4_data(context: AppContext = Depends(get_context)) -> dict[str, Any]:
     """Get CO2 sensor readings from Aranet4 devices (from cache)"""
-    cache = _get_cache()
-    result: dict[str, Any] = await cache.get("co2", {})
+    result: dict[str, Any] = await context.cache.get("co2", {})
     return result
 
 
 @router.post("/api/aranet4/config")
 async def update_aranet4_config(
-    request: Request, username: str = Depends(require_auth)
+    request: Request,
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
 ) -> dict[str, Any]:
     """Update all Aranet4 sensor configurations - requires authentication"""
-    context = _get_context()
 
     if context.config_path is None or not context.config_path.exists():
         return {"status": "error", "message": "No config file found"}
@@ -615,9 +597,9 @@ async def update_aranet4_config(
 
 
 @router.get("/api/aranet4/controls", response_class=HTMLResponse)
-async def get_aranet4_controls(request: Request):
+async def get_aranet4_controls(request: Request, context: AppContext = Depends(get_context)):
     """HTMX partial: Aranet4 sensor controls panel"""
-    config = _get_config()
+    config = context.config
     templates = request.app.state.templates
 
     # Convert aranet4 sensors to dicts for JSON serialization
@@ -629,6 +611,6 @@ async def get_aranet4_controls(request: Request):
             "request": request,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
-            "aranet4_status": await _get_aranet4_status(),
+            "aranet4_status": await _get_aranet4_status(context),
         },
     )

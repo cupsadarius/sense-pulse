@@ -2,9 +2,9 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 
 if TYPE_CHECKING:
@@ -14,22 +14,26 @@ from sense_pulse.web.log_handler import get_structured_logger
 
 logger = get_structured_logger(__name__, component="webapp")
 
-# Module-level reference to context (set by create_app)
-# This is necessary because FastAPI's lifespan function cannot receive parameters
-_app_context: Optional["AppContext"] = None
 
-
-def get_app_context() -> Optional["AppContext"]:
+def get_context(request: Request) -> "AppContext":
     """
-    Get the application context.
+    FastAPI dependency to get AppContext from request.
 
-    This function provides access to the AppContext from anywhere in the web module.
-    It is set when create_app() is called with a context.
+    This is the recommended way to access the AppContext in route handlers.
+    Use with Depends(): `context: AppContext = Depends(get_context)`
+
+    Args:
+        request: The FastAPI request object
 
     Returns:
-        The AppContext if set, None otherwise (legacy mode)
+        The AppContext instance
+
+    Raises:
+        RuntimeError: If AppContext is not initialized
     """
-    return _app_context
+    if not hasattr(request.app.state, "context") or request.app.state.context is None:
+        raise RuntimeError("AppContext not initialized. Web app must be created with context.")
+    return cast("AppContext", request.app.state.context)
 
 
 @asynccontextmanager
@@ -44,11 +48,12 @@ async def lifespan(app: FastAPI):
     logger.info("Web application starting")
 
     # Verify context is available and started
-    if _app_context:
-        if not _app_context.is_started:
+    context = getattr(app.state, "context", None)
+    if context:
+        if not context.is_started:
             logger.warning("AppContext provided but not started")
         else:
-            logger.info("Using AppContext", data_sources=len(_app_context.data_sources))
+            logger.info("Using AppContext", data_sources=len(context.data_sources))
     else:
         logger.warning("No AppContext provided - running in legacy mode")
 
@@ -64,7 +69,7 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
 
     Args:
         context: Application context with cache, config, and data sources.
-                 If None, falls back to legacy global cache for backwards compatibility.
+                 If None, app will run without context (limited functionality).
 
     Returns:
         Configured FastAPI application
@@ -74,13 +79,7 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
         context = AppContext.create(config)
         await context.start()
         app = create_app(context=context)
-
-        # Without context (legacy, deprecated)
-        app = create_app()
     """
-    global _app_context
-    _app_context = context
-
     app = FastAPI(
         title="Sense Pulse",
         description="Pi-hole + Tailscale + Sense HAT Status Dashboard",
