@@ -1,4 +1,4 @@
-"""Sense HAT LED display handling"""
+"""Sense HAT LED display handling - high-level wrapper"""
 
 import asyncio
 from typing import TYPE_CHECKING, Optional
@@ -7,18 +7,24 @@ if TYPE_CHECKING:
     from sense_hat import SenseHat
 
 from sense_pulse import icons
-from sense_pulse.devices import sensehat
+from sense_pulse.devices.sensehat_display import SenseHatDisplayController
 from sense_pulse.web.log_handler import get_structured_logger
 
 logger = get_structured_logger(__name__, component="display")
 
 
 class SenseHatDisplay:
-    """Handles Sense HAT LED matrix display"""
+    """
+    High-level Sense HAT LED matrix display handler.
+
+    Provides convenient methods for displaying text, icons, and combinations.
+    Uses SenseHatDisplayController for state tracking and low-level operations.
+    """
 
     def __init__(
         self,
         sense_hat_instance: Optional["SenseHat"] = None,
+        display_controller: Optional[SenseHatDisplayController] = None,
         rotation: int = 0,
         scroll_speed: float = 0.08,
         icon_duration: float = 1.5,
@@ -28,30 +34,38 @@ class SenseHatDisplay:
 
         Args:
             sense_hat_instance: Optional SenseHat hardware instance.
-                               If None, will try to get from sensehat module.
+            display_controller: Optional display controller for state tracking.
+                               If not provided, one will be created.
             rotation: Display rotation (0, 90, 180, 270)
             scroll_speed: Text scroll speed
             icon_duration: Default icon display duration
         """
         try:
-            # Use provided instance or get from module
-            if sense_hat_instance is not None:
-                self.sense: Optional[SenseHat] = sense_hat_instance
-                logger.info("Using provided Sense HAT instance")
+            # Create or use provided display controller
+            if display_controller is not None:
+                self._controller = display_controller
+                logger.info("Using provided display controller")
+            elif sense_hat_instance is not None:
+                self._controller = SenseHatDisplayController(sense_hat_instance)
+                logger.info("Created display controller with provided SenseHat instance")
             else:
-                self.sense = sensehat.get_sense_hat()
-                logger.info("Using Sense HAT instance from module")
+                # Fall back to lazy initialization
+                self._controller = SenseHatDisplayController()
+                logger.info("Created display controller with lazy initialization")
+
+            # Get the sense hat instance from the controller
+            self.sense: Optional[SenseHat] = self._controller.sense_hat
 
             if self.sense is None:
                 raise RuntimeError("Sense HAT not available")
 
-            # Set rotation on the actual instance we're using for display
+            # Set rotation on the actual instance and controller
             self.sense.set_rotation(rotation)
-            # Also update module tracking for web preview
-            sensehat._set_rotation_sync(rotation)
+            self._controller.set_rotation_sync(rotation)
             self.sense.low_light = True
             self.scroll_speed = scroll_speed
             self.icon_duration = icon_duration
+
             logger.info(
                 "Initialized Sense HAT display",
                 rotation=rotation,
@@ -60,6 +74,11 @@ class SenseHatDisplay:
         except Exception as e:
             logger.error("Failed to initialize Sense HAT display", error=str(e))
             raise
+
+    @property
+    def controller(self) -> SenseHatDisplayController:
+        """Get the underlying display controller."""
+        return self._controller
 
     async def show_text(
         self,
@@ -94,8 +113,8 @@ class SenseHatDisplay:
         try:
             display_time = duration if duration is not None else self.icon_duration
             logger.debug("Displaying icon", mode=mode, duration=display_time)
-            # Use hardware module for matrix operations (handles state tracking)
-            await sensehat.set_pixels(icon_pixels, mode)
+            # Use controller for matrix operations (handles state tracking)
+            await self._controller.set_pixels(icon_pixels, mode)
             await asyncio.sleep(display_time)
         except Exception as e:
             logger.error("Failed to display icon", error=str(e))
@@ -122,13 +141,13 @@ class SenseHatDisplay:
         if icon:
             await self.show_icon(icon, duration=icon_duration, mode=icon_name)
         # Update mode to show we're scrolling text
-        sensehat.set_display_mode("scrolling")
+        self._controller.set_mode("scrolling")
         await self.show_text(text, color=text_color, scroll_speed=scroll_speed)
 
     async def clear(self):
         """Clear the LED display"""
         try:
-            # Use hardware module for matrix operations (handles state tracking)
-            await sensehat.clear_display()
+            # Use controller for matrix operations (handles state tracking)
+            await self._controller.clear()
         except Exception as e:
             logger.error("Failed to clear display", error=str(e))

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from sense_pulse.cache import DataCache
+    from sense_pulse.devices.sensehat_display import SenseHatDisplayController
 
 from sense_pulse.config import Config
 from sense_pulse.devices.display import SenseHatDisplay
@@ -24,6 +25,7 @@ class StatsDisplay:
         config: Config,
         cache: "DataCache",
         sense_hat_instance=None,
+        display_controller: Optional["SenseHatDisplayController"] = None,
     ):
         """
         Initialize the stats display controller.
@@ -32,6 +34,7 @@ class StatsDisplay:
             config: Application configuration
             cache: DataCache instance for accessing sensor data
             sense_hat_instance: Optional SenseHat hardware instance
+            display_controller: Optional display controller for LED matrix operations
         """
         logger.info(
             "Initializing StatsDisplay",
@@ -44,6 +47,7 @@ class StatsDisplay:
         self.show_icons = config.display.show_icons
         self.display: Optional[SenseHatDisplay] = None  # Will be initialized in async_init()
         self._sense_hat_instance = sense_hat_instance
+        self._display_controller = display_controller
 
         self.sleep_schedule = SleepSchedule(
             config.sleep.start_hour,
@@ -58,9 +62,10 @@ class StatsDisplay:
 
     async def async_init(self) -> None:
         """Complete async initialization (call this after __init__)"""
-        # Initialize display with SenseHat instance
+        # Initialize display with SenseHat instance and optional controller
         self.display = SenseHatDisplay(
             sense_hat_instance=self._sense_hat_instance,
+            display_controller=self._display_controller,
             rotation=self.config.display.rotation,
             scroll_speed=self.config.display.scroll_speed,
             icon_duration=self.config.display.icon_duration,

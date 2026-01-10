@@ -179,7 +179,9 @@ async def async_main() -> int:
     # Start context (initializes sources, registers with cache, starts polling)
     await context.start()
 
-    # Get SenseHat instance from data source if available
+    # Get SenseHat instance from data source if available and create display controller
+    from sense_pulse.devices.sensehat_display import SenseHatDisplayController
+
     sense_hat_instance = None
     for source in context.data_sources:
         if hasattr(source, "get_sense_hat_instance"):
@@ -187,7 +189,9 @@ async def async_main() -> int:
             if instance:
                 context.sense_hat = instance
                 sense_hat_instance = instance
-                logger.info("Found SenseHat instance from DataSource")
+                # Create display controller with shared instance
+                context.display_controller = SenseHatDisplayController(instance)
+                logger.info("Found SenseHat instance from DataSource, created display controller")
                 break
 
     # Setup signal handlers for graceful shutdown
@@ -263,6 +267,7 @@ async def async_main() -> int:
             config,
             cache=context.cache,
             sense_hat_instance=sense_hat_instance,
+            display_controller=context.display_controller,
         )
         await controller.async_init()
 

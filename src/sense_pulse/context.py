@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from sense_hat import SenseHat
 
     from sense_pulse.datasources.base import DataSource
+    from sense_pulse.devices.sensehat_display import SenseHatDisplayController
 
 from sense_pulse.cache import DataCache
 from sense_pulse.config import Config, load_config
@@ -46,13 +47,14 @@ class AppContext:
     - Configuration
     - Data cache
     - Data sources
-    - Shared hardware instances (e.g., SenseHat)
+    - Shared hardware instances (e.g., SenseHat, display controller)
 
     Attributes:
         config: Application configuration loaded from YAML
         cache: DataCache instance for caching sensor readings
         data_sources: List of registered DataSource instances
         sense_hat: Optional shared SenseHat hardware instance
+        display_controller: Optional shared SenseHat display controller
     """
 
     config: Config
@@ -60,6 +62,7 @@ class AppContext:
     config_path: Optional[Path] = None
     data_sources: list["DataSource"] = field(default_factory=list)
     sense_hat: Optional["SenseHat"] = None
+    display_controller: Optional["SenseHatDisplayController"] = None
     _started: bool = field(default=False, repr=False)
 
     @classmethod

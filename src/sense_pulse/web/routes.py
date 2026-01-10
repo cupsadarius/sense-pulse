@@ -10,13 +10,19 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from sense_pulse.context import AppContext
-from sense_pulse.devices import sensehat
 from sense_pulse.web.app import get_context
 from sense_pulse.web.auth import require_auth
 from sense_pulse.web.log_handler import get_structured_logger, setup_websocket_logging
 
 logger = get_structured_logger(__name__, component="routes")
 router = APIRouter()
+
+
+def _is_sense_hat_available(context: AppContext) -> bool:
+    """Check if SenseHat hardware is available via display controller."""
+    if context.display_controller is not None:
+        return context.display_controller.available
+    return False
 
 
 # Helper functions for Aranet4 DataSource access
@@ -44,7 +50,6 @@ class DisplayConfigUpdate(BaseModel):
     show_icons: Optional[bool] = None
     scroll_speed: Optional[float] = None
     icon_duration: Optional[float] = None
-    web_rotation_offset: Optional[int] = None
 
 
 class SleepConfigUpdate(BaseModel):
@@ -102,7 +107,7 @@ async def index(
         "index.html",
         {
             "request": request,
-            "sense_hat_available": sensehat.is_sense_hat_available(),
+            "sense_hat_available": _is_sense_hat_available(context),
             "aranet4_available": await _is_aranet4_available(context),
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
@@ -135,7 +140,7 @@ async def get_status(
         "co2": await cache.get("co2", {}),
         "weather": await cache.get("weather", {}),
         "hardware": {
-            "sense_hat_available": sensehat.is_sense_hat_available(),
+            "sense_hat_available": _is_sense_hat_available(context),
             "aranet4_available": await _is_aranet4_available(context),
         },
         "config": {
@@ -171,7 +176,7 @@ async def get_status_cards(request: Request, context: AppContext = Depends(get_c
             "sensors": await cache.get("sensors", {}),
             "co2": await cache.get("co2", {}),
             "weather": await cache.get("weather", {}),
-            "sense_hat_available": sensehat.is_sense_hat_available(),
+            "sense_hat_available": _is_sense_hat_available(context),
             "aranet4_available": await _is_aranet4_available(context),
             "config": config,
         },
@@ -179,25 +184,30 @@ async def get_status_cards(request: Request, context: AppContext = Depends(get_c
 
 
 @router.post("/api/display/clear")
-async def clear_display(username: str = Depends(require_auth)):
+async def clear_display(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+):
     """Clear the LED matrix (no-op if Sense HAT unavailable) - requires authentication"""
-    return await sensehat.clear_display()
+    if context.display_controller is not None:
+        return await context.display_controller.clear()
+    return {"status": "skipped", "message": "Display controller not available"}
 
 
 @router.get("/api/hardware/status")
-async def hardware_status():
+async def hardware_status(context: AppContext = Depends(get_context)):
     """Check hardware availability"""
     return {
-        "sense_hat": sensehat.is_sense_hat_available(),
+        "sense_hat": _is_sense_hat_available(context),
     }
 
 
 @router.get("/health")
-async def health_check():
+async def health_check(context: AppContext = Depends(get_context)):
     """Health check endpoint - always succeeds even without Sense HAT"""
     return {
         "status": "healthy",
-        "sense_hat_available": sensehat.is_sense_hat_available(),
+        "sense_hat_available": _is_sense_hat_available(context),
     }
 
 
@@ -224,11 +234,22 @@ async def grid_websocket(websocket: WebSocket):
 
     try:
         while True:
+            # Get matrix state from display controller
+            if context.display_controller is not None:
+                matrix_state = await context.display_controller.get_matrix_state()
+            else:
+                matrix_state = {
+                    "pixels": [[0, 0, 0] for _ in range(64)],
+                    "mode": "idle",
+                    "rotation": 0,
+                    "available": False,
+                }
+
             # Send only grid/matrix data for smooth animation
             data = {
-                "matrix": await sensehat.get_matrix_state(),
+                "matrix": matrix_state,
                 "hardware": {
-                    "sense_hat_available": sensehat.is_sense_hat_available(),
+                    "sense_hat_available": _is_sense_hat_available(context),
                     "aranet4_available": await _is_aranet4_available(context),
                 },
             }
@@ -415,7 +436,9 @@ async def update_config_endpoint(
                 rotation = int(display_updates["rotation"])
                 if rotation in [0, 90, 180, 270]:
                     updates["display"]["rotation"] = rotation
-                    await sensehat.set_rotation(rotation)
+                    # Update rotation on display controller
+                    if context.display_controller is not None:
+                        await context.display_controller.set_rotation(rotation)
 
             if "show_icons" in display_updates:
                 updates["display"]["show_icons"] = bool(display_updates["show_icons"])
@@ -425,12 +448,6 @@ async def update_config_endpoint(
 
             if "icon_duration" in display_updates:
                 updates["display"]["icon_duration"] = display_updates["icon_duration"]
-
-            if "web_rotation_offset" in display_updates:
-                offset = int(display_updates["web_rotation_offset"])
-                if offset in [0, 90, 180, 270]:
-                    updates["display"]["web_rotation_offset"] = offset
-                    sensehat.set_web_rotation_offset(offset)
 
         if "sleep" in body:
             sleep_updates = body["sleep"]
@@ -495,7 +512,6 @@ async def update_config_endpoint(
             "config": {
                 "rotation": config.display.rotation,
                 "show_icons": config.display.show_icons,
-                "web_rotation_offset": config.display.web_rotation_offset,
                 "disable_pi_leds": config.sleep.disable_pi_leds,
             },
         }

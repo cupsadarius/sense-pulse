@@ -35,7 +35,6 @@ class DisplayConfig:
     show_icons: bool = True
     scroll_speed: float = 0.08
     icon_duration: float = 1.5
-    web_rotation_offset: int = 90  # Offset for web preview to match physical display
 
 
 @dataclass

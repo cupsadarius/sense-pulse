@@ -94,9 +94,8 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
     templates_dir = Path(__file__).parent / "templates"
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
 
-    # Initialize auth and hardware settings if context is provided
+    # Initialize auth settings if context is provided
     if context:
-        from sense_pulse.devices import sensehat
         from sense_pulse.web.auth import AuthConfig as WebAuthConfig
         from sense_pulse.web.auth import set_auth_config
 
@@ -107,9 +106,6 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
             password_hash=context.config.auth.password_hash,
         )
         set_auth_config(auth_config)
-
-        # Initialize hardware settings
-        sensehat.set_web_rotation_offset(context.config.display.web_rotation_offset)
 
     # Include API routes
     from sense_pulse.web.routes import router

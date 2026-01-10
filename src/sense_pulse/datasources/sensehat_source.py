@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+from ..devices.sensehat_sensors import SenseHatSensors
 from ..web.log_handler import get_structured_logger
 from .base import DataSource, DataSourceMetadata, SensorReading
 
@@ -20,12 +21,14 @@ class SenseHatDataSource(DataSource):
     Reads temperature, humidity, and pressure from the Sense HAT hardware.
     Gracefully handles hardware not being available.
 
-    This DataSource owns the Sense HAT hardware instance.
+    This DataSource owns the Sense HAT hardware instance and delegates
+    sensor reading to SenseHatSensors.
     """
 
     def __init__(self):
         """Initialize Sense HAT data source"""
         self._sense_hat: Optional[SenseHat] = None
+        self._sensors: Optional[SenseHatSensors] = None
         self._available = False
 
     async def initialize(self) -> None:
@@ -35,6 +38,8 @@ class SenseHatDataSource(DataSource):
 
             # Initialize hardware in thread pool (blocking operation)
             self._sense_hat = await asyncio.to_thread(SenseHat)
+            # Create sensors wrapper with the shared instance
+            self._sensors = SenseHatSensors(self._sense_hat)
             self._available = True
             logger.info("Sense HAT data source initialized")
 
@@ -45,36 +50,6 @@ class SenseHatDataSource(DataSource):
             logger.warning("Sense HAT hardware not available", error=str(e))
             self._available = False
 
-    def _read_sensors_sync(self) -> dict[str, Optional[float]]:
-        """Synchronous sensor reading (runs in thread pool)"""
-        if not self._available or self._sense_hat is None:
-            return {
-                "temperature": None,
-                "humidity": None,
-                "pressure": None,
-            }
-
-        try:
-            data = {
-                "temperature": round(self._sense_hat.get_temperature(), 1),
-                "humidity": round(self._sense_hat.get_humidity(), 1),
-                "pressure": round(self._sense_hat.get_pressure(), 1),
-            }
-            logger.debug(
-                "Sense HAT sensors read",
-                temperature=data["temperature"],
-                humidity=data["humidity"],
-                pressure=data["pressure"],
-            )
-            return data
-        except Exception as e:
-            logger.error("Failed to read Sense HAT sensors", error=str(e))
-            return {
-                "temperature": None,
-                "humidity": None,
-                "pressure": None,
-            }
-
     async def fetch_readings(self) -> list[SensorReading]:
         """
         Fetch fresh readings from Sense HAT sensors.
@@ -82,12 +57,12 @@ class SenseHatDataSource(DataSource):
         Returns:
             List of sensor readings (temperature, humidity, pressure)
         """
-        if not self._available:
+        if not self._available or self._sensors is None:
             return []
 
         try:
-            # Read sensors in thread pool (blocking I/O)
-            data = await asyncio.to_thread(self._read_sensors_sync)
+            # Read sensors using the sensors wrapper
+            data = await self._sensors.get_all()
             now = datetime.now()
             readings = []
 
@@ -141,13 +116,13 @@ class SenseHatDataSource(DataSource):
 
     async def health_check(self) -> bool:
         """Check if Sense HAT hardware is available and responsive"""
-        if not self._available or self._sense_hat is None:
+        if not self._available or self._sensors is None:
             return False
 
         try:
             # Try a quick read to verify hardware is working
-            data = await asyncio.to_thread(self._read_sensors_sync)
-            return any(v is not None for v in data.values())
+            data = await self._sensors.get_all()
+            return any(v is not None for k, v in data.items() if k != "available")
         except Exception as e:
             logger.debug("Sense HAT health check failed", error=str(e))
             return False
@@ -163,5 +138,6 @@ class SenseHatDataSource(DataSource):
     async def shutdown(self) -> None:
         """Clean up resources"""
         self._sense_hat = None
+        self._sensors = None
         self._available = False
         logger.debug("Sense HAT data source shut down")

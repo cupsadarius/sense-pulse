@@ -2,8 +2,9 @@
 
 This module contains low-level hardware device implementations:
 - aranet4: Aranet4 CO2 sensor BLE interface
-- sensehat: Sense HAT hardware abstraction (sensors, LED matrix)
-- display: Display device wrapper for Sense HAT LED matrix
+- sensehat_sensors: Read-only access to SenseHat environmental sensors
+- sensehat_display: LED matrix display control for SenseHat
+- display: High-level display wrapper for Sense HAT LED matrix
 - pihole: Pi-hole API client
 - tailscale: Tailscale CLI wrapper
 - system: System statistics (psutil)
@@ -17,17 +18,8 @@ from sense_pulse.devices.aranet4 import (
 )
 from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.devices.pihole import PiHoleStats
-from sense_pulse.devices.sensehat import (
-    clear_display,
-    get_matrix_state,
-    get_sense_hat,
-    get_sensor_data,
-    is_sense_hat_available,
-    set_display_mode,
-    set_pixels,
-    set_rotation,
-    set_web_rotation_offset,
-)
+from sense_pulse.devices.sensehat_display import SenseHatDisplayController
+from sense_pulse.devices.sensehat_sensors import SenseHatSensors
 from sense_pulse.devices.system import SystemStats
 from sense_pulse.devices.tailscale import TailscaleStatus
 
@@ -37,17 +29,11 @@ __all__ = [
     "Aranet4Reading",
     "scan_for_aranet4_devices",
     "scan_for_aranet4_sync",
-    # Sense HAT hardware
-    "is_sense_hat_available",
-    "get_sense_hat",
-    "get_sensor_data",
-    "clear_display",
-    "set_pixels",
-    "set_rotation",
-    "get_matrix_state",
-    "set_web_rotation_offset",
-    "set_display_mode",
-    # Display
+    # Sense HAT - Sensors (read-only)
+    "SenseHatSensors",
+    # Sense HAT - Display (LED matrix control)
+    "SenseHatDisplayController",
+    # Display (high-level wrapper)
     "SenseHatDisplay",
     # Pi-hole
     "PiHoleStats",
