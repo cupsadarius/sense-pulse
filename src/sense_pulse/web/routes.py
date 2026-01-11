@@ -511,16 +511,17 @@ async def update_config_endpoint(
 
 @router.get("/api/aranet4/scan")
 async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[str, Any]:
-    """Scan for Aranet4 devices via Bluetooth LE - requires authentication"""
-    import concurrent.futures
+    """Scan for Aranet4 devices via Bluetooth LE - requires authentication.
 
+    Uses async BLE scanning to avoid D-Bus connection exhaustion that
+    occurs when repeatedly calling asyncio.run() for each scan.
+    """
     try:
-        from sense_pulse.devices.aranet4 import scan_for_aranet4_sync
+        from sense_pulse.devices.aranet4 import scan_for_aranet4_async
 
-        # Run sync scan in thread pool to not block FastAPI
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(scan_for_aranet4_sync, 10)
-            devices = future.result(timeout=15)
+        # Use async scan directly (no thread pool needed)
+        # This prevents D-Bus connection leaks from repeated asyncio.run() calls
+        devices = await scan_for_aranet4_async(duration=10)
 
         return {
             "status": "ok",

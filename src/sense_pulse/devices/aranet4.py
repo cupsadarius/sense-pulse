@@ -1,20 +1,19 @@
-"""Aranet4 CO2 sensor communication via aranet4 package scan"""
+"""Aranet4 CO2 sensor communication via aranet4 package async BLE scan"""
 
+import asyncio
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
-
 from ..web.log_handler import get_structured_logger
 
 logger = get_structured_logger(__name__, component="aranet4")
+
+# Async lock for BLE operations (prevents D-Bus connection exhaustion)
+_async_scan_lock: Optional[asyncio.Lock] = None
+_last_scan_time: float = 0
+_scan_cooldown = 5  # Minimum seconds between scans
 
 
 @dataclass
@@ -107,25 +106,26 @@ class Aranet4Sensor:
 
 
 # ============================================================================
-# BLE Scanning Utilities
+# Async BLE Scanning (prevents D-Bus connection exhaustion)
 # ============================================================================
 
-# Global scan lock prevents concurrent BLE operations (shared across all instances)
-_scan_lock = threading.Lock()
-_last_scan_time: float = 0
-_scan_cooldown = 5  # Minimum seconds between scans
+
+def _get_async_scan_lock() -> asyncio.Lock:
+    """Get or create the async scan lock (must be called from async context)"""
+    global _async_scan_lock
+    if _async_scan_lock is None:
+        _async_scan_lock = asyncio.Lock()
+    return _async_scan_lock
 
 
-@retry(
-    retry=retry_if_exception_type(Exception),
-    stop=stop_after_attempt(2),  # Only 1 retry for BLE to avoid long delays
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    reraise=True,
-)
-def do_ble_scan(scan_duration: int = 8) -> dict[str, Aranet4Reading]:
-    """Run aranet4 package scan and return readings by MAC address (with retries)
+async def do_ble_scan_async(scan_duration: int = 8) -> dict[str, Aranet4Reading]:
+    """Run async BLE scan using aranet4's internal async API.
 
-    IMPORTANT: Must be called with _scan_lock held to prevent concurrent scans.
+    This avoids the D-Bus connection exhaustion issue caused by repeated
+    asyncio.run() calls in the synchronous find_nearby() function.
+
+    Uses aranet4.client._find_nearby() directly within the existing event loop
+    instead of find_nearby() which creates a new event loop each time.
 
     Args:
         scan_duration: Duration of BLE scan in seconds
@@ -136,59 +136,60 @@ def do_ble_scan(scan_duration: int = 8) -> dict[str, Aranet4Reading]:
     global _last_scan_time
 
     try:
-        import aranet4
+        # Import aranet4's internal async function
+        from aranet4.client import _find_nearby
 
-        # Enforce cooldown period between scans
-        time_since_last_scan = time.time() - _last_scan_time
-        if time_since_last_scan < _scan_cooldown:
-            wait_time = _scan_cooldown - time_since_last_scan
-            logger.debug("Aranet4 scan cooldown", wait_seconds=round(wait_time, 1))
-            time.sleep(wait_time)
+        # Acquire async lock to prevent concurrent scans
+        async with _get_async_scan_lock():
+            # Enforce cooldown period between scans
+            time_since_last_scan = time.time() - _last_scan_time
+            if time_since_last_scan < _scan_cooldown:
+                wait_time = _scan_cooldown - time_since_last_scan
+                logger.debug("Aranet4 async scan cooldown", wait_seconds=round(wait_time, 1))
+                await asyncio.sleep(wait_time)
 
-        logger.info("Aranet4 running BLE scan", duration=scan_duration)
-        _last_scan_time = time.time()
-        readings: dict[str, Aranet4Reading] = {}
+            logger.info("Aranet4 running async BLE scan", duration=scan_duration)
+            _last_scan_time = time.time()
+            readings: dict[str, Aranet4Reading] = {}
 
-        def on_detect(advertisement):
-            if advertisement.readings:
-                address = advertisement.device.address.upper()
-                readings[address] = Aranet4Reading(
-                    co2=advertisement.readings.co2,
-                    temperature=round(advertisement.readings.temperature, 1),
-                    humidity=advertisement.readings.humidity,
-                    pressure=round(advertisement.readings.pressure, 1),
-                    battery=advertisement.readings.battery,
-                    interval=advertisement.readings.interval,
-                    ago=advertisement.readings.ago,
-                    timestamp=time.time(),
-                )
-                logger.debug(
-                    "Aranet4 device found",
-                    address=address,
-                    co2=advertisement.readings.co2,
-                )
+            def on_detect(advertisement):
+                if advertisement.readings:
+                    address = advertisement.device.address.upper()
+                    readings[address] = Aranet4Reading(
+                        co2=advertisement.readings.co2,
+                        temperature=round(advertisement.readings.temperature, 1),
+                        humidity=advertisement.readings.humidity,
+                        pressure=round(advertisement.readings.pressure, 1),
+                        battery=advertisement.readings.battery,
+                        interval=advertisement.readings.interval,
+                        ago=advertisement.readings.ago,
+                        timestamp=time.time(),
+                    )
+                    logger.debug(
+                        "Aranet4 device found",
+                        address=address,
+                        co2=advertisement.readings.co2,
+                    )
 
-        aranet4.client.find_nearby(on_detect, duration=scan_duration)
-        logger.info("Aranet4 scan completed", devices_found=len(readings))
-        return readings
+            # Use the async _find_nearby directly instead of sync find_nearby
+            # This prevents creating new event loops and accumulating D-Bus connections
+            await _find_nearby(on_detect, scan_duration)
+
+            logger.info("Aranet4 async scan completed", devices_found=len(readings))
+            return readings
 
     except ImportError:
         logger.error("Aranet4 package not installed")
         return {}
     except Exception as e:
-        logger.warning("Aranet4 scan error (may retry)", error=str(e))
+        logger.warning("Aranet4 async scan error", error=str(e))
         raise
 
 
-def get_scan_lock() -> threading.Lock:
-    """Get the global BLE scan lock for coordinating scans across instances"""
-    return _scan_lock
+async def scan_for_aranet4_async(duration: int = 10) -> list[dict[str, Any]]:
+    """Async scan for Aranet4 devices in range.
 
-
-def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
-    """Scan for Aranet4 devices in range using aranet4 package.
-
-    Uses global scan lock to prevent concurrent BLE operations.
+    Uses aranet4's internal async API to avoid D-Bus connection exhaustion.
 
     Args:
         duration: Duration of scan in seconds
@@ -199,16 +200,17 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
     global _last_scan_time
 
     try:
-        import aranet4
+        from aranet4.client import Aranet4Scanner
 
-        # Acquire global lock to prevent concurrent scans
-        with _scan_lock:
+        async with _get_async_scan_lock():
             # Enforce cooldown period between scans
             time_since_last_scan = time.time() - _last_scan_time
             if time_since_last_scan < _scan_cooldown:
                 wait_time = _scan_cooldown - time_since_last_scan
-                logger.debug("Aranet4 discovery scan cooldown", wait_seconds=round(wait_time, 1))
-                time.sleep(wait_time)
+                logger.debug(
+                    "Aranet4 async discovery scan cooldown", wait_seconds=round(wait_time, 1)
+                )
+                await asyncio.sleep(wait_time)
 
             logger.info("Scanning for Aranet4 devices", duration=duration)
             _last_scan_time = time.time()
@@ -235,7 +237,11 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
                         address=device_info["address"],
                     )
 
-            aranet4.client.find_nearby(on_detect, duration=duration)
+            # Use Aranet4Scanner directly for proper lifecycle management
+            scanner = Aranet4Scanner(on_detect)
+            await scanner.start()
+            await asyncio.sleep(duration)
+            await scanner.stop()
 
             logger.info("Aranet4 scan complete", devices_found=len(found_devices))
             return found_devices
@@ -244,10 +250,5 @@ def scan_for_aranet4_devices(duration: int = 10) -> list[dict[str, Any]]:
         logger.error("Aranet4 library not installed - cannot scan")
         return []
     except Exception as e:
-        logger.error("BLE scan error", error=str(e))
+        logger.error("Async BLE scan error", error=str(e))
         return []
-
-
-def scan_for_aranet4_sync(duration: int = 10) -> list[dict[str, Any]]:
-    """Synchronous scan for Aranet4 devices (alias for scan_for_aranet4_devices)"""
-    return scan_for_aranet4_devices(duration)

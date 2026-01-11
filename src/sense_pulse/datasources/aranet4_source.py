@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -85,6 +84,9 @@ class Aranet4DataSource(DataSource):
         This triggers a single BLE scan to read all configured sensors.
         The scan takes ~8 seconds. Results are cached in sensor instances.
 
+        Uses async BLE scanning to avoid D-Bus connection exhaustion
+        that occurs when repeatedly calling asyncio.run() for each scan.
+
         Returns:
             List of sensor readings from all configured sensors.
             Each reading represents one sensor with a nested dict value
@@ -96,19 +98,15 @@ class Aranet4DataSource(DataSource):
         readings = []
 
         try:
-            # Import scan utilities
-            from ..devices.aranet4 import do_ble_scan, get_scan_lock
+            # Import async scan utility (prevents D-Bus connection exhaustion)
+            from ..devices.aranet4 import do_ble_scan_async
 
-            # Perform a single BLE scan for all sensors
-            logger.info("Starting BLE scan", duration=self._scan_duration)
+            # Perform a single async BLE scan for all sensors
+            # Using async version avoids creating new event loops for each scan,
+            # which would exhaust D-Bus connections after hours of polling
+            logger.info("Starting async BLE scan", duration=self._scan_duration)
 
-            def locked_scan():
-                """Run scan with lock held"""
-                with get_scan_lock():
-                    return do_ble_scan(scan_duration=self._scan_duration)
-
-            # Run scan in thread pool (blocking operation)
-            scan_results = await asyncio.to_thread(locked_scan)
+            scan_results = await do_ble_scan_async(scan_duration=self._scan_duration)
 
             logger.info("BLE scan completed", devices_found=len(scan_results))
 
