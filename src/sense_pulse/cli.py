@@ -29,14 +29,18 @@ def setup_logging(level: str, log_file: Optional[str]) -> None:
 
     # Add WebSocket log handler for streaming logs to web UI
     # This must be initialized early to capture all startup logs
-    from sense_pulse.web.log_handler import setup_websocket_logging
+    from sense_pulse.web.log_handler import StructuredFormatter, setup_websocket_logging
 
     ws_handler = setup_websocket_logging()
     handlers.append(ws_handler)
 
+    # Use StructuredFormatter to render extra kwargs in console/file output
+    formatter = StructuredFormatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    for handler in handlers:
+        handler.setFormatter(formatter)
+
     logging.basicConfig(
         level=log_level,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         handlers=handlers,
     )
 
