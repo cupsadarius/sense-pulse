@@ -54,6 +54,7 @@ class Aranet4Device:
         # Build MAC -> label lookup
         mac_to_label = {sensor.mac_address: label for label, sensor in self._sensors.items()}
         results: dict[str, Optional[Aranet4Reading]] = {label: None for label in self._sensors}
+        found: set[str] = set()  # Track found MACs to avoid duplicate processing
 
         try:
             import aranet4
@@ -62,7 +63,9 @@ class Aranet4Device:
 
             def on_detect(advertisement: Any) -> None:
                 addr = advertisement.device.address.upper()
-                if addr in mac_to_label and advertisement.readings:
+                # Only process first advertisement per sensor
+                if addr in mac_to_label and advertisement.readings and addr not in found:
+                    found.add(addr)
                     label = mac_to_label[addr]
                     r = advertisement.readings
                     reading = Aranet4Reading(
@@ -86,12 +89,12 @@ class Aranet4Device:
             async with self._lock:
                 await aranet4.client._find_nearby(on_detect, duration=10)
 
-            found = [label for label, reading in results.items() if reading]
-            missing = [label for label, reading in results.items() if not reading]
+            found_labels = [label for label, reading in results.items() if reading]
+            missing_labels = [label for label, reading in results.items() if not reading]
             logger.info(
                 "Aranet4 scan complete",
-                found=found,
-                missing=missing,
+                found=found_labels,
+                missing=missing_labels,
             )
 
             return results
