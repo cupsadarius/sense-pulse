@@ -66,6 +66,61 @@ def get_structured_logger(name: str, **default_extra: Any) -> StructuredLoggerAd
     return StructuredLoggerAdapter(base_logger, default_extra)
 
 
+class StructuredFormatter(logging.Formatter):
+    """Formatter that appends structured extra fields to log messages.
+
+    Renders extra kwargs passed to structured loggers in the console output.
+    Example output:
+        2024-01-12 10:45:57 - WARNING - module - Failed | mac_address='AA:BB' error='timeout'
+    """
+
+    # Standard LogRecord attributes that should not be rendered as extras
+    STANDARD_ATTRS = {
+        "name",
+        "msg",
+        "args",
+        "levelname",
+        "levelno",
+        "pathname",
+        "filename",
+        "module",
+        "exc_info",
+        "exc_text",
+        "stack_info",
+        "lineno",
+        "funcName",
+        "created",
+        "msecs",
+        "relativeCreated",
+        "thread",
+        "threadName",
+        "processName",
+        "process",
+        "message",
+        "asctime",
+        "taskName",
+    }
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format the log record, appending any extra fields."""
+        # Get the base formatted message
+        message = super().format(record)
+
+        # Collect extra fields (non-standard attributes)
+        extras = {
+            k: v
+            for k, v in record.__dict__.items()
+            if k not in self.STANDARD_ATTRS and not k.startswith("_")
+        }
+
+        # Append extras if any
+        if extras:
+            extra_str = " | " + " ".join(f"{k}={v!r}" for k, v in extras.items())
+            message += extra_str
+
+        return message
+
+
 @dataclass
 class LogEntry:
     """Represents a single log entry."""
