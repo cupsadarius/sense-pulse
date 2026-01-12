@@ -73,13 +73,15 @@ class TestAranet4Device:
         """scan_for_devices returns empty list if aranet4 not installed"""
         device = Aranet4Device()
 
-        with patch.dict("sys.modules", {"aranet4": None}):
-            with patch(
+        with (
+            patch.dict("sys.modules", {"aranet4": None}),
+            patch(
                 "sense_pulse.devices.aranet4.Aranet4Device.scan_for_devices",
                 return_value=[],
-            ):
-                result = await device.scan_for_devices()
-                assert result == []
+            ),
+        ):
+            result = await device.scan_for_devices()
+            assert result == []
 
 
 class TestAranet4Sensor:
