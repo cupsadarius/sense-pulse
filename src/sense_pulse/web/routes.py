@@ -510,17 +510,21 @@ async def update_config_endpoint(
 
 
 @router.get("/api/aranet4/scan")
-async def scan_aranet4_devices(username: str = Depends(require_auth)) -> dict[str, Any]:
+async def scan_aranet4_devices(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
     """Scan for Aranet4 devices via Bluetooth LE - requires authentication"""
-    import concurrent.futures
-
     try:
-        from sense_pulse.devices.aranet4 import scan_for_aranet4_sync
+        if not context.aranet4_device:
+            return {
+                "status": "error",
+                "message": "Aranet4 device not available",
+                "devices": [],
+                "count": 0,
+            }
 
-        # Run sync scan in thread pool to not block FastAPI
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(scan_for_aranet4_sync, 10)
-            devices = future.result(timeout=15)
+        devices = await context.aranet4_device.scan_for_devices(duration=10)
 
         return {
             "status": "ok",

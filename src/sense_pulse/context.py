@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from sense_hat import SenseHat
 
     from sense_pulse.datasources.base import DataSource
+    from sense_pulse.devices.aranet4 import Aranet4Device
 
 from sense_pulse.cache import DataCache
 from sense_pulse.config import Config, load_config
@@ -53,6 +54,7 @@ class AppContext:
         cache: DataCache instance for caching sensor readings
         data_sources: List of registered DataSource instances
         sense_hat: Optional shared SenseHat hardware instance
+        aranet4_device: Optional shared Aranet4 BLE device manager
     """
 
     config: Config
@@ -60,6 +62,7 @@ class AppContext:
     config_path: Optional[Path] = None
     data_sources: list["DataSource"] = field(default_factory=list)
     sense_hat: Optional["SenseHat"] = None
+    aranet4_device: Optional["Aranet4Device"] = None
     _started: bool = field(default=False, repr=False)
 
     @classmethod
