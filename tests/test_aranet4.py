@@ -34,39 +34,65 @@ class TestAranet4Device:
         assert device.get_sensor("unknown") is None
 
     @pytest.mark.asyncio
-    async def test_read_all_sensors_returns_results(self):
-        """read_all_sensors calls read() on each sensor"""
+    async def test_read_all_sensors_empty_when_no_sensors(self):
+        """read_all_sensors returns empty dict when no sensors configured"""
         device = Aranet4Device()
+        results = await device.read_all_sensors()
+        assert results == {}
 
-        # Create mock sensors
-        sensor1 = Mock(spec=Aranet4Sensor)
-        sensor1.read = AsyncMock(
-            return_value=Aranet4Reading(
-                co2=800,
-                temperature=22.5,
-                humidity=50,
-                pressure=1013.0,
-                battery=90,
-                interval=300,
-                ago=10,
-                timestamp=1234567890.0,
-            )
-        )
-
-        sensor2 = Mock(spec=Aranet4Sensor)
-        sensor2.read = AsyncMock(return_value=None)
-
+    @pytest.mark.asyncio
+    async def test_read_all_sensors_via_scan(self):
+        """read_all_sensors uses BLE scan to get readings"""
+        device = Aranet4Device()
+        sensor1 = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "office")
+        sensor2 = Aranet4Sensor("11:22:33:44:55:66", "bedroom")
         device.add_sensor("office", sensor1)
         device.add_sensor("bedroom", sensor2)
 
-        results = await device.read_all_sensors()
+        # Mock aranet4 scan - only find first sensor
+        mock_advertisement = Mock()
+        mock_advertisement.device.address = "AA:BB:CC:DD:EE:FF"
+        mock_advertisement.readings = Mock(
+            co2=800,
+            temperature=22.5,
+            humidity=50,
+            pressure=1013.0,
+            battery=90,
+            interval=300,
+            ago=10,
+        )
 
-        assert "office" in results
+        async def mock_find_nearby(callback, duration):
+            callback(mock_advertisement)
+
+        with patch("aranet4.client._find_nearby", new=mock_find_nearby):
+            results = await device.read_all_sensors()
+
+        assert results["office"] is not None
         assert results["office"].co2 == 800
-        assert "bedroom" in results
-        assert results["bedroom"] is None
-        sensor1.read.assert_called_once()
-        sensor2.read.assert_called_once()
+        assert results["office"].temperature == 22.5
+        assert results["office"].humidity == 50
+        assert results["office"].pressure == 1013.0
+        assert results["office"].battery == 90
+        assert results["bedroom"] is None  # not found in scan
+
+    @pytest.mark.asyncio
+    async def test_read_all_sensors_handles_import_error(self):
+        """read_all_sensors returns empty results on ImportError"""
+        device = Aranet4Device()
+        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "office")
+        device.add_sensor("office", sensor)
+
+        with (
+            patch.dict("sys.modules", {"aranet4": None}),
+            patch(
+                "sense_pulse.devices.aranet4.Aranet4Device.read_all_sensors",
+                new_callable=AsyncMock,
+                return_value={"office": None},
+            ),
+        ):
+            results = await device.read_all_sensors()
+            assert results["office"] is None
 
     @pytest.mark.asyncio
     async def test_scan_for_devices_returns_empty_on_import_error(self):
@@ -89,77 +115,20 @@ class TestAranet4Sensor:
 
     def test_init_uppercases_mac(self):
         """MAC address is uppercased on init"""
-        sensor = Aranet4Sensor("aa:bb:cc:dd:ee:ff", "office", 60)
+        sensor = Aranet4Sensor("aa:bb:cc:dd:ee:ff", "office")
         assert sensor.mac_address == "AA:BB:CC:DD:EE:FF"
 
     def test_init_defaults(self):
         """Default values are set correctly"""
         sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF")
         assert sensor.name == "sensor"
-        assert sensor.cache_duration == 60
-        assert sensor._cached_reading is None
-        assert sensor._last_error is None
+        assert sensor.mac_address == "AA:BB:CC:DD:EE:FF"
 
-    def test_get_cached_reading_returns_none_initially(self):
-        """get_cached_reading returns None before any read"""
-        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "test")
-        assert sensor.get_cached_reading() is None
-
-    def test_get_co2_returns_none_without_reading(self):
-        """get_co2 returns None without cached reading"""
-        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "test")
-        assert sensor.get_co2() is None
-
-    def test_get_status_without_reading(self):
-        """get_status returns correct structure without reading"""
-        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "office", 60)
-        status = sensor.get_status()
-
-        assert status["name"] == "office"
-        assert status["mac_address"] == "AA:BB:CC:DD:EE:FF"
-        assert status["connected"] is False
-        assert status["last_reading"] is None
-        assert status["cache_age"] is None
-        assert status["last_error"] is None
-
-    @pytest.mark.asyncio
-    async def test_read_success(self):
-        """read() returns Aranet4Reading on success"""
-        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "test")
-
-        mock_reading = Mock()
-        mock_reading.co2 = 800
-        mock_reading.temperature = 22.567
-        mock_reading.humidity = 50
-        mock_reading.pressure = 1013.25
-        mock_reading.battery = 90
-        mock_reading.interval = 300
-        mock_reading.ago = 10
-
-        with patch("aranet4.client._current_reading", new_callable=AsyncMock) as mock:
-            mock.return_value = mock_reading
-            result = await sensor.read()
-
-        assert result is not None
-        assert result.co2 == 800
-        assert result.temperature == 22.6  # rounded
-        assert result.humidity == 50
-        assert result.pressure == 1013.2  # rounded
-        assert result.battery == 90
-        assert sensor._cached_reading == result
-        assert sensor._last_error is None
-
-    @pytest.mark.asyncio
-    async def test_read_failure_sets_error(self):
-        """read() sets error on exception"""
-        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "test")
-
-        with patch("aranet4.client._current_reading", new_callable=AsyncMock) as mock:
-            mock.side_effect = Exception("BLE connection failed")
-            result = await sensor.read()
-
-        assert result is None
-        assert sensor._last_error == "BLE connection failed"
+    def test_init_with_name(self):
+        """Name is set correctly"""
+        sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "office")
+        assert sensor.name == "office"
+        assert sensor.mac_address == "AA:BB:CC:DD:EE:FF"
 
 
 class TestAranet4Reading:
@@ -209,9 +178,7 @@ class TestAranet4DataSource:
         """DataSource is enabled with configured sensors"""
         config = Aranet4Config(
             sensors=[
-                Aranet4SensorConfig(
-                    label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True
-                )
+                Aranet4SensorConfig(label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True)
             ]
         )
         device = Aranet4Device()
@@ -224,14 +191,9 @@ class TestAranet4DataSource:
         """initialize() creates sensors and registers with device"""
         config = Aranet4Config(
             sensors=[
-                Aranet4SensorConfig(
-                    label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True
-                ),
-                Aranet4SensorConfig(
-                    label="bedroom", mac_address="11:22:33:44:55:66", enabled=True
-                ),
+                Aranet4SensorConfig(label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True),
+                Aranet4SensorConfig(label="bedroom", mac_address="11:22:33:44:55:66", enabled=True),
             ],
-            cache_duration=120,
         )
         device = Aranet4Device()
         source = Aranet4DataSource(config, device)
@@ -241,16 +203,14 @@ class TestAranet4DataSource:
         assert "office" in device.sensors
         assert "bedroom" in device.sensors
         assert device.sensors["office"].mac_address == "AA:BB:CC:DD:EE:FF"
-        assert device.sensors["office"].cache_duration == 120
+        assert device.sensors["office"].name == "office"
 
     @pytest.mark.asyncio
     async def test_initialize_skips_disabled_sensors(self):
         """initialize() skips disabled sensors"""
         config = Aranet4Config(
             sensors=[
-                Aranet4SensorConfig(
-                    label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True
-                ),
+                Aranet4SensorConfig(label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True),
                 Aranet4SensorConfig(
                     label="disabled", mac_address="11:22:33:44:55:66", enabled=False
                 ),
@@ -276,7 +236,7 @@ class TestAranet4DataSource:
         assert readings == []
 
     def test_get_sensor_status(self):
-        """get_sensor_status() returns status from device sensors"""
+        """get_sensor_status() returns config info from device sensors"""
         config = Aranet4Config(sensors=[])
         device = Aranet4Device()
         sensor = Aranet4Sensor("AA:BB:CC:DD:EE:FF", "office")
@@ -287,3 +247,27 @@ class TestAranet4DataSource:
 
         assert "office" in status
         assert status["office"]["name"] == "office"
+        assert status["office"]["mac_address"] == "AA:BB:CC:DD:EE:FF"
+
+    @pytest.mark.asyncio
+    async def test_health_check_with_sensors(self):
+        """health_check returns True when enabled with sensors"""
+        config = Aranet4Config(
+            sensors=[
+                Aranet4SensorConfig(label="office", mac_address="AA:BB:CC:DD:EE:FF", enabled=True)
+            ]
+        )
+        device = Aranet4Device()
+        source = Aranet4DataSource(config, device)
+        await source.initialize()
+
+        assert await source.health_check() is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_without_sensors(self):
+        """health_check returns False when no sensors"""
+        config = Aranet4Config(sensors=[])
+        device = Aranet4Device()
+        source = Aranet4DataSource(config, device)
+
+        assert await source.health_check() is False

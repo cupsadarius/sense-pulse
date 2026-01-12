@@ -19,10 +19,11 @@ class Aranet4DataSource(DataSource):
     """
     Aranet4 BLE CO2 sensors data source.
 
-    Uses direct BLE connections to each device to avoid DBus exhaustion.
+    Uses BLE scanning to read sensor data from advertisements.
+    This is more reliable than direct connections.
     See: https://github.com/hbldh/bleak/issues/1475
 
-    No internal polling - relies on Cache's polling mechanism.
+    No internal caching - relies on DataCache's caching mechanism.
     """
 
     def __init__(self, config: Aranet4Config, device: Aranet4Device):
@@ -44,7 +45,6 @@ class Aranet4DataSource(DataSource):
                     sensor = Aranet4Sensor(
                         mac_address=sensor_config.mac_address,
                         name=sensor_config.label or sensor_config.mac_address[-8:],
-                        cache_duration=self._config.cache_duration,
                     )
                     self._device.add_sensor(sensor_config.label, sensor)
                     logger.info(
@@ -66,14 +66,14 @@ class Aranet4DataSource(DataSource):
             self._enabled = False
 
     async def fetch_readings(self) -> list[SensorReading]:
-        """Fetch readings by connecting directly to each device."""
+        """Fetch readings via BLE scan."""
         if not self._enabled or not self._device.sensors:
             return []
 
         readings = []
         logger.info("Fetching Aranet4 readings", sensor_count=len(self._device.sensors))
 
-        # Device handles lock coordination
+        # Device handles lock coordination and BLE scanning
         results = await self._device.read_all_sensors()
 
         for label, reading_data in results.items():
@@ -111,14 +111,21 @@ class Aranet4DataSource(DataSource):
         )
 
     async def health_check(self) -> bool:
-        """Check if any sensor has recent data"""
-        if not self._enabled:
-            return False
-        return any(s.get_cached_reading() for s in self._device.sensors.values())
+        """Check if Aranet4 source is configured with sensors."""
+        return self._enabled and len(self._device.sensors) > 0
 
     def get_sensor_status(self) -> dict[str, dict[str, Any]]:
-        """Get status of all sensors (for web UI)"""
-        return {label: sensor.get_status() for label, sensor in self._device.sensors.items()}
+        """Get config info for all sensors (for web UI).
+
+        Returns sensor configuration. Actual readings come from DataCache.
+        """
+        return {
+            label: {
+                "name": sensor.name,
+                "mac_address": sensor.mac_address,
+            }
+            for label, sensor in self._device.sensors.items()
+        }
 
     async def shutdown(self) -> None:
         """Clean up resources"""
