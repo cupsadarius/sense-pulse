@@ -184,12 +184,13 @@ class Aranet4Sensor:
             self._last_error = "aranet4 package not installed"
             return None
         except Exception as e:
+            error_msg = str(e) or repr(e)
             logger.warning(
                 "Failed to read Aranet4 device",
                 mac_address=self.mac_address,
-                error=str(e),
+                error=error_msg,
             )
-            self._last_error = str(e)
+            self._last_error = error_msg
             return None
 
     def get_cached_reading(self) -> Optional[Aranet4Reading]:
