@@ -132,6 +132,7 @@ async def async_main() -> int:
         TailscaleDataSource,
         WeatherDataSource,
     )
+    from sense_pulse.devices.aranet4 import Aranet4Device
 
     # Determine config path
     config_path = Path(args.config) if args.config else find_config_file()
@@ -168,12 +169,16 @@ async def async_main() -> int:
         poll_interval=config.cache.poll_interval,
     )
 
+    # Create shared hardware instances
+    aranet4_device = Aranet4Device()
+    context.aranet4_device = aranet4_device
+
     # Add all data sources to context
     context.add_data_source(TailscaleDataSource(config.tailscale))
     context.add_data_source(PiHoleDataSource(config.pihole))
     context.add_data_source(SystemStatsDataSource())
     context.add_data_source(SenseHatDataSource())
-    context.add_data_source(Aranet4DataSource(config.aranet4))
+    context.add_data_source(Aranet4DataSource(config.aranet4, aranet4_device))
     context.add_data_source(WeatherDataSource(config.weather))
 
     # Start context (initializes sources, registers with cache, starts polling)
