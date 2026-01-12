@@ -1,6 +1,7 @@
 """Aranet4 CO2 sensor communication via aranet4 package
 
-Uses direct BLE connections to avoid DBus connection exhaustion.
+Uses BLE scanning to read sensor data from advertisements.
+This is more reliable than direct connections which can fail with timeout/EOR errors.
 See: https://github.com/hbldh/bleak/issues/1475
 """
 
@@ -38,18 +39,69 @@ class Aranet4Device:
         """Get all registered sensors."""
         return self._sensors
 
-    async def read_sensor(self, sensor: "Aranet4Sensor") -> Optional["Aranet4Reading"]:
-        """Read from a sensor, coordinating BLE access."""
-        async with self._lock:
-            return await sensor.read()
-
     async def read_all_sensors(self) -> dict[str, Optional["Aranet4Reading"]]:
-        """Read from all registered sensors."""
-        results: dict[str, Optional[Aranet4Reading]] = {}
-        async with self._lock:
-            for label, sensor in self._sensors.items():
-                results[label] = await sensor.read()
-        return results
+        """Read all sensors via single BLE scan (10 seconds).
+
+        Uses passive BLE scanning to collect readings from advertisements.
+        This is more reliable than direct connections.
+
+        Returns:
+            Dict mapping sensor labels to readings (None if sensor not found in scan)
+        """
+        if not self._sensors:
+            return {}
+
+        # Build MAC -> label lookup
+        mac_to_label = {sensor.mac_address: label for label, sensor in self._sensors.items()}
+        results: dict[str, Optional[Aranet4Reading]] = {label: None for label in self._sensors}
+
+        try:
+            import aranet4
+
+            logger.info("Starting Aranet4 scan for readings", sensor_count=len(self._sensors))
+
+            def on_detect(advertisement: Any) -> None:
+                addr = advertisement.device.address.upper()
+                if addr in mac_to_label and advertisement.readings:
+                    label = mac_to_label[addr]
+                    r = advertisement.readings
+                    reading = Aranet4Reading(
+                        co2=r.co2,
+                        temperature=round(r.temperature, 1),
+                        humidity=int(r.humidity),
+                        pressure=round(r.pressure, 1),
+                        battery=r.battery,
+                        interval=r.interval,
+                        ago=r.ago,
+                        timestamp=time.time(),
+                    )
+                    results[label] = reading
+                    logger.info(
+                        "Aranet4 reading from scan",
+                        sensor=label,
+                        co2=reading.co2,
+                        temperature=reading.temperature,
+                    )
+
+            async with self._lock:
+                await aranet4.client._find_nearby(on_detect, duration=10)
+
+            found = [label for label, reading in results.items() if reading]
+            missing = [label for label, reading in results.items() if not reading]
+            logger.info(
+                "Aranet4 scan complete",
+                found=found,
+                missing=missing,
+            )
+
+            return results
+
+        except ImportError:
+            logger.error("aranet4 package not installed")
+            return results
+        except Exception as e:
+            logger.error("BLE scan error", error=str(e))
+            return results
 
     async def scan_for_devices(self, duration: int = 10) -> list[dict[str, Any]]:
         """Scan for Aranet4 devices in range.
@@ -112,7 +164,7 @@ class Aranet4Reading:
     battery: int  # %
     interval: int  # Measurement interval in seconds
     ago: int  # Seconds since last measurement
-    timestamp: float  # When this reading was cached
+    timestamp: float  # When this reading was captured
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
@@ -128,89 +180,13 @@ class Aranet4Reading:
 
 
 class Aranet4Sensor:
-    """Handles communication with Aranet4 CO2 sensor via Bluetooth LE"""
+    """Config holder for an Aranet4 sensor.
 
-    def __init__(
-        self,
-        mac_address: str,
-        name: str = "sensor",
-        cache_duration: int = 60,
-    ):
+    This class only holds configuration (MAC address, name).
+    Readings are fetched via Aranet4Device.read_all_sensors() using BLE scanning.
+    Caching is handled by the DataCache layer.
+    """
+
+    def __init__(self, mac_address: str, name: str = "sensor"):
         self.mac_address = mac_address.upper()
         self.name = name
-        self.cache_duration = cache_duration
-        self._cached_reading: Optional[Aranet4Reading] = None
-        self._last_error: Optional[str] = None
-
-    async def read(self) -> Optional[Aranet4Reading]:
-        """Read current data from device via direct BLE connection.
-
-        Returns:
-            Aranet4Reading if successful, None if connection failed
-        """
-        try:
-            import aranet4
-
-            logger.info("Connecting to Aranet4 device", mac_address=self.mac_address)
-            current = await aranet4.client._current_reading(self.mac_address)
-
-            reading = Aranet4Reading(
-                co2=current.co2,
-                temperature=round(current.temperature, 1),
-                humidity=current.humidity,
-                pressure=round(current.pressure, 1),
-                battery=current.battery,
-                interval=current.interval,
-                ago=current.ago,
-                timestamp=time.time(),
-            )
-
-            self._cached_reading = reading
-            self._last_error = None
-
-            logger.info(
-                "Aranet4 reading updated",
-                sensor=self.name,
-                co2=reading.co2,
-                temperature=reading.temperature,
-                humidity=reading.humidity,
-                battery=reading.battery,
-            )
-
-            return reading
-
-        except ImportError:
-            logger.error("aranet4 package not installed")
-            self._last_error = "aranet4 package not installed"
-            return None
-        except Exception as e:
-            error_msg = str(e) or repr(e)
-            logger.warning(
-                "Failed to read Aranet4 device",
-                mac_address=self.mac_address,
-                error=error_msg,
-            )
-            self._last_error = error_msg
-            return None
-
-    def get_cached_reading(self) -> Optional[Aranet4Reading]:
-        """Get cached reading. Does NOT trigger BLE connection."""
-        return self._cached_reading
-
-    def get_co2(self) -> Optional[int]:
-        """Get cached CO2 level in ppm"""
-        reading = self._cached_reading
-        return reading.co2 if reading else None
-
-    def get_status(self) -> dict[str, Any]:
-        """Get sensor status including last reading and any errors"""
-        reading = self._cached_reading
-        return {
-            "name": self.name,
-            "mac_address": self.mac_address,
-            "connected": reading is not None
-            and (time.time() - reading.timestamp) < self.cache_duration,
-            "last_reading": reading.to_dict() if reading else None,
-            "cache_age": int(time.time() - reading.timestamp) if reading else None,
-            "last_error": self._last_error,
-        }
