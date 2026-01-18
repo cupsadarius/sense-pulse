@@ -28,6 +28,7 @@ import yaml
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
+    from sense_pulse.baby_monitor import StreamManager
     from sense_pulse.datasources.base import DataSource
     from sense_pulse.devices.aranet4 import Aranet4Device
 
@@ -55,6 +56,7 @@ class AppContext:
         data_sources: List of registered DataSource instances
         sense_hat: Optional shared SenseHat hardware instance
         aranet4_device: Optional shared Aranet4 BLE device manager
+        baby_monitor_stream: Optional baby monitor stream manager
     """
 
     config: Config
@@ -63,6 +65,7 @@ class AppContext:
     data_sources: list["DataSource"] = field(default_factory=list)
     sense_hat: Optional["SenseHat"] = None
     aranet4_device: Optional["Aranet4Device"] = None
+    baby_monitor_stream: Optional["StreamManager"] = None
     _started: bool = field(default=False, repr=False)
 
     @classmethod

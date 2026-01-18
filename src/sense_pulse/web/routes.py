@@ -104,6 +104,7 @@ async def index(
             "request": request,
             "sense_hat_available": sensehat.is_sense_hat_available(),
             "aranet4_available": await _is_aranet4_available(context),
+            "baby_monitor_enabled": config.baby_monitor.enabled,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
             "tailscale": await cache.get("tailscale", {}),

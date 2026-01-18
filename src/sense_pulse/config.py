@@ -108,6 +108,20 @@ class WeatherConfig:
 
 
 @dataclass
+class BabyMonitorConfig:
+    """Configuration for baby monitor RTSP stream"""
+
+    enabled: bool = False
+    rtsp_url: str = ""  # RTSP URL (e.g., "rtsp://admin:admin@192.168.1.111:8554/...")
+    transport: str = "tcp"  # tcp or udp
+    reconnect_delay: int = 5  # Seconds to wait before reconnecting
+    max_reconnect_attempts: int = -1  # -1 for infinite
+    hls_segment_duration: int = 2  # HLS segment duration in seconds
+    hls_playlist_size: int = 3  # Number of segments in playlist
+    output_dir: str = "/tmp/sense-pulse/hls"  # Directory for HLS segments
+
+
+@dataclass
 class Config:
     pihole: PiholeConfig = field(default_factory=PiholeConfig)
     tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
@@ -120,6 +134,7 @@ class Config:
     aranet4: Aranet4Config = field(default_factory=Aranet4Config)
     cache: CacheConfig = field(default_factory=CacheConfig)
     weather: WeatherConfig = field(default_factory=WeatherConfig)
+    baby_monitor: BabyMonitorConfig = field(default_factory=BabyMonitorConfig)
 
 
 def find_config_file() -> Optional[Path]:
@@ -190,4 +205,5 @@ def load_config(config_path: Optional[str] = None) -> Config:
         aranet4=aranet4_config,
         cache=CacheConfig(**data.get("cache", {})),
         weather=WeatherConfig(**data.get("weather", {})),
+        baby_monitor=BabyMonitorConfig(**data.get("baby_monitor", {})),
     )
