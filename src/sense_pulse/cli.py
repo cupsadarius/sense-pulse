@@ -126,10 +126,12 @@ async def async_main() -> int:
     # Defer hardware-dependent imports so --version and --help work without Sense HAT
     from pathlib import Path
 
+    from sense_pulse.baby_monitor import StreamManager
     from sense_pulse.config import find_config_file, load_config
     from sense_pulse.context import AppContext
     from sense_pulse.datasources import (
         Aranet4DataSource,
+        BabyMonitorDataSource,
         PiHoleDataSource,
         SenseHatDataSource,
         SystemStatsDataSource,
@@ -177,6 +179,13 @@ async def async_main() -> int:
     aranet4_device = Aranet4Device()
     context.aranet4_device = aranet4_device
 
+    # Create baby monitor stream manager if enabled
+    baby_monitor_stream: Optional[StreamManager] = None
+    if config.baby_monitor.enabled:
+        logger.info("Initializing baby monitor stream manager")
+        baby_monitor_stream = StreamManager(config.baby_monitor)
+        context.baby_monitor_stream = baby_monitor_stream
+
     # Add all data sources to context
     context.add_data_source(TailscaleDataSource(config.tailscale))
     context.add_data_source(PiHoleDataSource(config.pihole))
@@ -185,8 +194,16 @@ async def async_main() -> int:
     context.add_data_source(Aranet4DataSource(config.aranet4, aranet4_device))
     context.add_data_source(WeatherDataSource(config.weather))
 
+    # Add baby monitor data source if enabled
+    if baby_monitor_stream:
+        context.add_data_source(BabyMonitorDataSource(config.baby_monitor, baby_monitor_stream))
+
     # Start context (initializes sources, registers with cache, starts polling)
     await context.start()
+
+    # Start baby monitor stream if enabled
+    if baby_monitor_stream:
+        await baby_monitor_stream.start()
 
     # Get SenseHat instance from data source if available
     sense_hat_instance = None
@@ -304,6 +321,11 @@ async def async_main() -> int:
         # Cleanup using AppContext
         # =====================================================================
         logger.info("Shutting down...")
+
+        # Stop baby monitor stream if running
+        if baby_monitor_stream:
+            await baby_monitor_stream.stop()
+
         await context.shutdown()
         logger.info("Cleanup complete")
 
