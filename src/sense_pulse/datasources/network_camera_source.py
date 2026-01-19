@@ -1,35 +1,35 @@
-"""Baby monitor stream status data source implementation."""
+"""Network camera stream status data source implementation."""
 
 from datetime import datetime
 
-from sense_pulse.config import BabyMonitorConfig
+from sense_pulse.config import NetworkCameraConfig
 from sense_pulse.datasources.base import DataSource, DataSourceMetadata, SensorReading
-from sense_pulse.devices.baby_monitor import BabyMonitorDevice, StreamStatus
+from sense_pulse.devices.network_camera import NetworkCameraDevice, StreamStatus
 from sense_pulse.web.log_handler import get_structured_logger
 
-logger = get_structured_logger(__name__, component="baby_monitor")
+logger = get_structured_logger(__name__, component="network_camera")
 
 
-class BabyMonitorDataSource(DataSource):
+class NetworkCameraDataSource(DataSource):
     """
-    Baby monitor stream status data source.
+    Network camera stream status data source.
 
     Reports the current status of the RTSP to HLS stream.
     """
 
-    def __init__(self, config: BabyMonitorConfig, device: BabyMonitorDevice):
-        """Initialize baby monitor data source."""
+    def __init__(self, config: NetworkCameraConfig, device: NetworkCameraDevice):
+        """Initialize network camera data source."""
         self._config = config
         self._device = device
 
     async def initialize(self) -> None:
-        """Initialize baby monitor data source."""
+        """Initialize network camera data source."""
         if not self._config.enabled:
-            logger.info("Baby monitor data source disabled")
+            logger.info("Network camera data source disabled")
             return
 
         # Device is started separately by CLI
-        logger.info("Baby monitor data source initialized")
+        logger.info("Network camera data source initialized")
 
     async def fetch_readings(self) -> list[SensorReading]:
         """
@@ -86,7 +86,7 @@ class BabyMonitorDataSource(DataSource):
                 )
 
             logger.debug(
-                "Baby monitor status fetched",
+                "Network camera status fetched",
                 status=status["status"],
                 connected=status["camera"]["connected"],
             )
@@ -94,36 +94,36 @@ class BabyMonitorDataSource(DataSource):
             return readings
 
         except Exception as e:
-            logger.error("Error fetching baby monitor status", error=str(e))
+            logger.error("Error fetching network camera status", error=str(e))
             return []
 
     def get_metadata(self) -> DataSourceMetadata:
-        """Get baby monitor data source metadata."""
+        """Get network camera data source metadata."""
         return DataSourceMetadata(
-            source_id="baby_monitor",
-            name="Baby Monitor",
-            description="RTSP baby camera stream status",
+            source_id="network_camera",
+            name="Network Camera",
+            description="RTSP network camera stream status",
             refresh_interval=5,  # Check status every 5 seconds
             requires_auth=False,
             enabled=self._config.enabled,
         )
 
     async def health_check(self) -> bool:
-        """Check if baby monitor stream is healthy."""
+        """Check if network camera stream is healthy."""
         if not self._config.enabled:
             return True  # Disabled is considered "healthy"
 
         try:
             return self._device.state.status == StreamStatus.STREAMING
         except Exception as e:
-            logger.debug("Baby monitor health check failed", error=str(e))
+            logger.debug("Network camera health check failed", error=str(e))
             return False
 
     async def shutdown(self) -> None:
         """Clean up resources."""
         # Device shutdown is handled separately
-        logger.debug("Baby monitor data source shut down")
+        logger.debug("Network camera data source shut down")
 
-    def get_device(self) -> BabyMonitorDevice:
-        """Get the baby monitor device instance."""
+    def get_device(self) -> NetworkCameraDevice:
+        """Get the network camera device instance."""
         return self._device

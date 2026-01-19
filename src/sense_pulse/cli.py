@@ -129,7 +129,7 @@ async def async_main() -> int:
     from sense_pulse.context import AppContext
     from sense_pulse.datasources import (
         Aranet4DataSource,
-        BabyMonitorDataSource,
+        NetworkCameraDataSource,
         PiHoleDataSource,
         SenseHatDataSource,
         SystemStatsDataSource,
@@ -137,7 +137,7 @@ async def async_main() -> int:
         WeatherDataSource,
     )
     from sense_pulse.devices.aranet4 import Aranet4Device
-    from sense_pulse.devices.baby_monitor import BabyMonitorDevice
+    from sense_pulse.devices.network_camera import NetworkCameraDevice
 
     # Determine config path
     config_path = Path(args.config) if args.config else find_config_file()
@@ -178,10 +178,10 @@ async def async_main() -> int:
     aranet4_device = Aranet4Device()
     context.aranet4_device = aranet4_device
 
-    # Always create baby monitor device for discovery, regardless of enabled state
-    logger.info("Initializing baby monitor device")
-    baby_monitor_device = BabyMonitorDevice(config.baby_monitor)
-    context.baby_monitor_device = baby_monitor_device
+    # Always create network camera device for discovery, regardless of enabled state
+    logger.info("Initializing network camera device")
+    network_camera_device = NetworkCameraDevice(config.network_camera)
+    context.network_camera_device = network_camera_device
 
     # Add all data sources to context
     context.add_data_source(TailscaleDataSource(config.tailscale))
@@ -191,14 +191,16 @@ async def async_main() -> int:
     context.add_data_source(Aranet4DataSource(config.aranet4, aranet4_device))
     context.add_data_source(WeatherDataSource(config.weather))
 
-    # Add baby monitor data source if enabled (controls streaming, not discovery)
-    if config.baby_monitor.enabled:
-        context.add_data_source(BabyMonitorDataSource(config.baby_monitor, baby_monitor_device))
+    # Add network camera data source if enabled (controls streaming, not discovery)
+    if config.network_camera.enabled:
+        context.add_data_source(
+            NetworkCameraDataSource(config.network_camera, network_camera_device)
+        )
 
     # Start context (initializes sources, registers with cache, starts polling)
     await context.start()
 
-    # Start baby monitor stream if enabled (don't auto-start, let user control via UI)
+    # Start network camera stream if enabled (don't auto-start, let user control via UI)
     # The stream will be started when user clicks play on the status page
 
     # Get SenseHat instance from data source if available
@@ -318,9 +320,9 @@ async def async_main() -> int:
         # =====================================================================
         logger.info("Shutting down...")
 
-        # Stop baby monitor device if running
-        if baby_monitor_device:
-            await baby_monitor_device.stop_stream()
+        # Stop network camera device if running
+        if network_camera_device:
+            await network_camera_device.stop_stream()
 
         await context.shutdown()
         logger.info("Cleanup complete")

@@ -107,8 +107,8 @@ class WeatherConfig:
 
 
 @dataclass
-class BabyMonitorCameraConfig:
-    """Configuration for a single baby monitor camera"""
+class NetworkCameraCameraConfig:
+    """Configuration for a single network camera"""
 
     name: str = "default"
     host: str = ""  # Camera IP address
@@ -126,8 +126,8 @@ class BabyMonitorCameraConfig:
 
 
 @dataclass
-class BabyMonitorConfig:
-    """Configuration for baby monitor RTSP stream"""
+class NetworkCameraConfig:
+    """Configuration for network camera RTSP stream"""
 
     enabled: bool = False
     cameras: list = field(default_factory=list)  # List of camera configs (dicts)
@@ -152,7 +152,7 @@ class Config:
     aranet4: Aranet4Config = field(default_factory=Aranet4Config)
     cache: CacheConfig = field(default_factory=CacheConfig)
     weather: WeatherConfig = field(default_factory=WeatherConfig)
-    baby_monitor: BabyMonitorConfig = field(default_factory=BabyMonitorConfig)
+    network_camera: NetworkCameraConfig = field(default_factory=NetworkCameraConfig)
 
 
 def find_config_file() -> Path | None:
@@ -223,15 +223,15 @@ def load_config(config_path: str | None = None) -> Config:
         aranet4=aranet4_config,
         cache=CacheConfig(**data.get("cache", {})),
         weather=WeatherConfig(**data.get("weather", {})),
-        baby_monitor=_parse_baby_monitor_config(data.get("baby_monitor", {})),
+        network_camera=_parse_network_camera_config(data.get("network_camera", {})),
     )
 
 
-def _parse_baby_monitor_config(data: dict) -> BabyMonitorConfig:
-    """Parse baby monitor config."""
+def _parse_network_camera_config(data: dict) -> NetworkCameraConfig:
+    """Parse network camera config."""
     cameras = data.get("cameras", [])
 
-    return BabyMonitorConfig(
+    return NetworkCameraConfig(
         enabled=data.get("enabled", False),
         cameras=cameras,
         transport=data.get("transport", "tcp"),

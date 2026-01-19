@@ -18,7 +18,7 @@ from sense_pulse.web.auth import require_auth
 from sense_pulse.web.log_handler import get_structured_logger, setup_websocket_logging
 
 if TYPE_CHECKING:
-    from sense_pulse.devices.baby_monitor import BabyMonitorDevice
+    from sense_pulse.devices.network_camera import NetworkCameraDevice
 
 logger = get_structured_logger(__name__, component="routes")
 router = APIRouter()
@@ -109,10 +109,10 @@ async def index(
             "request": request,
             "sense_hat_available": sensehat.is_sense_hat_available(),
             "aranet4_available": await _is_aranet4_available(context),
-            "baby_monitor_enabled": config.baby_monitor.enabled,
+            "network_camera_enabled": config.network_camera.enabled,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
-            "baby_monitor_cameras": config.baby_monitor.cameras,
+            "network_camera_cameras": config.network_camera.cameras,
             "tailscale": await cache.get("tailscale", {}),
             "pihole": await cache.get("pihole", {}),
             "system": await cache.get("system", {}),
@@ -270,10 +270,10 @@ async def sensors_websocket(websocket: WebSocket):
                 "datasource_status": cache.get_all_source_status(),
             }
 
-            # Include baby monitor status if available
-            baby_monitor_device = _get_baby_monitor_device(context)
-            if baby_monitor_device:
-                data["baby_monitor"] = baby_monitor_device.get_status()
+            # Include network camera status if available
+            network_camera_device = _get_network_camera_device(context)
+            if network_camera_device:
+                data["network_camera"] = network_camera_device.get_status()
 
             await websocket.send_json(data)
             await asyncio.sleep(30)  # Update every 30s since sensor data updates slowly
@@ -633,40 +633,40 @@ async def get_aranet4_controls(request: Request, context: AppContext = Depends(g
 
 
 # ============================================================================
-# Baby Monitor API
+# Network Camera API
 # ============================================================================
 
 
-def _get_baby_monitor_device(context: AppContext) -> BabyMonitorDevice | None:
-    """Get the baby monitor device from context."""
-    return getattr(context, "baby_monitor_device", None)
+def _get_network_camera_device(context: AppContext) -> NetworkCameraDevice | None:
+    """Get the network camera device from context."""
+    return getattr(context, "network_camera_device", None)
 
 
-@router.get("/api/baby-monitor/status")
-async def get_baby_monitor_status(
+@router.get("/api/network-camera/status")
+async def get_network_camera_status(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Get current baby monitor stream status - requires authentication."""
-    device = _get_baby_monitor_device(context)
+    """Get current network camera stream status - requires authentication."""
+    device = _get_network_camera_device(context)
     if not device:
         return {
             "status": "disabled",
             "enabled": False,
-            "error": "Baby monitor not configured",
+            "error": "Network camera not configured",
         }
     return device.get_status()
 
 
-@router.post("/api/baby-monitor/start")
-async def start_baby_monitor_stream(
+@router.post("/api/network-camera/start")
+async def start_network_camera_stream(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Start the baby monitor HLS stream - requires authentication."""
-    device = _get_baby_monitor_device(context)
+    """Start the network camera HLS stream - requires authentication."""
+    device = _get_network_camera_device(context)
     if not device:
-        return {"success": False, "message": "Baby monitor not configured"}
+        return {"success": False, "message": "Network camera not configured"}
 
     try:
         success = await device.start_stream()
@@ -676,55 +676,55 @@ async def start_baby_monitor_stream(
             "status": device.get_status(),
         }
     except Exception as e:
-        logger.error("Failed to start baby monitor stream", error=str(e))
+        logger.error("Failed to start network camera stream", error=str(e))
         return {"success": False, "message": str(e)}
 
 
-@router.post("/api/baby-monitor/stop")
-async def stop_baby_monitor_stream(
+@router.post("/api/network-camera/stop")
+async def stop_network_camera_stream(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Stop the baby monitor HLS stream - requires authentication."""
-    device = _get_baby_monitor_device(context)
+    """Stop the network camera HLS stream - requires authentication."""
+    device = _get_network_camera_device(context)
     if not device:
-        return {"success": False, "message": "Baby monitor not configured"}
+        return {"success": False, "message": "Network camera not configured"}
 
     try:
         await device.stop_stream()
         return {"success": True, "message": "Stream stopped"}
     except Exception as e:
-        logger.error("Failed to stop baby monitor stream", error=str(e))
+        logger.error("Failed to stop network camera stream", error=str(e))
         return {"success": False, "message": str(e)}
 
 
-@router.post("/api/baby-monitor/restart")
-async def restart_baby_monitor_stream(
+@router.post("/api/network-camera/restart")
+async def restart_network_camera_stream(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Restart the baby monitor stream - requires authentication."""
-    device = _get_baby_monitor_device(context)
+    """Restart the network camera stream - requires authentication."""
+    device = _get_network_camera_device(context)
     if not device:
-        return {"success": False, "message": "Baby monitor not configured"}
+        return {"success": False, "message": "Network camera not configured"}
 
     try:
         await device.restart_stream()
         return {"success": True, "message": "Stream restarting"}
     except Exception as e:
-        logger.error("Failed to restart baby monitor stream", error=str(e))
+        logger.error("Failed to restart network camera stream", error=str(e))
         return {"success": False, "message": str(e)}
 
 
-@router.post("/api/baby-monitor/discover")
-async def discover_baby_monitor_cameras(
+@router.post("/api/network-camera/discover")
+async def discover_network_cameras(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
     """Discover cameras by scanning network for RTSP ports - requires authentication."""
-    device = _get_baby_monitor_device(context)
+    device = _get_network_camera_device(context)
     if not device:
-        return {"success": False, "cameras": [], "message": "Baby monitor not configured"}
+        return {"success": False, "cameras": [], "message": "Network camera not configured"}
 
     try:
         cameras = await device.discover_cameras(timeout=30)
@@ -745,13 +745,13 @@ async def discover_baby_monitor_cameras(
         return {"success": False, "cameras": [], "message": str(e)}
 
 
-@router.post("/api/baby-monitor/config")
-async def update_baby_monitor_config(
+@router.post("/api/network-camera/config")
+async def update_network_camera_config(
     request: Request,
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Update baby monitor camera configurations - requires authentication."""
+    """Update network camera configurations - requires authentication."""
 
     if context.config_path is None or not context.config_path.exists():
         return {"status": "error", "message": "No config file found"}
@@ -762,7 +762,7 @@ async def update_baby_monitor_config(
         new_cameras = body.get("cameras", [])
 
         # Merge with existing cameras to preserve fields the UI doesn't manage
-        existing_cameras = context.config.baby_monitor.cameras
+        existing_cameras = context.config.network_camera.cameras
         merged_cameras = []
         for i, new_cam in enumerate(new_cameras):
             if i < len(existing_cameras):
@@ -774,11 +774,11 @@ async def update_baby_monitor_config(
                 merged_cameras.append(new_cam)
 
         # Update config via context (writes to disk and reloads)
-        context.update_config({"baby_monitor": {"cameras": merged_cameras}})
+        context.update_config({"network_camera": {"cameras": merged_cameras}})
 
         # NOTE: Camera changes require application restart to take effect
         logger.warning(
-            "Baby monitor camera configuration updated. "
+            "Network camera configuration updated. "
             "Please restart the application for changes to take effect."
         )
 
@@ -793,18 +793,18 @@ async def update_baby_monitor_config(
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/api/baby-monitor/thumbnail")
-async def get_baby_monitor_thumbnail(
+@router.get("/api/network-camera/thumbnail")
+async def get_network_camera_thumbnail(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
     force: bool = False,
 ):
-    """Get a thumbnail image from the baby monitor camera - requires authentication."""
+    """Get a thumbnail image from the network camera - requires authentication."""
     from fastapi.responses import Response
 
-    device = _get_baby_monitor_device(context)
+    device = _get_network_camera_device(context)
     if not device:
-        return Response(status_code=404, content=b"Baby monitor not configured")
+        return Response(status_code=404, content=b"Network camera not configured")
 
     try:
         thumbnail = await device.capture_thumbnail(force=force)
@@ -824,17 +824,17 @@ async def get_baby_monitor_thumbnail(
         return Response(status_code=500, content=str(e).encode())
 
 
-@router.get("/api/baby-monitor/stream/stream.m3u8")
-async def get_baby_monitor_hls_playlist(
+@router.get("/api/network-camera/stream/stream.m3u8")
+async def get_network_camera_hls_playlist(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ):
     """Serve HLS playlist - requires authentication."""
     from fastapi.responses import FileResponse, JSONResponse
 
-    device = _get_baby_monitor_device(context)
+    device = _get_network_camera_device(context)
     if not device:
-        return JSONResponse({"error": "Baby monitor not configured"}, status_code=404)
+        return JSONResponse({"error": "Network camera not configured"}, status_code=404)
 
     playlist_path = device.playlist_path
     if not playlist_path.exists():
@@ -851,8 +851,8 @@ async def get_baby_monitor_hls_playlist(
     )
 
 
-@router.get("/api/baby-monitor/stream/{segment_name}")
-async def get_baby_monitor_hls_segment(
+@router.get("/api/network-camera/stream/{segment_name}")
+async def get_network_camera_hls_segment(
     segment_name: str,
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
@@ -862,9 +862,9 @@ async def get_baby_monitor_hls_segment(
 
     from fastapi.responses import FileResponse
 
-    device = _get_baby_monitor_device(context)
+    device = _get_network_camera_device(context)
     if not device:
-        return {"error": "Baby monitor not configured"}
+        return {"error": "Network camera not configured"}
 
     # Validate segment name (must be .ts file)
     if not segment_name.endswith(".ts"):
@@ -887,7 +887,7 @@ async def get_baby_monitor_hls_segment(
 
 
 # ============================================================================
-# Baby Monitor PTZ Control API
+# Network Camera PTZ Control API
 # ============================================================================
 
 
@@ -898,7 +898,7 @@ class PTZMoveRequest(BaseModel):
     step: float | None = None  # Optional step size override
 
 
-@router.post("/api/baby-monitor/ptz/move")
+@router.post("/api/network-camera/ptz/move")
 async def ptz_move(
     request: PTZMoveRequest,
     context: AppContext = Depends(get_context),
@@ -908,9 +908,9 @@ async def ptz_move(
 
     Direction can be: up, down, left, right, zoomin, zoomout
     """
-    device = _get_baby_monitor_device(context)
+    device = _get_network_camera_device(context)
     if not device:
-        return {"success": False, "message": "Baby monitor not configured"}
+        return {"success": False, "message": "Network camera not configured"}
 
     # Validate direction
     valid_directions = {"up", "down", "left", "right", "zoomin", "zoomout"}

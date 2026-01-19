@@ -1,4 +1,4 @@
-"""Baby monitor device with ONVIF discovery, RTSP streaming, and PTZ control.
+"""Network camera device with ONVIF discovery, RTSP streaming, and PTZ control.
 
 Handles:
 - ONVIF network discovery to find cameras
@@ -21,10 +21,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from sense_pulse.config import BabyMonitorConfig
+from sense_pulse.config import NetworkCameraConfig
 from sense_pulse.web.log_handler import get_structured_logger
 
-logger = get_structured_logger(__name__, component="baby_monitor")
+logger = get_structured_logger(__name__, component="network_camera")
 
 # PTZ direction mappings: (pan, tilt, zoom)
 PTZ_DIRECTIONS = {
@@ -89,9 +89,9 @@ class StreamState:
 
 
 @dataclass
-class BabyMonitorDevice:
+class NetworkCameraDevice:
     """
-    Baby monitor device with ONVIF discovery and HLS streaming.
+    Network camera device with ONVIF discovery and HLS streaming.
 
     This device follows the project's device architecture pattern:
     - Single instance on AppContext
@@ -99,11 +99,11 @@ class BabyMonitorDevice:
     - Provides operations for discovery, streaming, thumbnails
 
     Attributes:
-        config: Baby monitor configuration
+        config: Network camera configuration
         state: Current stream state
     """
 
-    config: BabyMonitorConfig
+    config: NetworkCameraConfig
     state: StreamState = field(default_factory=StreamState)
     _process: asyncio.subprocess.Process | None = None
     _monitor_task: asyncio.Task | None = None
@@ -442,11 +442,11 @@ class BabyMonitorDevice:
             True if stream started successfully, False otherwise.
         """
         if not self.config.enabled:
-            logger.info("Baby monitor is disabled")
+            logger.info("Network camera is disabled")
             return False
 
         if not self._active_camera or not self._active_camera.host:
-            logger.warning("No camera configured for baby monitor")
+            logger.warning("No camera configured for network camera")
             return False
 
         # Check if ffmpeg is available
@@ -456,7 +456,7 @@ class BabyMonitorDevice:
             logger.error("FFmpeg not installed")
             return False
 
-        logger.info("Starting baby monitor stream")
+        logger.info("Starting network camera stream")
         self._shutdown_event.clear()
 
         # Start FFmpeg process
@@ -473,7 +473,7 @@ class BabyMonitorDevice:
 
     async def stop_stream(self) -> None:
         """Stop the HLS stream."""
-        logger.info("Stopping baby monitor stream")
+        logger.info("Stopping network camera stream")
         self._shutdown_event.set()
 
         # Cancel monitor task
@@ -493,11 +493,11 @@ class BabyMonitorDevice:
         await self.ptz_shutdown()
 
         self.state = StreamState()
-        logger.info("Baby monitor stream stopped")
+        logger.info("Network camera stream stopped")
 
     async def restart_stream(self) -> None:
         """Restart the HLS stream."""
-        logger.info("Restarting baby monitor stream")
+        logger.info("Restarting network camera stream")
         await self._stop_process()
         self.state.reconnect_attempts = 0
         await self._start_process()
@@ -841,7 +841,7 @@ class BabyMonitorDevice:
                     ptz_service.ContinuousMove(request)
 
                     # Wait for movement duration
-                    time.sleep(0.1)  # 100ms movement
+                    time.sleep(0.3)
 
                     # Stop by sending zero velocity (camera ignores Timeout for pan axis)
                     request.Velocity = {

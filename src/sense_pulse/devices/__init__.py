@@ -2,7 +2,7 @@
 
 This module contains low-level hardware device implementations:
 - aranet4: Aranet4 CO2 sensor BLE interface
-- baby_monitor: Baby monitor with ONVIF discovery and RTSP streaming
+- network_camera: Network camera with ONVIF discovery and RTSP streaming
 - sensehat: Sense HAT hardware abstraction (sensors, LED matrix)
 - display: Display device wrapper for Sense HAT LED matrix
 - pihole: Pi-hole API client
@@ -15,12 +15,12 @@ from sense_pulse.devices.aranet4 import (
     Aranet4Reading,
     Aranet4Sensor,
 )
-from sense_pulse.devices.baby_monitor import (
-    BabyMonitorDevice,
+from sense_pulse.devices.display import SenseHatDisplay
+from sense_pulse.devices.network_camera import (
     CameraInfo,
+    NetworkCameraDevice,
     StreamStatus,
 )
-from sense_pulse.devices.display import SenseHatDisplay
 from sense_pulse.devices.pihole import PiHoleStats
 from sense_pulse.devices.sensehat import (
     clear_display,
@@ -41,8 +41,8 @@ __all__ = [
     "Aranet4Device",
     "Aranet4Sensor",
     "Aranet4Reading",
-    # Baby Monitor
-    "BabyMonitorDevice",
+    # Network Camera
+    "NetworkCameraDevice",
     "CameraInfo",
     "StreamStatus",
     # Sense HAT hardware

@@ -1,5 +1,28 @@
 # Changelog
 
+## Version 0.11.0 - Network Camera & Logging
+
+### Features
+- Network camera with RTSP→HLS streaming via FFmpeg
+- PTZ (pan-tilt-zoom) control via ONVIF protocol
+- Network discovery scanning for RTSP cameras
+- Camera settings panel with discovery and manual config
+- Structured logging system with JSON extras
+- Web-based log viewer with WebSocket streaming
+- Unified settings panel (display, aranet4, cameras)
+- Data source status widget replacing service status
+- Weather forecast display and cache controls
+
+### Changes
+- Renamed `baby_monitor` → `network_camera` throughout
+- Aranet4: scan-based BLE reading (fixes DBus exhaustion)
+- FastAPI lifespan pattern migration
+- Split live preview into LED matrix and camera cards
+- Fixed all mypy type errors
+- Expanded icon library
+
+---
+
 ## Version 0.10.0 - Dependency Injection Architecture (Breaking Changes)
 
 ### Major Refactoring
