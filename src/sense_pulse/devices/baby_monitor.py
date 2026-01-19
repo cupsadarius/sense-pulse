@@ -525,6 +525,7 @@ class BabyMonitorDevice:
         cameras: list[CameraInfo] = []
 
         try:
+            from wsdiscovery import QName
             from wsdiscovery.discovery import ThreadedWSDiscovery
 
             logger.info("Starting ONVIF camera discovery", timeout=timeout)
@@ -532,13 +533,16 @@ class BabyMonitorDevice:
             wsd = ThreadedWSDiscovery()
             wsd.start()
 
+            # ONVIF WS-Discovery types as proper QName objects
+            onvif_types = [
+                QName("http://www.onvif.org/ver10/network/wsdl", "NetworkVideoTransmitter"),
+                QName("http://www.onvif.org/ver10/device/wsdl", "Device"),
+            ]
+
             # Search for ONVIF network video transmitters
             services = wsd.searchServices(
                 timeout=timeout,
-                types=[
-                    "dn:NetworkVideoTransmitter",
-                    "tds:Device",
-                ],
+                types=onvif_types,
             )
 
             wsd.stop()
