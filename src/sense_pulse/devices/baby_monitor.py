@@ -836,7 +836,7 @@ class BabyMonitorDevice:
                         "PanTilt": {"x": pan, "y": tilt},
                         "Zoom": {"x": zoom},
                     }
-                    request.Timeout = timedelta(milliseconds=100)
+                    request.Timeout = timedelta(milliseconds=10)
                     ptz_service.ContinuousMove(request)
                     logger.info("PTZ ContinuousMove completed")
 
