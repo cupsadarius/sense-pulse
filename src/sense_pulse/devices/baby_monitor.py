@@ -1,7 +1,8 @@
-"""Baby monitor device with ONVIF discovery and RTSP streaming.
+"""Baby monitor device with ONVIF discovery, RTSP streaming, and PTZ control.
 
 Handles:
 - ONVIF network discovery to find cameras
+- ONVIF PTZ (pan-tilt-zoom) control via RelativeMove
 - FFmpeg subprocess lifecycle (start, stop, restart)
 - RTSP to HLS transcoding
 - Automatic reconnection with exponential backoff
@@ -14,6 +15,7 @@ import asyncio
 import contextlib
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -23,6 +25,16 @@ from sense_pulse.config import BabyMonitorConfig
 from sense_pulse.web.log_handler import get_structured_logger
 
 logger = get_structured_logger(__name__, component="baby_monitor")
+
+# PTZ direction mappings: (pan, tilt, zoom)
+PTZ_DIRECTIONS = {
+    "up": (0.0, 1.0, 0.0),  # tilt +
+    "down": (0.0, -1.0, 0.0),  # tilt -
+    "left": (-1.0, 0.0, 0.0),  # pan -
+    "right": (1.0, 0.0, 0.0),  # pan +
+    "zoomin": (0.0, 0.0, 1.0),  # zoom +
+    "zoomout": (0.0, 0.0, -1.0),  # zoom -
+}
 
 
 class StreamStatus(Enum):
@@ -49,6 +61,11 @@ class CameraInfo:
     stream_path: str = "/Streaming/Channels/101"
     username: str = ""
     password: str = ""
+    # PTZ settings
+    ptz_enabled: bool = False
+    onvif_port: int = 8000
+    ptz_step: float = 0.05
+    ptz_zoom_step: float = 0.1
 
     def build_rtsp_url(self) -> str:
         """Build RTSP URL from component fields."""
@@ -94,11 +111,20 @@ class BabyMonitorDevice:
     _thumbnail_cache: bytes | None = None
     _thumbnail_timestamp: float = 0.0
     _active_camera: CameraInfo | None = None
+    # PTZ control state
+    _ptz_client: Any | None = None
+    _ptz_service: Any | None = None
+    _ptz_profile_token: str | None = None
+    _ptz_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    _ptz_initialized: bool = False
+    _ptz_executor: ThreadPoolExecutor | None = None
 
     def __post_init__(self) -> None:
         """Initialize non-field attributes."""
         self._shutdown_event = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._ptz_lock = asyncio.Lock()
+        self._ptz_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ptz")
 
         # Set active camera from config if available
         if self.config.cameras:
@@ -110,6 +136,10 @@ class BabyMonitorDevice:
                 stream_path=first_camera.get("stream_path", "/Streaming/Channels/101"),
                 username=first_camera.get("username", ""),
                 password=first_camera.get("password", ""),
+                ptz_enabled=first_camera.get("ptz_enabled", False),
+                onvif_port=first_camera.get("onvif_port", 8000),
+                ptz_step=first_camera.get("ptz_step", 0.05),
+                ptz_zoom_step=first_camera.get("ptz_zoom_step", 0.1),
             )
 
     @property
@@ -445,6 +475,9 @@ class BabyMonitorDevice:
         # Cleanup segments
         self._cleanup_segments()
 
+        # Cleanup PTZ resources
+        await self.ptz_shutdown()
+
         self.state = StreamState()
         logger.info("Baby monitor stream stopped")
 
@@ -602,6 +635,7 @@ class BabyMonitorDevice:
             "error": self.state.error_message,
             "enabled": self.config.enabled,
             "has_thumbnail": self._thumbnail_cache is not None,
+            "ptz": self.get_ptz_status(),
         }
 
     def get_thumbnail_age(self) -> float:
@@ -609,3 +643,199 @@ class BabyMonitorDevice:
         if self._thumbnail_timestamp == 0:
             return float("inf")
         return time.time() - self._thumbnail_timestamp
+
+    # =========================================================================
+    # PTZ Control API
+    # =========================================================================
+
+    def get_ptz_status(self) -> dict[str, Any]:
+        """Get current PTZ status.
+
+        Returns:
+            Dict with PTZ availability and state information.
+        """
+        if not self._active_camera:
+            return {"enabled": False, "initialized": False, "available": False}
+
+        return {
+            "enabled": self._active_camera.ptz_enabled,
+            "initialized": self._ptz_initialized,
+            "available": self._ptz_initialized and self._ptz_service is not None,
+            "step": self._active_camera.ptz_step,
+            "zoom_step": self._active_camera.ptz_zoom_step,
+        }
+
+    async def ptz_initialize(self) -> bool:
+        """Initialize ONVIF PTZ connection.
+
+        Connects to the camera's ONVIF service and retrieves the PTZ profile token.
+        Must be called before using ptz_move().
+
+        Returns:
+            True if PTZ was initialized successfully, False otherwise.
+        """
+        if not self._active_camera or not self._active_camera.ptz_enabled:
+            logger.debug("PTZ not enabled for active camera")
+            return False
+
+        if self._ptz_initialized:
+            logger.debug("PTZ already initialized")
+            return True
+
+        async with self._ptz_lock:
+            try:
+                # Import ONVIF library (lazy import to avoid startup overhead)
+                from onvif import ONVIFCamera
+
+                camera = self._active_camera
+                logger.info(
+                    "Initializing ONVIF PTZ",
+                    host=camera.host,
+                    onvif_port=camera.onvif_port,
+                )
+
+                # Create ONVIF camera client (synchronous, run in executor)
+                loop = asyncio.get_event_loop()
+
+                def create_onvif_client() -> ONVIFCamera:
+                    return ONVIFCamera(
+                        camera.host,
+                        camera.onvif_port,
+                        camera.username,
+                        camera.password,
+                    )
+
+                self._ptz_client = await loop.run_in_executor(
+                    self._ptz_executor, create_onvif_client
+                )
+
+                # Get PTZ service (ptz_client is guaranteed non-None after successful creation)
+                ptz_client = self._ptz_client
+                assert ptz_client is not None  # Guaranteed by successful creation above
+
+                def get_ptz_service() -> Any:
+                    return ptz_client.create_ptz_service()
+
+                self._ptz_service = await loop.run_in_executor(self._ptz_executor, get_ptz_service)
+
+                # Get media service to find profile token
+                def get_profiles() -> Any:
+                    media_service = ptz_client.create_media_service()
+                    return media_service.GetProfiles()
+
+                profiles = await loop.run_in_executor(self._ptz_executor, get_profiles)
+
+                if not profiles:
+                    logger.error("No media profiles found on camera")
+                    return False
+
+                # Use the first profile token
+                self._ptz_profile_token = profiles[0].token
+                self._ptz_initialized = True
+
+                logger.info(
+                    "PTZ initialized successfully",
+                    profile_token=self._ptz_profile_token,
+                )
+                return True
+
+            except ImportError:
+                logger.error("onvif-zeep library not installed. Run: pip install onvif-zeep")
+                return False
+            except Exception as e:
+                logger.error("Failed to initialize PTZ", error=str(e))
+                self._ptz_client = None
+                self._ptz_service = None
+                self._ptz_profile_token = None
+                self._ptz_initialized = False
+                return False
+
+    async def ptz_move(self, direction: str, step: float | None = None) -> bool:
+        """Execute a PTZ relative move in the specified direction.
+
+        Args:
+            direction: One of "up", "down", "left", "right", "zoomin", "zoomout"
+            step: Optional step size override (default uses camera config)
+
+        Returns:
+            True if move was executed successfully, False otherwise.
+        """
+        if not self._active_camera:
+            logger.warning("No active camera for PTZ move")
+            return False
+
+        if not self._active_camera.ptz_enabled:
+            logger.debug("PTZ not enabled for active camera")
+            return False
+
+        # Initialize PTZ if not already done
+        if not self._ptz_initialized and not await self.ptz_initialize():
+            return False
+
+        if not self._ptz_service or not self._ptz_profile_token:
+            logger.error("PTZ service not available")
+            return False
+
+        # Validate direction
+        if direction not in PTZ_DIRECTIONS:
+            logger.error("Invalid PTZ direction", direction=direction)
+            return False
+
+        # Get step sizes
+        pan_step = step if step is not None else self._active_camera.ptz_step
+        tilt_step = step if step is not None else self._active_camera.ptz_step
+        zoom_step = step if step is not None else self._active_camera.ptz_zoom_step
+
+        # Get direction multipliers
+        pan_dir, tilt_dir, zoom_dir = PTZ_DIRECTIONS[direction]
+
+        # Calculate actual movement values
+        pan = pan_dir * pan_step
+        tilt = tilt_dir * tilt_step
+        zoom = zoom_dir * zoom_step
+
+        async with self._ptz_lock:
+            try:
+                loop = asyncio.get_event_loop()
+                # Local references for closure (to avoid None checks inside closure)
+                ptz_service = self._ptz_service
+                profile_token = self._ptz_profile_token
+
+                def execute_relative_move() -> None:
+                    """Execute RelativeMove in thread (ONVIF is synchronous)."""
+                    request = ptz_service.create_type("RelativeMove")
+                    request.ProfileToken = profile_token
+                    request.Translation = {
+                        "PanTilt": {"x": pan, "y": tilt},
+                        "Zoom": {"x": zoom},
+                    }
+                    ptz_service.RelativeMove(request)
+
+                await loop.run_in_executor(self._ptz_executor, execute_relative_move)
+
+                logger.debug(
+                    "PTZ move executed",
+                    direction=direction,
+                    pan=pan,
+                    tilt=tilt,
+                    zoom=zoom,
+                )
+                return True
+
+            except Exception as e:
+                logger.error("PTZ move failed", direction=direction, error=str(e))
+                return False
+
+    async def ptz_shutdown(self) -> None:
+        """Cleanup PTZ resources."""
+        async with self._ptz_lock:
+            self._ptz_client = None
+            self._ptz_service = None
+            self._ptz_profile_token = None
+            self._ptz_initialized = False
+
+            if self._ptz_executor:
+                self._ptz_executor.shutdown(wait=False)
+                self._ptz_executor = None
+
+            logger.info("PTZ shutdown complete")
