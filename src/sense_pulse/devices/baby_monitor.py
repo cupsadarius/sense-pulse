@@ -214,13 +214,19 @@ class BabyMonitorDevice:
             "warning",
             # Low-latency input options
             "-fflags",
-            "nobuffer",
+            "+genpts+nobuffer+discardcorrupt",
             "-flags",
             "low_delay",
+            "-probesize",
+            "32768",
+            "-analyzeduration",
+            "500000",
             "-rtsp_transport",
             self.config.transport,
             "-i",
             rtsp_url,
+            # Reset timestamps to start at zero
+            "-start_at_zero",
             # Video: copy H.264 (no transcode)
             "-c:v",
             "copy",
