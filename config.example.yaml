@@ -77,5 +77,6 @@ baby_monitor:
     #   enabled: true
     #   ptz_enabled: true       # Enable PTZ (pan-tilt-zoom) control via ONVIF
     #   onvif_port: 8000        # ONVIF service port (usually 8000 or 80)
+    #   onvif_wsdl_dir: ""      # Path to ONVIF WSDL files (empty = use built-in)
     #   ptz_step: 0.05          # Pan/tilt step size (0.0-1.0)
     #   ptz_zoom_step: 0.1      # Zoom step size (0.0-1.0)

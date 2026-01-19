@@ -64,6 +64,7 @@ class CameraInfo:
     # PTZ settings
     ptz_enabled: bool = False
     onvif_port: int = 8000
+    onvif_wsdl_dir: str = ""  # Path to ONVIF WSDL files (empty = use built-in)
     ptz_step: float = 0.05
     ptz_zoom_step: float = 0.1
 
@@ -138,6 +139,7 @@ class BabyMonitorDevice:
                 password=first_camera.get("password", ""),
                 ptz_enabled=first_camera.get("ptz_enabled", False),
                 onvif_port=first_camera.get("onvif_port", 8000),
+                onvif_wsdl_dir=first_camera.get("onvif_wsdl_dir", ""),
                 ptz_step=first_camera.get("ptz_step", 0.05),
                 ptz_zoom_step=first_camera.get("ptz_zoom_step", 0.1),
             )
@@ -698,11 +700,13 @@ class BabyMonitorDevice:
                 loop = asyncio.get_event_loop()
 
                 def create_onvif_client() -> ONVIFCamera:
+                    wsdl_dir = camera.onvif_wsdl_dir if camera.onvif_wsdl_dir else None
                     return ONVIFCamera(
                         camera.host,
                         camera.onvif_port,
                         camera.username,
                         camera.password,
+                        wsdl_dir,
                     )
 
                 self._ptz_client = await loop.run_in_executor(
@@ -803,13 +807,16 @@ class BabyMonitorDevice:
 
                 def execute_relative_move() -> None:
                     """Execute RelativeMove in thread (ONVIF is synchronous)."""
-                    request = ptz_service.create_type("RelativeMove")
-                    request.ProfileToken = profile_token
-                    request.Translation = {
-                        "PanTilt": {"x": pan, "y": tilt},
-                        "Zoom": {"x": zoom},
-                    }
-                    ptz_service.RelativeMove(request)
+                    # Pass dict directly - zeep handles conversion to proper SOAP types
+                    ptz_service.RelativeMove(
+                        {
+                            "ProfileToken": profile_token,
+                            "Translation": {
+                                "PanTilt": {"x": pan, "y": tilt},
+                                "Zoom": {"x": zoom},
+                            },
+                        }
+                    )
 
                 await loop.run_in_executor(self._ptz_executor, execute_relative_move)
 
