@@ -1337,7 +1337,10 @@
                     }
                     window.babyMonitor.hls = new Hls({
                         enableWorker: true,
-                        lowLatencyMode: true
+                        lowLatencyMode: true,
+                        // Retry manifest loading while FFmpeg produces the playlist
+                        manifestLoadingMaxRetry: 10,
+                        manifestLoadingRetryDelay: 1000
                     });
                     window.babyMonitor.hls.loadSource('/api/baby-monitor/stream/stream.m3u8');
                     window.babyMonitor.hls.attachMedia(video);
