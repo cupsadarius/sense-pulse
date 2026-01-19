@@ -1,10 +1,11 @@
 <style>
-    /* Reuse toggle switch styles from aranet4_controls.html */
+    /* Toggle switch styles */
     .toggle-switch {
         position: relative;
         display: inline-block;
-        width: 48px;
+        width: 44px;
         height: 24px;
+        flex-shrink: 0;
     }
 
     .toggle-switch input {
@@ -42,51 +43,74 @@
     }
 
     .toggle-switch input:checked + .toggle-slider:before {
-        transform: translateX(24px);
+        transform: translateX(20px);
     }
 
     .toggle-switch input:focus + .toggle-slider {
         box-shadow: 0 0 1px #10b981;
     }
 
-    /* Mobile optimizations */
-    @media (max-width: 640px) {
-        .camera-item > div:first-child {
-            flex-wrap: nowrap;
-            gap: 0.5rem;
-        }
+    /* Small toggle variant */
+    .toggle-switch.small {
+        width: 36px;
+        height: 20px;
+    }
 
-        .camera-item .camera-name {
-            min-width: 0;
-            flex: 1;
-        }
+    .toggle-switch.small .toggle-slider:before {
+        height: 14px;
+        width: 14px;
+    }
 
-        .toggle-switch {
-            width: 52px;
-            height: 28px;
-            flex-shrink: 0;
-        }
+    .toggle-switch.small input:checked + .toggle-slider:before {
+        transform: translateX(16px);
+    }
 
-        .toggle-slider:before {
-            height: 22px;
-            width: 22px;
-        }
+    /* Camera form grid layout */
+    .camera-form-grid {
+        display: grid;
+        grid-template-columns: auto 1fr auto 1fr;
+        gap: 0.5rem 0.75rem;
+        align-items: center;
+    }
 
-        .toggle-switch input:checked + .toggle-slider:before {
-            transform: translateX(24px);
-        }
+    .camera-form-grid .full-row {
+        grid-column: 1 / -1;
+    }
 
-        .camera-item button {
-            min-width: 40px;
-            min-height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    .camera-form-grid .span-3 {
+        grid-column: span 3;
+    }
 
-        .camera-item {
-            padding: 0.75rem !important;
-        }
+    .camera-form-label {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .camera-form-input {
+        background-color: #4b5563;
+        border: 1px solid #374151;
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8125rem;
+        color: #f3f4f6;
+        width: 100%;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .camera-form-input:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    }
+
+    .camera-form-input::placeholder {
+        color: #6b7280;
+    }
+
+    .camera-form-input.small {
+        width: 5rem;
     }
 
     /* Path preset dropdown styling */
@@ -95,8 +119,79 @@
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
         background-position: right 0.5rem center;
         background-repeat: no-repeat;
-        background-size: 1.5em 1.5em;
-        padding-right: 2.5rem;
+        background-size: 1.25em 1.25em;
+        padding-right: 2rem;
+    }
+
+    /* PTZ section styling */
+    .ptz-section {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #4b5563;
+    }
+
+    .ptz-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+
+    .ptz-settings-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+    }
+
+    .ptz-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .ptz-field label {
+        font-size: 0.6875rem;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 640px) {
+        .camera-form-grid {
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+        }
+
+        .camera-form-grid .span-3 {
+            grid-column: span 1;
+        }
+
+        .camera-form-label {
+            text-align: left;
+        }
+
+        .camera-form-input.small {
+            width: 100%;
+        }
+
+        .ptz-settings-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .camera-item {
+            padding: 1rem !important;
+        }
+
+        .camera-header {
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .camera-header .camera-name {
+            width: 100%;
+            order: -1;
+        }
     }
 </style>
 
@@ -131,16 +226,15 @@
         <div id="cameras-list" class="space-y-3">
             {% if baby_monitor_cameras %}
                 {% for camera in baby_monitor_cameras %}
-                <div class="camera-item p-3 bg-gray-700/50 rounded-lg" data-index="{{ loop.index0 }}">
+                <div class="camera-item p-4 bg-gray-700/50 rounded-lg" data-index="{{ loop.index0 }}">
                     <!-- Header: Name, Enable toggle, Delete button -->
-                    <div class="flex items-center gap-3 mb-3">
+                    <div class="camera-header flex items-center gap-3 mb-4">
                         <input type="text"
                                value="{{ camera.name }}"
                                placeholder="Camera Name"
-                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm camera-name"
+                               class="camera-form-input camera-name flex-1"
                                data-index="{{ loop.index0 }}">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm text-gray-300">Enable</span>
+                        <div class="flex items-center gap-2 shrink-0">
                             <label class="toggle-switch">
                                 <input type="checkbox"
                                        class="camera-enabled"
@@ -150,52 +244,51 @@
                             </label>
                         </div>
                         <button onclick="window.removeCamera({{ loop.index0 }})"
-                                class="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors shrink-0"
+                                title="Remove camera">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                             </svg>
                         </button>
                     </div>
 
-                    <!-- Host & Port -->
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-xs text-gray-400 w-12">Host:</span>
+                    <!-- Connection Settings Grid -->
+                    <div class="camera-form-grid mb-3">
+                        <label class="camera-form-label">Host</label>
                         <input type="text"
                                value="{{ camera.host }}"
                                placeholder="192.168.1.100"
-                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-host"
+                               class="camera-form-input camera-host"
                                data-index="{{ loop.index0 }}">
-                        <span class="text-xs text-gray-400">Port:</span>
+                        <label class="camera-form-label">Port</label>
                         <input type="number"
                                value="{{ camera.port | default(554) }}"
                                placeholder="554"
-                               class="w-20 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-port"
+                               class="camera-form-input small camera-port"
                                data-index="{{ loop.index0 }}">
-                    </div>
 
-                    <!-- Username & Password -->
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-xs text-gray-400 w-12">User:</span>
+                        <label class="camera-form-label">User</label>
                         <input type="text"
                                value="{{ camera.username }}"
                                placeholder="admin"
-                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-username"
+                               class="camera-form-input camera-username"
                                data-index="{{ loop.index0 }}">
-                        <span class="text-xs text-gray-400">Pass:</span>
+                        <label class="camera-form-label">Pass</label>
                         <input type="password"
                                value="{{ camera.password }}"
                                placeholder="password"
-                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-password"
+                               class="camera-form-input camera-password"
                                data-index="{{ loop.index0 }}">
                     </div>
 
                     <!-- Stream Path with presets -->
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-xs text-gray-400 w-12">Path:</span>
-                        <select class="path-preset-select bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-path-preset"
+                    <div class="flex items-center gap-2 mb-1">
+                        <label class="camera-form-label shrink-0">Path</label>
+                        <select class="camera-form-input path-preset-select camera-path-preset"
+                                style="flex: 0 0 auto; width: auto; min-width: 8rem;"
                                 data-index="{{ loop.index0 }}"
                                 onchange="window.applyPathPreset({{ loop.index0 }}, this.value)">
-                            <option value="">-- Preset --</option>
+                            <option value="">Preset</option>
                             <option value="/Streaming/Channels/101">Hikvision Main</option>
                             <option value="/Streaming/Channels/102">Hikvision Sub</option>
                             <option value="/cam/realmonitor?channel=1&subtype=0">Dahua Main</option>
@@ -203,56 +296,60 @@
                             <option value="/live/ch00_0">Generic 1</option>
                             <option value="/stream1">Generic 2</option>
                             <option value="/h264_stream">H264 Stream</option>
-                            <option value="custom">Custom...</option>
+                            <option value="custom">Custom</option>
                         </select>
                         <input type="text"
                                value="{{ camera.stream_path | default('/Streaming/Channels/101') }}"
                                placeholder="/Streaming/Channels/101"
-                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-stream-path"
+                               class="camera-form-input camera-stream-path flex-1"
                                data-index="{{ loop.index0 }}">
                     </div>
 
                     <!-- PTZ Settings -->
-                    <div class="pt-2 mt-2 border-t border-gray-600">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="text-xs text-gray-400 w-12">PTZ:</span>
-                            <div class="flex items-center gap-2">
-                                <label class="toggle-switch" style="width: 36px; height: 18px;">
+                    <div class="ptz-section">
+                        <div class="ptz-header">
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm font-medium text-gray-300">PTZ Control</span>
+                                <label class="toggle-switch small">
                                     <input type="checkbox"
                                            class="camera-ptz-enabled"
                                            data-index="{{ loop.index0 }}"
                                            {% if camera.ptz_enabled %}checked{% endif %}>
-                                    <span class="toggle-slider" style="border-radius: 18px;"></span>
+                                    <span class="toggle-slider"></span>
                                 </label>
-                                <span class="text-xs text-gray-300">Enable PTZ</span>
                             </div>
-                            <span class="text-xs text-gray-400 ml-2">ONVIF Port:</span>
-                            <input type="number"
-                                   value="{{ camera.onvif_port | default(8000) }}"
-                                   placeholder="8000"
-                                   class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-onvif-port"
-                                   data-index="{{ loop.index0 }}">
                         </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs text-gray-400 w-12"></span>
-                            <span class="text-xs text-gray-400">Step:</span>
-                            <input type="number"
-                                   value="{{ camera.ptz_step | default(0.05) }}"
-                                   step="0.01"
-                                   min="0.01"
-                                   max="1.0"
-                                   placeholder="0.05"
-                                   class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-step"
-                                   data-index="{{ loop.index0 }}">
-                            <span class="text-xs text-gray-400">Zoom Step:</span>
-                            <input type="number"
-                                   value="{{ camera.ptz_zoom_step | default(0.1) }}"
-                                   step="0.01"
-                                   min="0.01"
-                                   max="1.0"
-                                   placeholder="0.1"
-                                   class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-zoom-step"
-                                   data-index="{{ loop.index0 }}">
+                        <div class="ptz-settings-grid">
+                            <div class="ptz-field">
+                                <label>ONVIF Port</label>
+                                <input type="number"
+                                       value="{{ camera.onvif_port | default(8000) }}"
+                                       placeholder="8000"
+                                       class="camera-form-input camera-onvif-port"
+                                       data-index="{{ loop.index0 }}">
+                            </div>
+                            <div class="ptz-field">
+                                <label>Move Step</label>
+                                <input type="number"
+                                       value="{{ camera.ptz_step | default(0.05) }}"
+                                       step="0.01"
+                                       min="0.01"
+                                       max="1.0"
+                                       placeholder="0.05"
+                                       class="camera-form-input camera-ptz-step"
+                                       data-index="{{ loop.index0 }}">
+                            </div>
+                            <div class="ptz-field">
+                                <label>Zoom Step</label>
+                                <input type="number"
+                                       value="{{ camera.ptz_zoom_step | default(0.1) }}"
+                                       step="0.01"
+                                       min="0.01"
+                                       max="1.0"
+                                       placeholder="0.1"
+                                       class="camera-form-input camera-ptz-zoom-step"
+                                       data-index="{{ loop.index0 }}">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -365,16 +462,15 @@
         }
 
         const cameraHtml = `
-            <div class="camera-item p-3 bg-gray-700/50 rounded-lg" data-index="${index}">
+            <div class="camera-item p-4 bg-gray-700/50 rounded-lg" data-index="${index}">
                 <!-- Header: Name, Enable toggle, Delete button -->
-                <div class="flex items-center gap-3 mb-3">
+                <div class="camera-header flex items-center gap-3 mb-4">
                     <input type="text"
                            value="${name}"
                            placeholder="Camera Name"
-                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-sm camera-name"
+                           class="camera-form-input camera-name flex-1"
                            data-index="${index}">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm text-gray-300">Enable</span>
+                    <div class="flex items-center gap-2 shrink-0">
                         <label class="toggle-switch">
                             <input type="checkbox"
                                    class="camera-enabled"
@@ -384,52 +480,51 @@
                         </label>
                     </div>
                     <button onclick="window.removeCamera(${index})"
-                            class="p-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors shrink-0"
+                            title="Remove camera">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 </div>
 
-                <!-- Host & Port -->
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xs text-gray-400 w-12">Host:</span>
+                <!-- Connection Settings Grid -->
+                <div class="camera-form-grid mb-3">
+                    <label class="camera-form-label">Host</label>
                     <input type="text"
                            value="${host}"
                            placeholder="192.168.1.100"
-                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-host"
+                           class="camera-form-input camera-host"
                            data-index="${index}">
-                    <span class="text-xs text-gray-400">Port:</span>
+                    <label class="camera-form-label">Port</label>
                     <input type="number"
                            value="${port}"
                            placeholder="554"
-                           class="w-20 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-port"
+                           class="camera-form-input small camera-port"
                            data-index="${index}">
-                </div>
 
-                <!-- Username & Password -->
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xs text-gray-400 w-12">User:</span>
+                    <label class="camera-form-label">User</label>
                     <input type="text"
                            value=""
                            placeholder="admin"
-                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-username"
+                           class="camera-form-input camera-username"
                            data-index="${index}">
-                    <span class="text-xs text-gray-400">Pass:</span>
+                    <label class="camera-form-label">Pass</label>
                     <input type="password"
                            value=""
                            placeholder="password"
-                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-password"
+                           class="camera-form-input camera-password"
                            data-index="${index}">
                 </div>
 
                 <!-- Stream Path with presets -->
-                <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xs text-gray-400 w-12">Path:</span>
-                    <select class="path-preset-select bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-path-preset"
+                <div class="flex items-center gap-2 mb-1">
+                    <label class="camera-form-label shrink-0">Path</label>
+                    <select class="camera-form-input path-preset-select camera-path-preset"
+                            style="flex: 0 0 auto; width: auto; min-width: 8rem;"
                             data-index="${index}"
                             onchange="window.applyPathPreset(${index}, this.value)">
-                        <option value="">-- Preset --</option>
+                        <option value="">Preset</option>
                         <option value="/Streaming/Channels/101">Hikvision Main</option>
                         <option value="/Streaming/Channels/102">Hikvision Sub</option>
                         <option value="/cam/realmonitor?channel=1&subtype=0">Dahua Main</option>
@@ -437,55 +532,59 @@
                         <option value="/live/ch00_0">Generic 1</option>
                         <option value="/stream1">Generic 2</option>
                         <option value="/h264_stream">H264 Stream</option>
-                        <option value="custom">Custom...</option>
+                        <option value="custom">Custom</option>
                     </select>
                     <input type="text"
                            value="/Streaming/Channels/101"
                            placeholder="/Streaming/Channels/101"
-                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-stream-path"
+                           class="camera-form-input camera-stream-path flex-1"
                            data-index="${index}">
                 </div>
 
                 <!-- PTZ Settings -->
-                <div class="pt-2 mt-2 border-t border-gray-600">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-xs text-gray-400 w-12">PTZ:</span>
-                        <div class="flex items-center gap-2">
-                            <label class="toggle-switch" style="width: 36px; height: 18px;">
+                <div class="ptz-section">
+                    <div class="ptz-header">
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-medium text-gray-300">PTZ Control</span>
+                            <label class="toggle-switch small">
                                 <input type="checkbox"
                                        class="camera-ptz-enabled"
                                        data-index="${index}">
-                                <span class="toggle-slider" style="border-radius: 18px;"></span>
+                                <span class="toggle-slider"></span>
                             </label>
-                            <span class="text-xs text-gray-300">Enable PTZ</span>
                         </div>
-                        <span class="text-xs text-gray-400 ml-2">ONVIF Port:</span>
-                        <input type="number"
-                               value="8000"
-                               placeholder="8000"
-                               class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-onvif-port"
-                               data-index="${index}">
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-400 w-12"></span>
-                        <span class="text-xs text-gray-400">Step:</span>
-                        <input type="number"
-                               value="0.05"
-                               step="0.01"
-                               min="0.01"
-                               max="1.0"
-                               placeholder="0.05"
-                               class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-step"
-                               data-index="${index}">
-                        <span class="text-xs text-gray-400">Zoom Step:</span>
-                        <input type="number"
-                               value="0.1"
-                               step="0.01"
-                               min="0.01"
-                               max="1.0"
-                               placeholder="0.1"
-                               class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-zoom-step"
-                               data-index="${index}">
+                    <div class="ptz-settings-grid">
+                        <div class="ptz-field">
+                            <label>ONVIF Port</label>
+                            <input type="number"
+                                   value="8000"
+                                   placeholder="8000"
+                                   class="camera-form-input camera-onvif-port"
+                                   data-index="${index}">
+                        </div>
+                        <div class="ptz-field">
+                            <label>Move Step</label>
+                            <input type="number"
+                                   value="0.05"
+                                   step="0.01"
+                                   min="0.01"
+                                   max="1.0"
+                                   placeholder="0.05"
+                                   class="camera-form-input camera-ptz-step"
+                                   data-index="${index}">
+                        </div>
+                        <div class="ptz-field">
+                            <label>Zoom Step</label>
+                            <input type="number"
+                                   value="0.1"
+                                   step="0.01"
+                                   min="0.01"
+                                   max="1.0"
+                                   placeholder="0.1"
+                                   class="camera-form-input camera-ptz-zoom-step"
+                                   data-index="${index}">
+                        </div>
                     </div>
                 </div>
             </div>
