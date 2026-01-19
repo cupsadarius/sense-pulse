@@ -111,8 +111,12 @@ class BabyMonitorCameraConfig:
     """Configuration for a single baby monitor camera"""
 
     name: str = "default"
-    rtsp_url: str = ""  # RTSP URL (e.g., "rtsp://admin:admin@192.168.1.111:8554/...")
-    onvif_address: str = ""  # Optional ONVIF address for discovery
+    host: str = ""  # Camera IP address
+    port: int = 554  # RTSP port (common: 554, 8554, 10554)
+    stream_path: str = "/Streaming/Channels/101"  # RTSP stream path
+    username: str = ""  # Camera username
+    password: str = ""  # Camera password
+    enabled: bool = True
 
 
 @dataclass
@@ -218,23 +222,8 @@ def load_config(config_path: str | None = None) -> Config:
 
 
 def _parse_baby_monitor_config(data: dict) -> BabyMonitorConfig:
-    """Parse baby monitor config with backward compatibility.
-
-    Supports both new format (cameras list) and old format (rtsp_url).
-    """
-    cameras = []
-
-    # New format: cameras list
-    if "cameras" in data:
-        cameras = data.get("cameras", [])
-    # Old format migration: single rtsp_url
-    elif "rtsp_url" in data and data.get("rtsp_url"):
-        cameras = [
-            {
-                "name": "default",
-                "rtsp_url": data.get("rtsp_url", ""),
-            }
-        ]
+    """Parse baby monitor config."""
+    cameras = data.get("cameras", [])
 
     return BabyMonitorConfig(
         enabled=data.get("enabled", False),

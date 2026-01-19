@@ -35,15 +35,26 @@ class StreamStatus(Enum):
     ERROR = "error"
 
 
+# Common RTSP ports to scan for cameras
+RTSP_PORTS = [554, 8554, 10554]
+
+
 @dataclass
 class CameraInfo:
     """Information about a discovered or configured camera."""
 
     name: str
-    rtsp_url: str
-    onvif_address: str | None = None
-    manufacturer: str | None = None
-    model: str | None = None
+    host: str
+    port: int = 554
+    stream_path: str = "/Streaming/Channels/101"
+    username: str = ""
+    password: str = ""
+
+    def build_rtsp_url(self) -> str:
+        """Build RTSP URL from component fields."""
+        auth = f"{self.username}:{self.password}@" if self.username else ""
+        path = self.stream_path.lstrip("/")
+        return f"rtsp://{auth}{self.host}:{self.port}/{path}"
 
 
 @dataclass
@@ -94,8 +105,11 @@ class BabyMonitorDevice:
             first_camera = self.config.cameras[0]
             self._active_camera = CameraInfo(
                 name=first_camera.get("name", "default"),
-                rtsp_url=first_camera.get("rtsp_url", ""),
-                onvif_address=first_camera.get("onvif_address"),
+                host=first_camera.get("host", ""),
+                port=first_camera.get("port", 554),
+                stream_path=first_camera.get("stream_path", "/Streaming/Channels/101"),
+                username=first_camera.get("username", ""),
+                password=first_camera.get("password", ""),
             )
 
     @property
@@ -129,7 +143,7 @@ class BabyMonitorDevice:
     def active_rtsp_url(self) -> str:
         """Get the active RTSP URL."""
         if self._active_camera:
-            return self._active_camera.rtsp_url
+            return self._active_camera.build_rtsp_url()
         return ""
 
     def _ensure_output_dir(self) -> None:
@@ -391,8 +405,8 @@ class BabyMonitorDevice:
             logger.info("Baby monitor is disabled")
             return False
 
-        if not self.active_rtsp_url:
-            logger.warning("No RTSP URL configured for baby monitor")
+        if not self._active_camera or not self._active_camera.host:
+            logger.warning("No camera configured for baby monitor")
             return False
 
         # Check if ffmpeg is available
@@ -513,148 +527,53 @@ class BabyMonitorDevice:
             logger.error("Thumbnail capture error", error=str(e))
             return None
 
-    async def discover_cameras(self, timeout: int = 5) -> list[CameraInfo]:
-        """Discover ONVIF cameras on the network.
+    async def discover_cameras(self, timeout: int = 30) -> list[CameraInfo]:
+        """Discover cameras by scanning network for open RTSP ports.
 
         Args:
-            timeout: Discovery timeout in seconds
+            timeout: Discovery timeout in seconds (total for all ports)
 
         Returns:
-            List of discovered cameras with their RTSP URLs
+            List of discovered cameras with their host and port
         """
+        from sense_pulse.utils import scan_network_for_port
+
         cameras: list[CameraInfo] = []
+        seen_hosts: set[str] = set()
 
-        try:
-            from wsdiscovery import QName
-            from wsdiscovery.discovery import ThreadedWSDiscovery
+        logger.info("Starting network camera discovery", timeout=timeout, ports=RTSP_PORTS)
 
-            logger.info("Starting ONVIF camera discovery", timeout=timeout)
+        # Allocate time per port
+        time_per_port = max(timeout // len(RTSP_PORTS), 5)
 
-            wsd = ThreadedWSDiscovery()
-            wsd.start()
-
-            # ONVIF WS-Discovery types as proper QName objects
-            onvif_types = [
-                QName("http://www.onvif.org/ver10/network/wsdl", "NetworkVideoTransmitter"),
-                QName("http://www.onvif.org/ver10/device/wsdl", "Device"),
-            ]
-
-            # Search for ONVIF network video transmitters
-            services = wsd.searchServices(
-                timeout=timeout,
-                types=onvif_types,
-            )
-
-            wsd.stop()
-
-            logger.info("WS-Discovery found services", count=len(services))
-
-            for service in services:
-                try:
-                    xaddrs = service.getXAddrs()
-                    if not xaddrs:
-                        continue
-
-                    # Get the first address (ONVIF service endpoint)
-                    onvif_url = xaddrs[0]
-                    logger.debug("Found ONVIF device", url=onvif_url)
-
-                    # Extract host from URL
-                    from urllib.parse import urlparse
-
-                    parsed = urlparse(onvif_url)
-                    host = parsed.hostname
-
-                    if not host:
-                        continue
-
-                    # Try to get RTSP URL via ONVIF
-                    rtsp_url = await self._get_rtsp_url_via_onvif(host)
-
-                    camera = CameraInfo(
-                        name=f"Camera at {host}",
-                        rtsp_url=rtsp_url or "",
-                        onvif_address=host,
-                    )
-                    cameras.append(camera)
-
-                except Exception as e:
-                    logger.debug("Error processing service", error=str(e))
-                    continue
-
-            logger.info("ONVIF discovery complete", cameras_found=len(cameras))
-
-        except ImportError:
-            logger.warning("wsdiscovery not installed, skipping discovery")
-        except Exception as e:
-            logger.error("ONVIF discovery failed", error=str(e))
-
-        return cameras
-
-    async def _get_rtsp_url_via_onvif(self, host: str, port: int = 80) -> str | None:
-        """Query ONVIF device for its RTSP stream URL.
-
-        Args:
-            host: Device IP address
-            port: ONVIF port (default 80)
-
-        Returns:
-            RTSP URL or None if query fails
-        """
-        try:
-            from onvif import ONVIFCamera
-
-            logger.debug("Querying ONVIF device", host=host, port=port)
-
-            # Try common credentials
-            credentials = [
-                ("admin", "admin"),
-                ("admin", ""),
-                ("root", "root"),
-                ("admin", "password"),
-            ]
-
-            for username, password in credentials:
-                try:
-                    camera = ONVIFCamera(
-                        host,
-                        port,
-                        username,
-                        password,
-                        no_cache=True,
-                    )
-
-                    await camera.update_xaddrs()
-                    media_service = await camera.create_media_service()
-                    profiles = await media_service.GetProfiles()
-
-                    if profiles:
-                        profile_token = profiles[0].token
-                        stream_setup = {
-                            "Stream": "RTP-Unicast",
-                            "Transport": {"Protocol": "RTSP"},
-                        }
-                        uri_response = await media_service.GetStreamUri(
-                            {"ProfileToken": profile_token, "StreamSetup": stream_setup}
+        for port in RTSP_PORTS:
+            try:
+                hosts = await asyncio.wait_for(
+                    scan_network_for_port(port),
+                    timeout=time_per_port,
+                )
+                for host in hosts:
+                    # Avoid duplicates if same host has multiple ports open
+                    host_key = f"{host}:{port}"
+                    if host_key not in seen_hosts:
+                        seen_hosts.add(host_key)
+                        cameras.append(
+                            CameraInfo(
+                                name=f"Camera at {host}:{port}",
+                                host=host,
+                                port=port,
+                            )
                         )
+                        logger.debug("Found camera", host=host, port=port)
+            except TimeoutError:
+                logger.debug("Port scan timed out", port=port)
+                continue
+            except Exception as e:
+                logger.debug("Error scanning port", port=port, error=str(e))
+                continue
 
-                        if uri_response and hasattr(uri_response, "Uri"):
-                            rtsp_url: str = str(uri_response.Uri)
-                            logger.info("Got RTSP URL via ONVIF", host=host)
-                            return rtsp_url
-
-                except Exception:
-                    continue
-
-            logger.debug("Could not get RTSP URL via ONVIF", host=host)
-            return None
-
-        except ImportError:
-            logger.warning("onvif-zeep-async not installed")
-            return None
-        except Exception as e:
-            logger.debug("ONVIF query failed", host=host, error=str(e))
-            return None
+        logger.info("Network discovery complete", cameras_found=len(cameras))
+        return cameras
 
     def set_active_camera(self, camera: CameraInfo) -> None:
         """Set the active camera for streaming.
