@@ -759,10 +759,22 @@ async def update_baby_monitor_config(
     try:
         # Parse JSON body with list of cameras
         body = await request.json()
-        cameras = body.get("cameras", [])
+        new_cameras = body.get("cameras", [])
+
+        # Merge with existing cameras to preserve fields the UI doesn't manage
+        existing_cameras = context.config.baby_monitor.cameras
+        merged_cameras = []
+        for i, new_cam in enumerate(new_cameras):
+            if i < len(existing_cameras):
+                # Preserve existing fields, update with new values
+                merged = existing_cameras[i].copy()
+                merged.update(new_cam)
+                merged_cameras.append(merged)
+            else:
+                merged_cameras.append(new_cam)
 
         # Update config via context (writes to disk and reloads)
-        context.update_config({"baby_monitor": {"cameras": cameras}})
+        context.update_config({"baby_monitor": {"cameras": merged_cameras}})
 
         # NOTE: Camera changes require application restart to take effect
         logger.warning(
@@ -772,8 +784,8 @@ async def update_baby_monitor_config(
 
         return {
             "status": "success",
-            "message": f"Updated {len(cameras)} camera(s). Restart required for changes to take effect.",
-            "cameras": cameras,
+            "message": f"Updated {len(merged_cameras)} camera(s). Restart required for changes to take effect.",
+            "cameras": merged_cameras,
             "restart_required": True,
         }
 
