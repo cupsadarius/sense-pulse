@@ -6,8 +6,8 @@ Each data source implements the DataSource interface and fetches fresh data when
 """
 
 from .aranet4_source import Aranet4DataSource
-from .baby_monitor_source import BabyMonitorDataSource
 from .base import DataSource, DataSourceMetadata, SensorReading
+from .network_camera_source import NetworkCameraDataSource
 from .pihole_source import PiHoleDataSource
 from .registry import DataSourceRegistry
 from .sensehat_source import SenseHatDataSource
@@ -26,5 +26,5 @@ __all__ = [
     "Aranet4DataSource",
     "SenseHatDataSource",
     "WeatherDataSource",
-    "BabyMonitorDataSource",
+    "NetworkCameraDataSource",
 ]

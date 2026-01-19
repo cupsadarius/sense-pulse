@@ -83,7 +83,7 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
     app = FastAPI(
         title="Sense Pulse",
         description="Pi-hole + Tailscale + Sense HAT Status Dashboard",
-        version="0.10.0",
+        version="0.11.0",
         lifespan=lifespan,
     )
 
@@ -111,7 +111,7 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
         # Initialize hardware settings
         sensehat.set_web_rotation_offset(context.config.display.web_rotation_offset)
 
-    # Include API routes (includes baby monitor endpoints)
+    # Include API routes (includes network camera endpoints)
     from sense_pulse.web.routes import router
 
     app.include_router(router)

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
     from sense_pulse.datasources.base import DataSource
     from sense_pulse.devices.aranet4 import Aranet4Device
-    from sense_pulse.devices.baby_monitor import BabyMonitorDevice
+    from sense_pulse.devices.network_camera import NetworkCameraDevice
 
 from sense_pulse.cache import DataCache
 from sense_pulse.config import Config, load_config
@@ -56,7 +56,7 @@ class AppContext:
         data_sources: List of registered DataSource instances
         sense_hat: Optional shared SenseHat hardware instance
         aranet4_device: Optional shared Aranet4 BLE device manager
-        baby_monitor_device: Optional baby monitor device with ONVIF and streaming
+        network_camera_device: Optional network camera device with ONVIF and streaming
     """
 
     config: Config
@@ -65,7 +65,7 @@ class AppContext:
     data_sources: list["DataSource"] = field(default_factory=list)
     sense_hat: Optional["SenseHat"] = None
     aranet4_device: Optional["Aranet4Device"] = None
-    baby_monitor_device: Optional["BabyMonitorDevice"] = None
+    network_camera_device: Optional["NetworkCameraDevice"] = None
     _started: bool = field(default=False, repr=False)
 
     @classmethod

@@ -11,6 +11,7 @@ A Python application that displays Pi-hole statistics, Tailscale connection stat
 - **Pi-hole Stats**: Queries today, ads blocked, block percentage
 - **Sensor Data**: Temperature, humidity, atmospheric pressure
 - **Aranet4 Monitoring**: Temperature, CO2, and humidity from Aranet4 sensors with color-coded alerts
+- **Network Camera**: RTSP to HLS streaming with PTZ control via ONVIF protocol
 - **System Stats**: CPU usage, memory usage, system load average
 - **Sleep Hours**: Automatically turns off display during configured hours
 - **Pi LED Control**: Optionally disable Pi's onboard LEDs (PWR/ACT) during sleep
@@ -81,6 +82,11 @@ Then open `http://<your-pi-ip>:8080` in your browser.
 | `/api/config` | GET | Current configuration |
 | `/api/config` | POST | Update configuration |
 | `/ws/dashboard` | WebSocket | Real-time dashboard updates (all sensor data + LED matrix) |
+| `/api/network-camera/status` | GET | Network camera stream status |
+| `/api/network-camera/start` | POST | Start HLS stream |
+| `/api/network-camera/stop` | POST | Stop HLS stream |
+| `/api/network-camera/discover` | POST | Discover cameras on network |
+| `/api/network-camera/ptz/move` | POST | PTZ control (up/down/left/right/zoomin/zoomout) |
 
 ### Running as a Service
 
@@ -298,7 +304,8 @@ sense-pulse/
         │   ├── tailscale_source.py # Tailscale wrapper
         │   ├── system_source.py    # System metrics wrapper
         │   ├── sensehat_source.py  # Sense HAT wrapper
-        │   └── aranet4_source.py   # Aranet4 wrapper
+        │   ├── aranet4_source.py   # Aranet4 wrapper
+        │   └── network_camera_source.py  # Network camera wrapper
         ├── devices/        # Device implementations
         │   ├── __init__.py
         │   ├── pihole.py       # Pi-hole stats
@@ -306,7 +313,8 @@ sense-pulse/
         │   ├── system.py       # System stats
         │   ├── sensehat.py     # Sense HAT hardware
         │   ├── display.py      # LED display
-        │   └── aranet4.py      # Aranet4 CO2 sensor
+        │   ├── aranet4.py      # Aranet4 CO2 sensor
+        │   └── network_camera.py  # Network camera with RTSP/HLS
         └── web/            # Web dashboard module
             ├── __init__.py
             ├── app.py      # FastAPI application
@@ -523,7 +531,8 @@ sense-pulse/
 │       │   ├── tailscale_source.py # Tailscale wrapper
 │       │   ├── system_source.py    # System metrics wrapper
 │       │   ├── sensehat_source.py  # Sense HAT wrapper
-│       │   └── aranet4_source.py   # Aranet4 wrapper
+│       │   ├── aranet4_source.py   # Aranet4 wrapper
+│       │   └── network_camera_source.py  # Network camera wrapper
 │       ├── devices/            # Device implementations
 │       │   ├── __init__.py
 │       │   ├── pihole.py       # Pi-hole stats
@@ -531,7 +540,8 @@ sense-pulse/
 │       │   ├── system.py       # System stats
 │       │   ├── sensehat.py     # Sense HAT hardware
 │       │   ├── display.py      # LED display
-│       │   └── aranet4.py      # Aranet4 CO2 sensor
+│       │   ├── aranet4.py      # Aranet4 CO2 sensor
+│       │   └── network_camera.py  # Network camera with RTSP/HLS
 │       └── web/
 │           ├── app.py          # FastAPI application
 │           ├── routes.py       # API routes

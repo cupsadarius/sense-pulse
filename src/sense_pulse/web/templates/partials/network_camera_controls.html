@@ -200,7 +200,7 @@
     <div class="p-3 bg-gray-800/50 rounded-lg">
         <div class="flex items-center justify-between mb-3">
             <div>
-                <p class="font-medium">Baby Monitor Cameras</p>
+                <p class="font-medium">Network Cameras</p>
                 <p class="text-sm text-gray-400">Scan network for cameras with RTSP ports</p>
             </div>
             <button id="discover-cameras-btn"
@@ -224,8 +224,8 @@
     <div class="p-3 bg-gray-800/50 rounded-lg">
         <p class="font-medium mb-3">Configured Cameras</p>
         <div id="cameras-list" class="space-y-3">
-            {% if baby_monitor_cameras %}
-                {% for camera in baby_monitor_cameras %}
+            {% if network_camera_cameras %}
+                {% for camera in network_camera_cameras %}
                 <div class="camera-item p-4 bg-gray-700/50 rounded-lg" data-index="{{ loop.index0 }}">
                     <!-- Header: Name, Enable toggle, Delete button -->
                     <div class="camera-header flex items-center gap-3 mb-4">
@@ -378,8 +378,8 @@
 
 <script>
     // Store cameras in memory
-    if (!window.babyMonitorCameras) {
-        window.babyMonitorCameras = {{ baby_monitor_cameras | tojson }};
+    if (!window.networkCameraCameras) {
+        window.networkCameraCameras = {{ network_camera_cameras | tojson }};
     }
 
     window.discoverCameras = async function() {
@@ -398,7 +398,7 @@
         `;
 
         try {
-            const response = await fetch('/api/baby-monitor/discover', { method: 'POST' });
+            const response = await fetch('/api/network-camera/discover', { method: 'POST' });
             const data = await response.json();
 
             resultsDiv.classList.remove('hidden');
@@ -648,7 +648,7 @@
         btn.textContent = 'Saving...';
 
         try {
-            const response = await fetch('/api/baby-monitor/config', {
+            const response = await fetch('/api/network-camera/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ cameras })
