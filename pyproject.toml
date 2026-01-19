@@ -3,7 +3,7 @@ name = "sense-pulse"
 version = "0.10.0"
 description = "Display Pi-hole statistics, Tailscale status, and sensor data on Sense HAT LED matrix"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["raspberry-pi", "sense-hat", "pi-hole", "tailscale", "led-display"]
 
@@ -19,6 +19,8 @@ dependencies = [
     "passlib==1.7.4",  # Password hashing for authentication
     "bcrypt==4.2.1",  # Bcrypt backend for passlib (4.x compatible with passlib)
     "tenacity==9.0.0",  # Retry logic for network calls
+    "wsdiscovery==2.0.0",  # WS-Discovery for ONVIF camera discovery
+    "onvif-zeep-async==3.1.13",  # ONVIF camera control and RTSP URL retrieval
     # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
 
@@ -48,7 +50,7 @@ dev = [
 
 [tool.black]
 line-length = 100
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -64,7 +66,7 @@ extend-exclude = '''
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 extend-exclude = [".venv", "build", "dist", "src/sense_pulse/icons.py"]
 
 [tool.ruff.lint]
@@ -91,7 +93,7 @@ ignore = [
 "tests/**/*.py" = ["ARG", "S101"]  # test files can have unused args and use assert
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false  # Start lenient, increase strictness later
@@ -107,6 +109,8 @@ module = [
     "sense_hat.*",
     "aranet4.*",
     "bleak.*",
+    "wsdiscovery.*",
+    "onvif.*",
 ]
 ignore_missing_imports = true
 

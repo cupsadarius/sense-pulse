@@ -7,7 +7,7 @@ import traceback
 from collections import deque
 from collections.abc import MutableMapping
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import WebSocket
 
@@ -133,7 +133,7 @@ class LogEntry:
     module: str
     funcName: str
     lineno: int
-    exc_info: Optional[str] = None
+    exc_info: str | None = None
     extra: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -176,7 +176,7 @@ class WebSocketLogHandler(logging.Handler):
         self._clients: set[WebSocket] = set()
         self._buffer: deque[LogEntry] = deque(maxlen=buffer_size)
         self._lock = asyncio.Lock()
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
         # Set a simple formatter
         self.setFormatter(logging.Formatter("%(message)s"))
@@ -315,7 +315,7 @@ class WebSocketLogHandler(logging.Handler):
 
 
 # Global handler instance
-_log_handler: Optional[WebSocketLogHandler] = None
+_log_handler: WebSocketLogHandler | None = None
 
 
 def get_log_handler() -> WebSocketLogHandler:

@@ -53,7 +53,7 @@ class Aranet4Device:
 
         # Build MAC -> label lookup
         mac_to_label = {sensor.mac_address: label for label, sensor in self._sensors.items()}
-        results: dict[str, Optional[Aranet4Reading]] = {label: None for label in self._sensors}
+        results: dict[str, Aranet4Reading | None] = {label: None for label in self._sensors}
         found: set[str] = set()  # Track found MACs to avoid duplicate processing
 
         try:

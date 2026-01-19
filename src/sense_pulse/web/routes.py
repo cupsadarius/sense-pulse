@@ -1,9 +1,11 @@
 """API routes for status data"""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -14,6 +16,9 @@ from sense_pulse.devices import sensehat
 from sense_pulse.web.app import get_context
 from sense_pulse.web.auth import require_auth
 from sense_pulse.web.log_handler import get_structured_logger, setup_websocket_logging
+
+if TYPE_CHECKING:
+    from sense_pulse.devices.baby_monitor import BabyMonitorDevice
 
 logger = get_structured_logger(__name__, component="routes")
 router = APIRouter()
@@ -40,48 +45,48 @@ async def _get_aranet4_status(context: AppContext) -> dict[str, Any]:
 
 # Pydantic models for configuration updates
 class DisplayConfigUpdate(BaseModel):
-    rotation: Optional[int] = None
-    show_icons: Optional[bool] = None
-    scroll_speed: Optional[float] = None
-    icon_duration: Optional[float] = None
-    web_rotation_offset: Optional[int] = None
+    rotation: int | None = None
+    show_icons: bool | None = None
+    scroll_speed: float | None = None
+    icon_duration: float | None = None
+    web_rotation_offset: int | None = None
 
 
 class SleepConfigUpdate(BaseModel):
-    start_hour: Optional[int] = None
-    end_hour: Optional[int] = None
-    disable_pi_leds: Optional[bool] = None
+    start_hour: int | None = None
+    end_hour: int | None = None
+    disable_pi_leds: bool | None = None
 
 
 class Aranet4SensorUpdate(BaseModel):
-    mac_address: Optional[str] = None
-    enabled: Optional[bool] = None
+    mac_address: str | None = None
+    enabled: bool | None = None
 
 
 class Aranet4ConfigUpdate(BaseModel):
-    office: Optional[Aranet4SensorUpdate] = None
-    bedroom: Optional[Aranet4SensorUpdate] = None
-    timeout: Optional[int] = None
-    cache_duration: Optional[int] = None
+    office: Aranet4SensorUpdate | None = None
+    bedroom: Aranet4SensorUpdate | None = None
+    timeout: int | None = None
+    cache_duration: int | None = None
 
 
 class CacheConfigUpdate(BaseModel):
-    ttl: Optional[float] = None
-    poll_interval: Optional[float] = None
+    ttl: float | None = None
+    poll_interval: float | None = None
 
 
 class WeatherConfigUpdate(BaseModel):
-    enabled: Optional[bool] = None
-    location: Optional[str] = None
-    cache_duration: Optional[int] = None
+    enabled: bool | None = None
+    location: str | None = None
+    cache_duration: int | None = None
 
 
 class ConfigUpdate(BaseModel):
-    display: Optional[DisplayConfigUpdate] = None
-    sleep: Optional[SleepConfigUpdate] = None
-    aranet4: Optional[Aranet4ConfigUpdate] = None
-    cache: Optional[CacheConfigUpdate] = None
-    weather: Optional[WeatherConfigUpdate] = None
+    display: DisplayConfigUpdate | None = None
+    sleep: SleepConfigUpdate | None = None
+    aranet4: Aranet4ConfigUpdate | None = None
+    cache: CacheConfigUpdate | None = None
+    weather: WeatherConfigUpdate | None = None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -619,3 +624,231 @@ async def get_aranet4_controls(request: Request, context: AppContext = Depends(g
             "aranet4_status": await _get_aranet4_status(context),
         },
     )
+
+
+# ============================================================================
+# Baby Monitor API
+# ============================================================================
+
+
+def _get_baby_monitor_device(context: AppContext) -> BabyMonitorDevice | None:
+    """Get the baby monitor device from context."""
+    return getattr(context, "baby_monitor_device", None)
+
+
+@router.get("/api/baby-monitor/status")
+async def get_baby_monitor_status(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Get current baby monitor stream status - requires authentication."""
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {
+            "status": "disabled",
+            "enabled": False,
+            "error": "Baby monitor not configured",
+        }
+    return device.get_status()
+
+
+@router.post("/api/baby-monitor/start")
+async def start_baby_monitor_stream(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Start the baby monitor HLS stream - requires authentication."""
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"success": False, "message": "Baby monitor not configured"}
+
+    try:
+        success = await device.start_stream()
+        return {
+            "success": success,
+            "message": "Stream started" if success else "Failed to start stream",
+            "status": device.get_status(),
+        }
+    except Exception as e:
+        logger.error("Failed to start baby monitor stream", error=str(e))
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/api/baby-monitor/stop")
+async def stop_baby_monitor_stream(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Stop the baby monitor HLS stream - requires authentication."""
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"success": False, "message": "Baby monitor not configured"}
+
+    try:
+        await device.stop_stream()
+        return {"success": True, "message": "Stream stopped"}
+    except Exception as e:
+        logger.error("Failed to stop baby monitor stream", error=str(e))
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/api/baby-monitor/restart")
+async def restart_baby_monitor_stream(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Restart the baby monitor stream - requires authentication."""
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"success": False, "message": "Baby monitor not configured"}
+
+    try:
+        await device.restart_stream()
+        return {"success": True, "message": "Stream restarting"}
+    except Exception as e:
+        logger.error("Failed to restart baby monitor stream", error=str(e))
+        return {"success": False, "message": str(e)}
+
+
+@router.post("/api/baby-monitor/discover")
+async def discover_baby_monitor_cameras(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Discover ONVIF cameras on the network - requires authentication."""
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"success": False, "cameras": [], "message": "Baby monitor not configured"}
+
+    try:
+        cameras = await device.discover_cameras(timeout=5)
+        return {
+            "success": True,
+            "cameras": [
+                {
+                    "name": cam.name,
+                    "rtsp_url": cam.rtsp_url,
+                    "onvif_address": cam.onvif_address,
+                }
+                for cam in cameras
+            ],
+            "count": len(cameras),
+        }
+    except Exception as e:
+        logger.error("Failed to discover cameras", error=str(e))
+        return {"success": False, "cameras": [], "message": str(e)}
+
+
+@router.get("/api/baby-monitor/thumbnail")
+async def get_baby_monitor_thumbnail(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+    force: bool = False,
+):
+    """Get a thumbnail image from the baby monitor camera - requires authentication."""
+    from fastapi.responses import Response
+
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return Response(status_code=404, content=b"Baby monitor not configured")
+
+    try:
+        thumbnail = await device.capture_thumbnail(force=force)
+        if thumbnail:
+            return Response(
+                content=thumbnail,
+                media_type="image/jpeg",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+        return Response(status_code=503, content=b"Failed to capture thumbnail")
+    except Exception as e:
+        logger.error("Failed to capture thumbnail", error=str(e))
+        return Response(status_code=500, content=str(e).encode())
+
+
+@router.get("/api/baby-monitor/stream/stream.m3u8")
+async def get_baby_monitor_hls_playlist(
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+):
+    """Serve HLS playlist - requires authentication."""
+    from fastapi.responses import FileResponse
+
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"error": "Baby monitor not configured"}
+
+    playlist_path = device.playlist_path
+    if not playlist_path.exists():
+        return {"error": "Stream not ready"}
+
+    return FileResponse(
+        playlist_path,
+        media_type="application/vnd.apple.mpegurl",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
+@router.get("/api/baby-monitor/stream/{segment_name}")
+async def get_baby_monitor_hls_segment(
+    segment_name: str,
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+):
+    """Serve HLS segment - requires authentication."""
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"error": "Baby monitor not configured"}
+
+    # Validate segment name (must be .ts file)
+    if not segment_name.endswith(".ts"):
+        return {"error": "Invalid segment"}
+
+    # Sanitize path to prevent directory traversal
+    segment_path = device.output_dir / Path(segment_name).name
+    if not segment_path.exists():
+        return {"error": "Segment not found"}
+
+    return FileResponse(
+        segment_path,
+        media_type="video/mp2t",
+        headers={
+            "Cache-Control": "max-age=3600",
+        },
+    )
+
+
+@router.websocket("/ws/baby-monitor")
+async def baby_monitor_status_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time baby monitor status updates."""
+    await websocket.accept()
+
+    context: AppContext = websocket.app.state.context
+    device = _get_baby_monitor_device(context)
+
+    if not device:
+        await websocket.send_json({"error": "Baby monitor not configured"})
+        await websocket.close()
+        return
+
+    try:
+        while True:
+            status = device.get_status()
+            await websocket.send_json(status)
+            await asyncio.sleep(2)  # Update every 2 seconds
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass

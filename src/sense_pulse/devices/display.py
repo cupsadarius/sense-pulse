@@ -36,7 +36,7 @@ class SenseHatDisplay:
         try:
             # Use provided instance or get from module
             if sense_hat_instance is not None:
-                self.sense: Optional[SenseHat] = sense_hat_instance
+                self.sense: SenseHat | None = sense_hat_instance
                 logger.info("Using provided Sense HAT instance")
             else:
                 self.sense = sensehat.get_sense_hat()
@@ -65,7 +65,7 @@ class SenseHatDisplay:
         self,
         text: str,
         color: tuple[int, int, int] = (255, 255, 255),
-        scroll_speed: Optional[float] = None,
+        scroll_speed: float | None = None,
     ):
         """Display scrolling text on LED matrix (async to prevent blocking)"""
         try:
@@ -81,7 +81,7 @@ class SenseHatDisplay:
             logger.error("Failed to display text", error=str(e))
 
     async def show_icon(
-        self, icon_pixels: list[list[int]], duration: Optional[float] = None, mode: str = "icon"
+        self, icon_pixels: list[list[int]], duration: float | None = None, mode: str = "icon"
     ):
         """
         Display an 8x8 icon on the LED matrix.
@@ -105,8 +105,8 @@ class SenseHatDisplay:
         icon_name: str,
         text: str,
         text_color: tuple[int, int, int] = (255, 255, 255),
-        icon_duration: Optional[float] = None,
-        scroll_speed: Optional[float] = None,
+        icon_duration: float | None = None,
+        scroll_speed: float | None = None,
     ):
         """
         Display an icon followed by scrolling text.

@@ -1,7 +1,5 @@
 """Data source registry for managing all data sources"""
 
-from typing import Optional
-
 from ..web.log_handler import get_structured_logger
 from .base import DataSource
 
@@ -51,7 +49,7 @@ class DataSourceRegistry:
         else:
             logger.warning("Attempted to unregister unknown source", source_id=source_id)
 
-    def get(self, source_id: str) -> Optional[DataSource]:
+    def get(self, source_id: str) -> DataSource | None:
         """
         Get a data source by ID.
 

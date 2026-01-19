@@ -2,7 +2,7 @@
 
 import asyncio
 import contextlib
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sense_pulse.cache import DataCache
@@ -42,7 +42,7 @@ class StatsDisplay:
         self.config = config
         self.cache = cache
         self.show_icons = config.display.show_icons
-        self.display: Optional[SenseHatDisplay] = None  # Will be initialized in async_init()
+        self.display: SenseHatDisplay | None = None  # Will be initialized in async_init()
         self._sense_hat_instance = sense_hat_instance
 
         self.sleep_schedule = SleepSchedule(
@@ -451,9 +451,7 @@ class StatsDisplay:
             logger.error("Display cycle failed", error=str(e), exc_info=True)
             await self.display.clear()
 
-    async def run_until_shutdown(
-        self, shutdown_event: asyncio.Event, interval: Optional[int] = None
-    ):
+    async def run_until_shutdown(self, shutdown_event: asyncio.Event, interval: int | None = None):
         """
         Run continuous display loop until shutdown event is set.
 
@@ -486,7 +484,7 @@ class StatsDisplay:
                 logger.info("Re-enabling Pi LEDs on shutdown")
                 enable_all_leds()
 
-    async def run_continuous(self, interval: Optional[int] = None):
+    async def run_continuous(self, interval: int | None = None):
         """
         Run continuous display loop (legacy method).
 

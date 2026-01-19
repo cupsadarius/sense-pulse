@@ -1,7 +1,6 @@
 """Mock data source for testing"""
 
 from datetime import datetime
-from typing import Optional
 
 from sense_pulse.datasources.base import DataSource, DataSourceMetadata, SensorReading
 
@@ -17,7 +16,7 @@ class MockDataSource(DataSource):
         self,
         source_id: str = "mock",
         name: str = "Mock Source",
-        readings: Optional[list[SensorReading]] = None,
+        readings: list[SensorReading] | None = None,
         fail_on_initialize: bool = False,
         fail_on_fetch: bool = False,
         fail_on_health_check: bool = False,
