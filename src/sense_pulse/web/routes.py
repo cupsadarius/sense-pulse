@@ -721,20 +721,20 @@ async def discover_baby_monitor_cameras(
     context: AppContext = Depends(get_context),
     username: str = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Discover ONVIF cameras on the network - requires authentication."""
+    """Discover cameras by scanning network for RTSP ports - requires authentication."""
     device = _get_baby_monitor_device(context)
     if not device:
         return {"success": False, "cameras": [], "message": "Baby monitor not configured"}
 
     try:
-        cameras = await device.discover_cameras(timeout=5)
+        cameras = await device.discover_cameras(timeout=30)
         return {
             "success": True,
             "cameras": [
                 {
                     "name": cam.name,
-                    "rtsp_url": cam.rtsp_url,
-                    "onvif_address": cam.onvif_address,
+                    "host": cam.host,
+                    "port": cam.port,
                 }
                 for cam in cameras
             ],

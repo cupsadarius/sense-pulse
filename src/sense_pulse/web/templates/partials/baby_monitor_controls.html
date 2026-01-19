@@ -88,6 +88,16 @@
             padding: 0.75rem !important;
         }
     }
+
+    /* Path preset dropdown styling */
+    .path-preset-select {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 0.5rem center;
+        background-repeat: no-repeat;
+        background-size: 1.5em 1.5em;
+        padding-right: 2.5rem;
+    }
 </style>
 
 <div class="space-y-4">
@@ -96,7 +106,7 @@
         <div class="flex items-center justify-between mb-3">
             <div>
                 <p class="font-medium">Baby Monitor Cameras</p>
-                <p class="text-sm text-gray-400">Discover and configure ONVIF cameras</p>
+                <p class="text-sm text-gray-400">Scan network for cameras with RTSP ports</p>
             </div>
             <button id="discover-cameras-btn"
                     onclick="window.discoverCameras()"
@@ -122,7 +132,8 @@
             {% if baby_monitor_cameras %}
                 {% for camera in baby_monitor_cameras %}
                 <div class="camera-item p-3 bg-gray-700/50 rounded-lg" data-index="{{ loop.index0 }}">
-                    <div class="flex items-center gap-3 mb-2">
+                    <!-- Header: Name, Enable toggle, Delete button -->
+                    <div class="flex items-center gap-3 mb-3">
                         <input type="text"
                                value="{{ camera.name }}"
                                placeholder="Camera Name"
@@ -145,12 +156,59 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-400">RTSP:</span>
+
+                    <!-- Host & Port -->
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs text-gray-400 w-12">Host:</span>
                         <input type="text"
-                               value="{{ camera.rtsp_url }}"
-                               placeholder="rtsp://user:pass@192.168.1.100:554/stream"
-                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-rtsp"
+                               value="{{ camera.host }}"
+                               placeholder="192.168.1.100"
+                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-host"
+                               data-index="{{ loop.index0 }}">
+                        <span class="text-xs text-gray-400">Port:</span>
+                        <input type="number"
+                               value="{{ camera.port | default(554) }}"
+                               placeholder="554"
+                               class="w-20 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-port"
+                               data-index="{{ loop.index0 }}">
+                    </div>
+
+                    <!-- Username & Password -->
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs text-gray-400 w-12">User:</span>
+                        <input type="text"
+                               value="{{ camera.username }}"
+                               placeholder="admin"
+                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-username"
+                               data-index="{{ loop.index0 }}">
+                        <span class="text-xs text-gray-400">Pass:</span>
+                        <input type="password"
+                               value="{{ camera.password }}"
+                               placeholder="password"
+                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-password"
+                               data-index="{{ loop.index0 }}">
+                    </div>
+
+                    <!-- Stream Path with presets -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400 w-12">Path:</span>
+                        <select class="path-preset-select bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-path-preset"
+                                data-index="{{ loop.index0 }}"
+                                onchange="window.applyPathPreset({{ loop.index0 }}, this.value)">
+                            <option value="">-- Preset --</option>
+                            <option value="/Streaming/Channels/101">Hikvision Main</option>
+                            <option value="/Streaming/Channels/102">Hikvision Sub</option>
+                            <option value="/cam/realmonitor?channel=1&subtype=0">Dahua Main</option>
+                            <option value="/cam/realmonitor?channel=1&subtype=1">Dahua Sub</option>
+                            <option value="/live/ch00_0">Generic 1</option>
+                            <option value="/stream1">Generic 2</option>
+                            <option value="/h264_stream">H264 Stream</option>
+                            <option value="custom">Custom...</option>
+                        </select>
+                        <input type="text"
+                               value="{{ camera.stream_path | default('/Streaming/Channels/101') }}"
+                               placeholder="/Streaming/Channels/101"
+                               class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-stream-path"
                                data-index="{{ loop.index0 }}">
                     </div>
                 </div>
@@ -195,7 +253,7 @@
                 <circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle>
                 <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" class="opacity-75"></path>
             </svg>
-            Scanning...
+            Scanning Network...
         `;
 
         try {
@@ -209,9 +267,9 @@
                     <div class="flex items-center justify-between p-2 bg-gray-600/50 rounded">
                         <div>
                             <p class="text-sm font-medium">${camera.name}</p>
-                            <p class="text-xs text-gray-400 truncate max-w-xs">${camera.rtsp_url}</p>
+                            <p class="text-xs text-gray-400">${camera.host}:${camera.port}</p>
                         </div>
-                        <button onclick="window.selectDiscoveredCamera('${encodeURIComponent(camera.rtsp_url)}', '${encodeURIComponent(camera.name)}')"
+                        <button onclick="window.selectDiscoveredCamera('${camera.host}', ${camera.port}, '${encodeURIComponent(camera.name)}')"
                                 class="px-3 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30">
                             Add
                         </button>
@@ -219,7 +277,7 @@
                 `).join('');
             } else {
                 discoveryList.innerHTML = `
-                    <p class="text-sm text-yellow-400">No ONVIF cameras found. Make sure cameras are on the network and ONVIF is enabled.</p>
+                    <p class="text-sm text-yellow-400">No cameras found. Ensure cameras are on the network with RTSP ports open (554, 8554, 10554).</p>
                 `;
             }
         } catch (error) {
@@ -238,12 +296,21 @@
         }
     };
 
-    window.selectDiscoveredCamera = function(rtspUrl, name) {
-        // Add camera with discovered details
-        window.addCamera(decodeURIComponent(rtspUrl), decodeURIComponent(name));
+    window.selectDiscoveredCamera = function(host, port, name) {
+        // Add camera with discovered host/port
+        window.addCamera(host, port, decodeURIComponent(name));
     };
 
-    window.addCamera = function(rtspUrl = '', name = '') {
+    window.applyPathPreset = function(index, value) {
+        if (value && value !== 'custom') {
+            const pathInput = document.querySelector(`.camera-stream-path[data-index="${index}"]`);
+            if (pathInput) {
+                pathInput.value = value;
+            }
+        }
+    };
+
+    window.addCamera = function(host = '', port = 554, name = '') {
         const camerasList = document.getElementById('cameras-list');
         const index = camerasList.querySelectorAll('.camera-item').length;
 
@@ -255,7 +322,8 @@
 
         const cameraHtml = `
             <div class="camera-item p-3 bg-gray-700/50 rounded-lg" data-index="${index}">
-                <div class="flex items-center gap-3 mb-2">
+                <!-- Header: Name, Enable toggle, Delete button -->
+                <div class="flex items-center gap-3 mb-3">
                     <input type="text"
                            value="${name}"
                            placeholder="Camera Name"
@@ -278,12 +346,59 @@
                         </svg>
                     </button>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-400">RTSP:</span>
+
+                <!-- Host & Port -->
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs text-gray-400 w-12">Host:</span>
                     <input type="text"
-                           value="${rtspUrl}"
-                           placeholder="rtsp://user:pass@192.168.1.100:554/stream"
-                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-rtsp"
+                           value="${host}"
+                           placeholder="192.168.1.100"
+                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-host"
+                           data-index="${index}">
+                    <span class="text-xs text-gray-400">Port:</span>
+                    <input type="number"
+                           value="${port}"
+                           placeholder="554"
+                           class="w-20 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-port"
+                           data-index="${index}">
+                </div>
+
+                <!-- Username & Password -->
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs text-gray-400 w-12">User:</span>
+                    <input type="text"
+                           value=""
+                           placeholder="admin"
+                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-username"
+                           data-index="${index}">
+                    <span class="text-xs text-gray-400">Pass:</span>
+                    <input type="password"
+                           value=""
+                           placeholder="password"
+                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-password"
+                           data-index="${index}">
+                </div>
+
+                <!-- Stream Path with presets -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400 w-12">Path:</span>
+                    <select class="path-preset-select bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-path-preset"
+                            data-index="${index}"
+                            onchange="window.applyPathPreset(${index}, this.value)">
+                        <option value="">-- Preset --</option>
+                        <option value="/Streaming/Channels/101">Hikvision Main</option>
+                        <option value="/Streaming/Channels/102">Hikvision Sub</option>
+                        <option value="/cam/realmonitor?channel=1&subtype=0">Dahua Main</option>
+                        <option value="/cam/realmonitor?channel=1&subtype=1">Dahua Sub</option>
+                        <option value="/live/ch00_0">Generic 1</option>
+                        <option value="/stream1">Generic 2</option>
+                        <option value="/h264_stream">H264 Stream</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                    <input type="text"
+                           value="/Streaming/Channels/101"
+                           placeholder="/Streaming/Channels/101"
+                           class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-stream-path"
                            data-index="${index}">
                 </div>
             </div>
@@ -303,15 +418,27 @@
         const btn = document.getElementById('save-cameras-btn');
         const originalText = btn.textContent;
 
-        // Collect all cameras
+        // Collect all cameras with new field structure
         const cameras = [];
         document.querySelectorAll('.camera-item').forEach((item) => {
             const name = item.querySelector('.camera-name').value.trim();
-            const rtspUrl = item.querySelector('.camera-rtsp').value.trim();
+            const host = item.querySelector('.camera-host').value.trim();
+            const port = parseInt(item.querySelector('.camera-port').value) || 554;
+            const username = item.querySelector('.camera-username').value.trim();
+            const password = item.querySelector('.camera-password').value;
+            const streamPath = item.querySelector('.camera-stream-path').value.trim() || '/Streaming/Channels/101';
             const enabled = item.querySelector('.camera-enabled').checked;
 
-            if (name && rtspUrl) {
-                cameras.push({ name, rtsp_url: rtspUrl, enabled });
+            if (name && host) {
+                cameras.push({
+                    name,
+                    host,
+                    port,
+                    stream_path: streamPath,
+                    username,
+                    password,
+                    enabled
+                });
             }
         });
 
