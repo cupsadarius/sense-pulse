@@ -212,7 +212,11 @@ class BabyMonitorDevice:
             "-hide_banner",
             "-loglevel",
             "warning",
-            # Input options
+            # Low-latency input options
+            "-fflags",
+            "nobuffer",
+            "-flags",
+            "low_delay",
             "-rtsp_transport",
             self.config.transport,
             "-i",
@@ -233,7 +237,9 @@ class BabyMonitorDevice:
             "-hls_list_size",
             str(self.config.hls_playlist_size),
             "-hls_flags",
-            "delete_segments+append_list",
+            "delete_segments",
+            "-start_number",
+            "0",
             "-hls_segment_filename",
             str(self.output_dir / "segment_%03d.ts"),
             str(self.playlist_path),
