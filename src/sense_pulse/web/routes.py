@@ -112,6 +112,7 @@ async def index(
             "baby_monitor_enabled": config.baby_monitor.enabled,
             "config": config,
             "aranet4_sensors": aranet4_sensors_dict,
+            "baby_monitor_cameras": config.baby_monitor.cameras,
             "tailscale": await cache.get("tailscale", {}),
             "pihole": await cache.get("pihole", {}),
             "system": await cache.get("system", {}),
@@ -268,6 +269,11 @@ async def sensors_websocket(websocket: WebSocket):
                 "weather": await cache.get("weather", {}),
                 "datasource_status": cache.get_all_source_status(),
             }
+
+            # Include baby monitor status if available
+            baby_monitor_device = _get_baby_monitor_device(context)
+            if baby_monitor_device:
+                data["baby_monitor"] = baby_monitor_device.get_status()
 
             await websocket.send_json(data)
             await asyncio.sleep(30)  # Update every 30s since sensor data updates slowly
@@ -739,6 +745,42 @@ async def discover_baby_monitor_cameras(
         return {"success": False, "cameras": [], "message": str(e)}
 
 
+@router.post("/api/baby-monitor/config")
+async def update_baby_monitor_config(
+    request: Request,
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Update baby monitor camera configurations - requires authentication."""
+
+    if context.config_path is None or not context.config_path.exists():
+        return {"status": "error", "message": "No config file found"}
+
+    try:
+        # Parse JSON body with list of cameras
+        body = await request.json()
+        cameras = body.get("cameras", [])
+
+        # Update config via context (writes to disk and reloads)
+        context.update_config({"baby_monitor": {"cameras": cameras}})
+
+        # NOTE: Camera changes require application restart to take effect
+        logger.warning(
+            "Baby monitor camera configuration updated. "
+            "Please restart the application for changes to take effect."
+        )
+
+        return {
+            "status": "success",
+            "message": f"Updated {len(cameras)} camera(s). Restart required for changes to take effect.",
+            "cameras": cameras,
+            "restart_required": True,
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @router.get("/api/baby-monitor/thumbnail")
 async def get_baby_monitor_thumbnail(
     context: AppContext = Depends(get_context),
@@ -828,27 +870,3 @@ async def get_baby_monitor_hls_segment(
             "Cache-Control": "max-age=3600",
         },
     )
-
-
-@router.websocket("/ws/baby-monitor")
-async def baby_monitor_status_websocket(websocket: WebSocket):
-    """WebSocket endpoint for real-time baby monitor status updates."""
-    await websocket.accept()
-
-    context: AppContext = websocket.app.state.context
-    device = _get_baby_monitor_device(context)
-
-    if not device:
-        await websocket.send_json({"error": "Baby monitor not configured"})
-        await websocket.close()
-        return
-
-    try:
-        while True:
-            status = device.get_status()
-            await websocket.send_json(status)
-            await asyncio.sleep(2)  # Update every 2 seconds
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
