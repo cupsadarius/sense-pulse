@@ -190,7 +190,7 @@
                     </div>
 
                     <!-- Stream Path with presets -->
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 mb-2">
                         <span class="text-xs text-gray-400 w-12">Path:</span>
                         <select class="path-preset-select bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-path-preset"
                                 data-index="{{ loop.index0 }}"
@@ -210,6 +210,50 @@
                                placeholder="/Streaming/Channels/101"
                                class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-stream-path"
                                data-index="{{ loop.index0 }}">
+                    </div>
+
+                    <!-- PTZ Settings -->
+                    <div class="pt-2 mt-2 border-t border-gray-600">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs text-gray-400 w-12">PTZ:</span>
+                            <div class="flex items-center gap-2">
+                                <label class="toggle-switch" style="width: 36px; height: 18px;">
+                                    <input type="checkbox"
+                                           class="camera-ptz-enabled"
+                                           data-index="{{ loop.index0 }}"
+                                           {% if camera.ptz_enabled %}checked{% endif %}>
+                                    <span class="toggle-slider" style="border-radius: 18px;"></span>
+                                </label>
+                                <span class="text-xs text-gray-300">Enable PTZ</span>
+                            </div>
+                            <span class="text-xs text-gray-400 ml-2">ONVIF Port:</span>
+                            <input type="number"
+                                   value="{{ camera.onvif_port | default(8000) }}"
+                                   placeholder="8000"
+                                   class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-onvif-port"
+                                   data-index="{{ loop.index0 }}">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-400 w-12"></span>
+                            <span class="text-xs text-gray-400">Step:</span>
+                            <input type="number"
+                                   value="{{ camera.ptz_step | default(0.05) }}"
+                                   step="0.01"
+                                   min="0.01"
+                                   max="1.0"
+                                   placeholder="0.05"
+                                   class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-step"
+                                   data-index="{{ loop.index0 }}">
+                            <span class="text-xs text-gray-400">Zoom Step:</span>
+                            <input type="number"
+                                   value="{{ camera.ptz_zoom_step | default(0.1) }}"
+                                   step="0.01"
+                                   min="0.01"
+                                   max="1.0"
+                                   placeholder="0.1"
+                                   class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-zoom-step"
+                                   data-index="{{ loop.index0 }}">
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -380,7 +424,7 @@
                 </div>
 
                 <!-- Stream Path with presets -->
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 mb-2">
                     <span class="text-xs text-gray-400 w-12">Path:</span>
                     <select class="path-preset-select bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-path-preset"
                             data-index="${index}"
@@ -401,6 +445,49 @@
                            class="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-stream-path"
                            data-index="${index}">
                 </div>
+
+                <!-- PTZ Settings -->
+                <div class="pt-2 mt-2 border-t border-gray-600">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs text-gray-400 w-12">PTZ:</span>
+                        <div class="flex items-center gap-2">
+                            <label class="toggle-switch" style="width: 36px; height: 18px;">
+                                <input type="checkbox"
+                                       class="camera-ptz-enabled"
+                                       data-index="${index}">
+                                <span class="toggle-slider" style="border-radius: 18px;"></span>
+                            </label>
+                            <span class="text-xs text-gray-300">Enable PTZ</span>
+                        </div>
+                        <span class="text-xs text-gray-400 ml-2">ONVIF Port:</span>
+                        <input type="number"
+                               value="8000"
+                               placeholder="8000"
+                               class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-onvif-port"
+                               data-index="${index}">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400 w-12"></span>
+                        <span class="text-xs text-gray-400">Step:</span>
+                        <input type="number"
+                               value="0.05"
+                               step="0.01"
+                               min="0.01"
+                               max="1.0"
+                               placeholder="0.05"
+                               class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-step"
+                               data-index="${index}">
+                        <span class="text-xs text-gray-400">Zoom Step:</span>
+                        <input type="number"
+                               value="0.1"
+                               step="0.01"
+                               min="0.01"
+                               max="1.0"
+                               placeholder="0.1"
+                               class="w-16 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-xs camera-ptz-zoom-step"
+                               data-index="${index}">
+                    </div>
+                </div>
             </div>
         `;
 
@@ -418,7 +505,7 @@
         const btn = document.getElementById('save-cameras-btn');
         const originalText = btn.textContent;
 
-        // Collect all cameras with new field structure
+        // Collect all cameras with new field structure including PTZ
         const cameras = [];
         document.querySelectorAll('.camera-item').forEach((item) => {
             const name = item.querySelector('.camera-name').value.trim();
@@ -429,6 +516,17 @@
             const streamPath = item.querySelector('.camera-stream-path').value.trim() || '/Streaming/Channels/101';
             const enabled = item.querySelector('.camera-enabled').checked;
 
+            // PTZ settings
+            const ptzEnabledEl = item.querySelector('.camera-ptz-enabled');
+            const onvifPortEl = item.querySelector('.camera-onvif-port');
+            const ptzStepEl = item.querySelector('.camera-ptz-step');
+            const ptzZoomStepEl = item.querySelector('.camera-ptz-zoom-step');
+
+            const ptzEnabled = ptzEnabledEl ? ptzEnabledEl.checked : false;
+            const onvifPort = onvifPortEl ? parseInt(onvifPortEl.value) || 8000 : 8000;
+            const ptzStep = ptzStepEl ? parseFloat(ptzStepEl.value) || 0.05 : 0.05;
+            const ptzZoomStep = ptzZoomStepEl ? parseFloat(ptzZoomStepEl.value) || 0.1 : 0.1;
+
             if (name && host) {
                 cameras.push({
                     name,
@@ -437,7 +535,11 @@
                     stream_path: streamPath,
                     username,
                     password,
-                    enabled
+                    enabled,
+                    ptz_enabled: ptzEnabled,
+                    onvif_port: onvifPort,
+                    ptz_step: ptzStep,
+                    ptz_zoom_step: ptzZoomStep
                 });
             }
         });

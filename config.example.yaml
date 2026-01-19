@@ -55,15 +55,27 @@ aranet4:
     #   mac_address: "AA:BB:CC:DD:EE:FF"  # Bluetooth MAC address
     #   enabled: true             # Enable this sensor
 
-# Baby monitor settings (RTSP camera stream)
+# Baby monitor settings (RTSP camera stream with PTZ control)
 # Streams RTSP video from a baby camera via HLS for web viewing
 # Requires ffmpeg to be installed: sudo apt install ffmpeg
 baby_monitor:
   enabled: false                # Enable baby monitor streaming
-  rtsp_url: ""                  # RTSP URL (e.g., "rtsp://admin:admin@192.168.1.111:8554/Streaming/Channels/101")
   transport: "tcp"              # RTSP transport: "tcp" or "udp"
   reconnect_delay: 5            # Seconds to wait before reconnecting on failure
   max_reconnect_attempts: -1    # Max reconnect attempts (-1 for infinite)
   hls_segment_duration: 2       # HLS segment duration in seconds
   hls_playlist_size: 3          # Number of segments in HLS playlist
   output_dir: "/tmp/sense-pulse/hls"  # Directory for HLS segments
+  cameras: []                   # List of cameras (configure via web UI)
+    # Example camera with PTZ:
+    # - name: "Nursery"
+    #   host: "192.168.1.111"
+    #   port: 554
+    #   stream_path: "/Streaming/Channels/101"
+    #   username: "admin"
+    #   password: "admin"
+    #   enabled: true
+    #   ptz_enabled: true       # Enable PTZ (pan-tilt-zoom) control via ONVIF
+    #   onvif_port: 8000        # ONVIF service port (usually 8000 or 80)
+    #   ptz_step: 0.05          # Pan/tilt step size (0.0-1.0)
+    #   ptz_zoom_step: 0.1      # Zoom step size (0.0-1.0)

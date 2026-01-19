@@ -117,6 +117,11 @@ class BabyMonitorCameraConfig:
     username: str = ""  # Camera username
     password: str = ""  # Camera password
     enabled: bool = True
+    # PTZ control settings
+    ptz_enabled: bool = False  # Enable PTZ control for this camera
+    onvif_port: int = 8000  # ONVIF service port (usually 8000 or 80)
+    ptz_step: float = 0.05  # Pan/tilt step size (0.0-1.0)
+    ptz_zoom_step: float = 0.1  # Zoom step size (0.0-1.0)
 
 
 @dataclass

@@ -122,7 +122,7 @@
                         </div>
                         <!-- Video player (shown when streaming) -->
                         <div id="baby-monitor-video-container" class="w-full h-full hidden">
-                            <video id="baby-monitor-video" class="w-full h-full object-cover" playsinline></video>
+                            <video id="baby-monitor-video" class="w-full h-full object-cover" playsinline tabindex="0"></video>
                             <!-- Stop button overlay -->
                             <div class="absolute top-2 right-2 flex gap-2">
                                 <button onclick="stopBabyMonitorStream()" class="p-2 bg-red-500/80 hover:bg-red-500 rounded-full transition-colors" title="Stop stream">
@@ -130,6 +130,58 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </button>
+                            </div>
+                            <!-- PTZ D-pad controls overlay -->
+                            <div id="ptz-controls" class="absolute bottom-4 left-4 hidden">
+                                <!-- D-pad grid -->
+                                <div class="grid grid-cols-3 gap-1 mb-2" style="width: 100px;">
+                                    <!-- Row 1: empty, up, empty -->
+                                    <div></div>
+                                    <button class="ptz-btn p-2 bg-black/60 hover:bg-black/80 rounded text-white transition-colors"
+                                            data-direction="up" title="Tilt Up">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                        </svg>
+                                    </button>
+                                    <div></div>
+                                    <!-- Row 2: left, center, right -->
+                                    <button class="ptz-btn p-2 bg-black/60 hover:bg-black/80 rounded text-white transition-colors"
+                                            data-direction="left" title="Pan Left">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                                        </svg>
+                                    </button>
+                                    <div class="p-2 bg-black/40 rounded flex items-center justify-center">
+                                        <div class="w-3 h-3 bg-cyan-400 rounded-full"></div>
+                                    </div>
+                                    <button class="ptz-btn p-2 bg-black/60 hover:bg-black/80 rounded text-white transition-colors"
+                                            data-direction="right" title="Pan Right">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                        </svg>
+                                    </button>
+                                    <!-- Row 3: empty, down, empty -->
+                                    <div></div>
+                                    <button class="ptz-btn p-2 bg-black/60 hover:bg-black/80 rounded text-white transition-colors"
+                                            data-direction="down" title="Tilt Down">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+                                    <div></div>
+                                </div>
+                                <!-- Zoom controls -->
+                                <div class="flex gap-1 justify-center">
+                                    <button class="ptz-btn px-3 py-1 bg-black/60 hover:bg-black/80 rounded text-white text-sm font-bold transition-colors"
+                                            data-direction="zoomout" title="Zoom Out">
+                                        -
+                                    </button>
+                                    <span class="px-2 py-1 text-white text-xs flex items-center">Zoom</span>
+                                    <button class="ptz-btn px-3 py-1 bg-black/60 hover:bg-black/80 rounded text-white text-sm font-bold transition-colors"
+                                            data-direction="zoomin" title="Zoom In">
+                                        +
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <!-- Loading indicator -->
@@ -1319,8 +1371,108 @@
                 hls: null,
                 isStreaming: false,
                 thumbnailRefreshInterval: null,
-                statusWs: null
+                statusWs: null,
+                ptzEnabled: false
             };
+        }
+
+        // PTZ Controller for continuous movement
+        window.ptzController = {
+            moveInterval: null,
+            repeatDelay: 150,  // ms between moves for continuous movement
+            isMoving: false,
+
+            async sendMove(direction) {
+                try {
+                    await fetch('/api/baby-monitor/ptz/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ direction })
+                    });
+                } catch (error) {
+                    console.error('PTZ move failed:', error);
+                }
+            },
+
+            start(direction) {
+                if (this.isMoving) return;
+                this.isMoving = true;
+                // Send immediate move
+                this.sendMove(direction);
+                // Start continuous movement
+                this.moveInterval = setInterval(() => this.sendMove(direction), this.repeatDelay);
+            },
+
+            stop() {
+                this.isMoving = false;
+                if (this.moveInterval) {
+                    clearInterval(this.moveInterval);
+                    this.moveInterval = null;
+                }
+            }
+        };
+
+        // Initialize PTZ button event listeners
+        function initPTZControls() {
+            const ptzButtons = document.querySelectorAll('.ptz-btn');
+            ptzButtons.forEach(btn => {
+                const direction = btn.dataset.direction;
+                if (!direction) return;
+
+                // Mouse events
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    window.ptzController.start(direction);
+                });
+                btn.addEventListener('mouseup', () => window.ptzController.stop());
+                btn.addEventListener('mouseleave', () => window.ptzController.stop());
+
+                // Touch events for mobile
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    window.ptzController.start(direction);
+                });
+                btn.addEventListener('touchend', () => window.ptzController.stop());
+                btn.addEventListener('touchcancel', () => window.ptzController.stop());
+            });
+
+            // Keyboard controls when video is focused
+            const video = document.getElementById('baby-monitor-video');
+            if (video) {
+                video.addEventListener('keydown', (e) => {
+                    if (!window.babyMonitor.ptzEnabled) return;
+
+                    const keyMap = {
+                        'ArrowUp': 'up',
+                        'ArrowDown': 'down',
+                        'ArrowLeft': 'left',
+                        'ArrowRight': 'right',
+                        '+': 'zoomin',
+                        '=': 'zoomin',  // = is + without shift
+                        '-': 'zoomout'
+                    };
+
+                    const direction = keyMap[e.key];
+                    if (direction) {
+                        e.preventDefault();
+                        window.ptzController.sendMove(direction);
+                    }
+                });
+            }
+        }
+
+        // Show/hide PTZ controls based on status
+        function updatePTZControls(ptzStatus) {
+            const ptzControls = document.getElementById('ptz-controls');
+            if (!ptzControls) return;
+
+            if (ptzStatus && ptzStatus.enabled && window.babyMonitor.isStreaming) {
+                ptzControls.classList.remove('hidden');
+                window.babyMonitor.ptzEnabled = true;
+            } else {
+                ptzControls.classList.add('hidden');
+                window.babyMonitor.ptzEnabled = false;
+            }
         }
 
         // Start baby monitor stream
@@ -1395,6 +1547,17 @@
                 }
 
                 updateBabyMonitorStatus('streaming');
+
+                // Check and show PTZ controls if enabled
+                try {
+                    const statusResponse = await fetch('/api/baby-monitor/status');
+                    const statusData = await statusResponse.json();
+                    if (statusData.ptz) {
+                        updatePTZControls(statusData.ptz);
+                    }
+                } catch (err) {
+                    console.error('Failed to get PTZ status:', err);
+                }
             } catch (error) {
                 console.error('Error starting stream:', error);
                 loading.classList.add('hidden');
@@ -1431,6 +1594,9 @@
             if (videoContainer) videoContainer.classList.add('hidden');
             if (thumbnailContainer) thumbnailContainer.classList.remove('hidden');
             window.babyMonitor.isStreaming = false;
+
+            // Hide PTZ controls
+            updatePTZControls(null);
 
             // Refresh thumbnail
             if (thumbnail) {
@@ -1495,6 +1661,7 @@
         if (document.getElementById('baby-monitor-preview')) {
             startThumbnailRefresh();
             updateBabyMonitorStatus('stopped');
+            initPTZControls();
         }
     </script>
 

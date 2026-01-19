@@ -19,6 +19,7 @@ dependencies = [
     "passlib==1.7.4",  # Password hashing for authentication
     "bcrypt==4.2.1",  # Bcrypt backend for passlib (4.x compatible with passlib)
     "tenacity==9.0.0",  # Retry logic for network calls
+    "onvif-zeep>=0.2.12",  # ONVIF PTZ camera control
     # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
 
@@ -107,6 +108,8 @@ module = [
     "sense_hat.*",
     "aranet4.*",
     "bleak.*",
+    "onvif.*",
+    "zeep.*",
 ]
 ignore_missing_imports = true
 

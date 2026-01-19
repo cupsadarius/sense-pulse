@@ -870,3 +870,49 @@ async def get_baby_monitor_hls_segment(
             "Cache-Control": "max-age=3600",
         },
     )
+
+
+# ============================================================================
+# Baby Monitor PTZ Control API
+# ============================================================================
+
+
+class PTZMoveRequest(BaseModel):
+    """Request body for PTZ move endpoint."""
+
+    direction: str  # up, down, left, right, zoomin, zoomout
+    step: float | None = None  # Optional step size override
+
+
+@router.post("/api/baby-monitor/ptz/move")
+async def ptz_move(
+    request: PTZMoveRequest,
+    context: AppContext = Depends(get_context),
+    username: str = Depends(require_auth),
+) -> dict[str, Any]:
+    """Move the camera using PTZ controls - requires authentication.
+
+    Direction can be: up, down, left, right, zoomin, zoomout
+    """
+    device = _get_baby_monitor_device(context)
+    if not device:
+        return {"success": False, "message": "Baby monitor not configured"}
+
+    # Validate direction
+    valid_directions = {"up", "down", "left", "right", "zoomin", "zoomout"}
+    if request.direction not in valid_directions:
+        return {
+            "success": False,
+            "message": f"Invalid direction. Must be one of: {', '.join(valid_directions)}",
+        }
+
+    try:
+        success = await device.ptz_move(request.direction, request.step)
+        return {
+            "success": success,
+            "message": "Move executed" if success else "Move failed",
+            "direction": request.direction,
+        }
+    except Exception as e:
+        logger.error("PTZ move failed", direction=request.direction, error=str(e))
+        return {"success": False, "message": str(e)}
