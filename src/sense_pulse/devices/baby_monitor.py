@@ -841,14 +841,14 @@ class BabyMonitorDevice:
                     ptz_service.ContinuousMove(request)
 
                     # Wait for movement duration
-                    time.sleep(0.3)  # 300ms movement
+                    time.sleep(0.1)  # 100ms movement
 
-                    # Explicitly stop (camera ignores timeout for pan axis)
-                    stop_request = ptz_service.create_type("Stop")
-                    stop_request.ProfileToken = profile_token
-                    stop_request.PanTilt = True
-                    stop_request.Zoom = True
-                    ptz_service.Stop(stop_request)
+                    # Stop by sending zero velocity (camera ignores Timeout for pan axis)
+                    request.Velocity = {
+                        "PanTilt": {"x": 0, "y": 0},
+                        "Zoom": {"x": 0},
+                    }
+                    ptz_service.ContinuousMove(request)
 
                     logger.info("PTZ ContinuousMove completed")
 
