@@ -212,21 +212,17 @@ class BabyMonitorDevice:
             "-hide_banner",
             "-loglevel",
             "warning",
-            # Low-latency input options
+            # Low-latency input options - use system clock for timestamps
+            "-use_wallclock_as_timestamps",
+            "1",
             "-fflags",
             "+genpts+nobuffer+discardcorrupt",
             "-flags",
             "low_delay",
-            "-probesize",
-            "32768",
-            "-analyzeduration",
-            "500000",
             "-rtsp_transport",
             self.config.transport,
             "-i",
             rtsp_url,
-            # Reset timestamps to start at zero
-            "-start_at_zero",
             # Video: copy H.264 (no transcode)
             "-c:v",
             "copy",
