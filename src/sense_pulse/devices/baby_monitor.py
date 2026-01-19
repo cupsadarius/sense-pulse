@@ -807,13 +807,22 @@ class BabyMonitorDevice:
 
                 def execute_relative_move() -> None:
                     """Execute RelativeMove in thread (ONVIF is synchronous)."""
+                    logger.info(
+                        "PTZ RelativeMove starting",
+                        profile_token=profile_token,
+                        pan=pan,
+                        tilt=tilt,
+                        zoom=zoom,
+                    )
                     request = ptz_service.create_type("RelativeMove")
                     request.ProfileToken = profile_token
                     request.Translation = {
                         "PanTilt": {"x": pan, "y": tilt},
                         "Zoom": {"x": zoom},
                     }
-                    ptz_service.RelativeMove(request)
+                    logger.info("PTZ request object", request=str(request))
+                    result = ptz_service.RelativeMove(request)
+                    logger.info("PTZ RelativeMove result", result=str(result))
 
                 await loop.run_in_executor(self._ptz_executor, execute_relative_move)
 
