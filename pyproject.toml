@@ -19,8 +19,6 @@ dependencies = [
     "passlib==1.7.4",  # Password hashing for authentication
     "bcrypt==4.2.1",  # Bcrypt backend for passlib (4.x compatible with passlib)
     "tenacity==9.0.0",  # Retry logic for network calls
-    "wsdiscovery==2.0.0",  # WS-Discovery for ONVIF camera discovery
-    "onvif-zeep-async==3.1.13",  # ONVIF camera control and RTSP URL retrieval
     # sense-hat must be installed via apt: sudo apt install python3-sense-hat
 ]
 
@@ -109,8 +107,6 @@ module = [
     "sense_hat.*",
     "aranet4.*",
     "bleak.*",
-    "wsdiscovery.*",
-    "onvif.*",
 ]
 ignore_missing_imports = true
 

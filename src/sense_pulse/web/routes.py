@@ -818,15 +818,15 @@ async def get_baby_monitor_hls_playlist(
     username: str = Depends(require_auth),
 ):
     """Serve HLS playlist - requires authentication."""
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, JSONResponse
 
     device = _get_baby_monitor_device(context)
     if not device:
-        return {"error": "Baby monitor not configured"}
+        return JSONResponse({"error": "Baby monitor not configured"}, status_code=404)
 
     playlist_path = device.playlist_path
     if not playlist_path.exists():
-        return {"error": "Stream not ready"}
+        return JSONResponse({"error": "Stream not ready"}, status_code=503)
 
     return FileResponse(
         playlist_path,
