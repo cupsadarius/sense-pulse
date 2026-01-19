@@ -178,12 +178,10 @@ async def async_main() -> int:
     aranet4_device = Aranet4Device()
     context.aranet4_device = aranet4_device
 
-    # Create baby monitor device if enabled
-    baby_monitor_device: BabyMonitorDevice | None = None
-    if config.baby_monitor.enabled:
-        logger.info("Initializing baby monitor device")
-        baby_monitor_device = BabyMonitorDevice(config.baby_monitor)
-        context.baby_monitor_device = baby_monitor_device
+    # Always create baby monitor device for discovery, regardless of enabled state
+    logger.info("Initializing baby monitor device")
+    baby_monitor_device = BabyMonitorDevice(config.baby_monitor)
+    context.baby_monitor_device = baby_monitor_device
 
     # Add all data sources to context
     context.add_data_source(TailscaleDataSource(config.tailscale))
@@ -193,8 +191,8 @@ async def async_main() -> int:
     context.add_data_source(Aranet4DataSource(config.aranet4, aranet4_device))
     context.add_data_source(WeatherDataSource(config.weather))
 
-    # Add baby monitor data source if enabled
-    if baby_monitor_device:
+    # Add baby monitor data source if enabled (controls streaming, not discovery)
+    if config.baby_monitor.enabled:
         context.add_data_source(BabyMonitorDataSource(config.baby_monitor, baby_monitor_device))
 
     # Start context (initializes sources, registers with cache, starts polling)
