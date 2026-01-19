@@ -8,7 +8,7 @@ They do NOT cache data - the cache layer handles caching by polling data sources
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -26,7 +26,7 @@ class SensorReading:
 
     sensor_id: str
     value: Any
-    unit: Optional[str]
+    unit: str | None
     timestamp: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
 

@@ -1,7 +1,5 @@
 """Pi-hole v6 API statistics fetching"""
 
-from typing import Optional
-
 import httpx
 from tenacity import (
     retry,
@@ -28,8 +26,8 @@ class PiHoleStats:
         """
         self.host = host.rstrip("/")
         self.password = password
-        self._session_id: Optional[str] = None
-        self._client: Optional[httpx.AsyncClient] = None
+        self._session_id: str | None = None
+        self._client: httpx.AsyncClient | None = None
         logger.info("Initialized Pi-hole stats fetcher", host=self.host)
 
     async def _ensure_client(self) -> httpx.AsyncClient:
@@ -97,7 +95,7 @@ class PiHoleStats:
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    async def fetch_stats(self) -> Optional[dict]:
+    async def fetch_stats(self) -> dict | None:
         """Fetch current Pi-hole stats from API (with retries)"""
         # Try to authenticate if we have a password and no session
         if self.password and not self._session_id and not await self._authenticate():

@@ -30,6 +30,9 @@
         <button class="settings-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300 whitespace-nowrap" data-tab="sensors">
             Sensors
         </button>
+        <button class="settings-tab px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-300 whitespace-nowrap" data-tab="cameras">
+            Cameras
+        </button>
     </div>
 
     <!-- Tab Content -->
@@ -241,6 +244,13 @@
         <div id="tab-sensors" class="settings-tab-content hidden">
             <div id="aranet4-controls">
                 {% include "partials/aranet4_controls.html" %}
+            </div>
+        </div>
+
+        <!-- Cameras Tab -->
+        <div id="tab-cameras" class="settings-tab-content hidden">
+            <div id="baby-monitor-controls">
+                {% include "partials/baby_monitor_controls.html" %}
             </div>
         </div>
     </div>

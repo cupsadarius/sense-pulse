@@ -6,12 +6,11 @@ import contextlib
 import logging
 import signal
 import sys
-from typing import Optional
 
 from sense_pulse import __version__
 
 
-def setup_logging(level: str, log_file: Optional[str]) -> None:
+def setup_logging(level: str, log_file: str | None) -> None:
     """Configure logging handlers including WebSocket handler for log streaming"""
     log_level = getattr(logging, level.upper(), logging.INFO)
 
@@ -130,6 +129,7 @@ async def async_main() -> int:
     from sense_pulse.context import AppContext
     from sense_pulse.datasources import (
         Aranet4DataSource,
+        BabyMonitorDataSource,
         PiHoleDataSource,
         SenseHatDataSource,
         SystemStatsDataSource,
@@ -137,6 +137,7 @@ async def async_main() -> int:
         WeatherDataSource,
     )
     from sense_pulse.devices.aranet4 import Aranet4Device
+    from sense_pulse.devices.baby_monitor import BabyMonitorDevice
 
     # Determine config path
     config_path = Path(args.config) if args.config else find_config_file()
@@ -177,6 +178,11 @@ async def async_main() -> int:
     aranet4_device = Aranet4Device()
     context.aranet4_device = aranet4_device
 
+    # Always create baby monitor device for discovery, regardless of enabled state
+    logger.info("Initializing baby monitor device")
+    baby_monitor_device = BabyMonitorDevice(config.baby_monitor)
+    context.baby_monitor_device = baby_monitor_device
+
     # Add all data sources to context
     context.add_data_source(TailscaleDataSource(config.tailscale))
     context.add_data_source(PiHoleDataSource(config.pihole))
@@ -185,8 +191,15 @@ async def async_main() -> int:
     context.add_data_source(Aranet4DataSource(config.aranet4, aranet4_device))
     context.add_data_source(WeatherDataSource(config.weather))
 
+    # Add baby monitor data source if enabled (controls streaming, not discovery)
+    if config.baby_monitor.enabled:
+        context.add_data_source(BabyMonitorDataSource(config.baby_monitor, baby_monitor_device))
+
     # Start context (initializes sources, registers with cache, starts polling)
     await context.start()
+
+    # Start baby monitor stream if enabled (don't auto-start, let user control via UI)
+    # The stream will be started when user clicks play on the status page
 
     # Get SenseHat instance from data source if available
     sense_hat_instance = None
@@ -201,7 +214,7 @@ async def async_main() -> int:
 
     # Setup signal handlers for graceful shutdown
     shutdown_event = asyncio.Event()
-    main_task: Optional[asyncio.Task] = None
+    main_task: asyncio.Task | None = None
 
     def signal_handler(sig: signal.Signals) -> None:
         logger.info("Received shutdown signal", signal=sig.name)
@@ -304,6 +317,11 @@ async def async_main() -> int:
         # Cleanup using AppContext
         # =====================================================================
         logger.info("Shutting down...")
+
+        # Stop baby monitor device if running
+        if baby_monitor_device:
+            await baby_monitor_device.stop_stream()
+
         await context.shutdown()
         logger.info("Cleanup complete")
 
