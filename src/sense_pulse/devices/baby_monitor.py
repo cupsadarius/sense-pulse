@@ -807,16 +807,13 @@ class BabyMonitorDevice:
 
                 def execute_relative_move() -> None:
                     """Execute RelativeMove in thread (ONVIF is synchronous)."""
-                    # Pass dict directly - zeep handles conversion to proper SOAP types
-                    ptz_service.RelativeMove(
-                        {
-                            "ProfileToken": profile_token,
-                            "Translation": {
-                                "PanTilt": {"x": pan, "y": tilt},
-                                "Zoom": {"x": zoom},
-                            },
-                        }
-                    )
+                    request = ptz_service.create_type("RelativeMove")
+                    request.ProfileToken = profile_token
+                    request.Translation = {
+                        "PanTilt": {"x": pan, "y": tilt},
+                        "Zoom": {"x": zoom},
+                    }
+                    ptz_service.RelativeMove(request)
 
                 await loop.run_in_executor(self._ptz_executor, execute_relative_move)
 
