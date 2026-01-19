@@ -45,7 +45,7 @@ class DataSourceStatus:
     source_id: str
     name: str
     success: bool
-    error: Optional[str] = None
+    error: str | None = None
     last_update: float = field(default_factory=time.time)
 
     @property
@@ -75,7 +75,7 @@ class DataCache:
         self.poll_interval = poll_interval
         self._cache: dict[str, CachedData] = {}
         self._lock = asyncio.Lock()
-        self._polling_task: Optional[asyncio.Task] = None
+        self._polling_task: asyncio.Task | None = None
         self._stop_event = asyncio.Event()
         self._data_sources: dict[str, DataSource] = {}
         self._source_status: dict[str, DataSourceStatus] = {}
@@ -307,7 +307,7 @@ class DataCache:
         """
         return self._data_sources.get(source_id)
 
-    def get_data_source_status(self, source_id: str) -> Optional[dict[str, Any]]:
+    def get_data_source_status(self, source_id: str) -> dict[str, Any] | None:
         """
         Get status from a data source that supports the get_sensor_status method.
 

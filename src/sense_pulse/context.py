@@ -28,9 +28,9 @@ import yaml
 if TYPE_CHECKING:
     from sense_hat import SenseHat
 
-    from sense_pulse.baby_monitor import StreamManager
     from sense_pulse.datasources.base import DataSource
     from sense_pulse.devices.aranet4 import Aranet4Device
+    from sense_pulse.devices.baby_monitor import BabyMonitorDevice
 
 from sense_pulse.cache import DataCache
 from sense_pulse.config import Config, load_config
@@ -56,23 +56,23 @@ class AppContext:
         data_sources: List of registered DataSource instances
         sense_hat: Optional shared SenseHat hardware instance
         aranet4_device: Optional shared Aranet4 BLE device manager
-        baby_monitor_stream: Optional baby monitor stream manager
+        baby_monitor_device: Optional baby monitor device with ONVIF and streaming
     """
 
     config: Config
     cache: DataCache
-    config_path: Optional[Path] = None
+    config_path: Path | None = None
     data_sources: list["DataSource"] = field(default_factory=list)
     sense_hat: Optional["SenseHat"] = None
     aranet4_device: Optional["Aranet4Device"] = None
-    baby_monitor_stream: Optional["StreamManager"] = None
+    baby_monitor_device: Optional["BabyMonitorDevice"] = None
     _started: bool = field(default=False, repr=False)
 
     @classmethod
     def create(
         cls,
         config: Config,
-        config_path: Optional[Path] = None,
+        config_path: Path | None = None,
         cache_ttl: float = 60.0,
         poll_interval: float = 30.0,
     ) -> "AppContext":

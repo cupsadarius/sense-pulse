@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -108,11 +107,20 @@ class WeatherConfig:
 
 
 @dataclass
+class BabyMonitorCameraConfig:
+    """Configuration for a single baby monitor camera"""
+
+    name: str = "default"
+    rtsp_url: str = ""  # RTSP URL (e.g., "rtsp://admin:admin@192.168.1.111:8554/...")
+    onvif_address: str = ""  # Optional ONVIF address for discovery
+
+
+@dataclass
 class BabyMonitorConfig:
     """Configuration for baby monitor RTSP stream"""
 
     enabled: bool = False
-    rtsp_url: str = ""  # RTSP URL (e.g., "rtsp://admin:admin@192.168.1.111:8554/...")
+    cameras: list = field(default_factory=list)  # List of camera configs (dicts)
     transport: str = "tcp"  # tcp or udp
     reconnect_delay: int = 5  # Seconds to wait before reconnecting
     max_reconnect_attempts: int = -1  # -1 for infinite
@@ -137,7 +145,7 @@ class Config:
     baby_monitor: BabyMonitorConfig = field(default_factory=BabyMonitorConfig)
 
 
-def find_config_file() -> Optional[Path]:
+def find_config_file() -> Path | None:
     """Find config file in standard locations"""
     for path in CONFIG_PATHS:
         if path.exists():
@@ -145,7 +153,7 @@ def find_config_file() -> Optional[Path]:
     return None
 
 
-def load_config(config_path: Optional[str] = None) -> Config:
+def load_config(config_path: str | None = None) -> Config:
     """Load configuration from YAML file"""
     path = Path(config_path) if config_path else find_config_file()
 
@@ -205,5 +213,36 @@ def load_config(config_path: Optional[str] = None) -> Config:
         aranet4=aranet4_config,
         cache=CacheConfig(**data.get("cache", {})),
         weather=WeatherConfig(**data.get("weather", {})),
-        baby_monitor=BabyMonitorConfig(**data.get("baby_monitor", {})),
+        baby_monitor=_parse_baby_monitor_config(data.get("baby_monitor", {})),
+    )
+
+
+def _parse_baby_monitor_config(data: dict) -> BabyMonitorConfig:
+    """Parse baby monitor config with backward compatibility.
+
+    Supports both new format (cameras list) and old format (rtsp_url).
+    """
+    cameras = []
+
+    # New format: cameras list
+    if "cameras" in data:
+        cameras = data.get("cameras", [])
+    # Old format migration: single rtsp_url
+    elif "rtsp_url" in data and data.get("rtsp_url"):
+        cameras = [
+            {
+                "name": "default",
+                "rtsp_url": data.get("rtsp_url", ""),
+            }
+        ]
+
+    return BabyMonitorConfig(
+        enabled=data.get("enabled", False),
+        cameras=cameras,
+        transport=data.get("transport", "tcp"),
+        reconnect_delay=data.get("reconnect_delay", 5),
+        max_reconnect_attempts=data.get("max_reconnect_attempts", -1),
+        hls_segment_duration=data.get("hls_segment_duration", 2),
+        hls_playlist_size=data.get("hls_playlist_size", 3),
+        output_dir=data.get("output_dir", "/tmp/sense-pulse/hls"),
     )

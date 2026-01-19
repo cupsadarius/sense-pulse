@@ -1,12 +1,13 @@
-"""
-FFmpeg-based RTSP to HLS stream manager.
+"""Baby monitor device with ONVIF discovery and RTSP streaming.
 
 Handles:
+- ONVIF network discovery to find cameras
 - FFmpeg subprocess lifecycle (start, stop, restart)
 - RTSP to HLS transcoding
 - Automatic reconnection with exponential backoff
 - Stream health monitoring
 - HLS segment cleanup
+- Thumbnail capture from RTSP stream
 """
 
 import asyncio
@@ -16,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from sense_pulse.config import BabyMonitorConfig
 from sense_pulse.web.log_handler import get_structured_logger
@@ -35,22 +36,38 @@ class StreamStatus(Enum):
 
 
 @dataclass
+class CameraInfo:
+    """Information about a discovered or configured camera."""
+
+    name: str
+    rtsp_url: str
+    onvif_address: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+
+
+@dataclass
 class StreamState:
     """Current state of the stream."""
 
     status: StreamStatus = StreamStatus.STOPPED
-    start_time: Optional[float] = None
-    last_segment_time: Optional[float] = None
+    start_time: float | None = None
+    last_segment_time: float | None = None
     reconnect_attempts: int = 0
-    error_message: Optional[str] = None
-    resolution: Optional[str] = None
-    fps: Optional[int] = None
+    error_message: str | None = None
+    resolution: str | None = None
+    fps: int | None = None
 
 
 @dataclass
-class StreamManager:
+class BabyMonitorDevice:
     """
-    Manages FFmpeg process for RTSP to HLS transcoding.
+    Baby monitor device with ONVIF discovery and HLS streaming.
+
+    This device follows the project's device architecture pattern:
+    - Single instance on AppContext
+    - Manages hardware/network lifecycle
+    - Provides operations for discovery, streaming, thumbnails
 
     Attributes:
         config: Baby monitor configuration
@@ -59,15 +76,27 @@ class StreamManager:
 
     config: BabyMonitorConfig
     state: StreamState = field(default_factory=StreamState)
-    _process: Optional[asyncio.subprocess.Process] = None
-    _monitor_task: Optional[asyncio.Task] = None
+    _process: asyncio.subprocess.Process | None = None
+    _monitor_task: asyncio.Task | None = None
     _shutdown_event: asyncio.Event = field(default_factory=asyncio.Event)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    _thumbnail_cache: bytes | None = None
+    _thumbnail_timestamp: float = 0.0
+    _active_camera: CameraInfo | None = None
 
     def __post_init__(self) -> None:
         """Initialize non-field attributes."""
         self._shutdown_event = asyncio.Event()
         self._lock = asyncio.Lock()
+
+        # Set active camera from config if available
+        if self.config.cameras:
+            first_camera = self.config.cameras[0]
+            self._active_camera = CameraInfo(
+                name=first_camera.get("name", "default"),
+                rtsp_url=first_camera.get("rtsp_url", ""),
+                onvif_address=first_camera.get("onvif_address"),
+            )
 
     @property
     def output_dir(self) -> Path:
@@ -80,6 +109,11 @@ class StreamManager:
         return self.output_dir / "stream.m3u8"
 
     @property
+    def thumbnail_path(self) -> Path:
+        """Get the thumbnail file path."""
+        return self.output_dir / "thumbnail.jpg"
+
+    @property
     def is_streaming(self) -> bool:
         """Check if stream is currently active."""
         return self.state.status == StreamStatus.STREAMING
@@ -90,6 +124,13 @@ class StreamManager:
         if self.state.start_time is None:
             return 0.0
         return time.time() - self.state.start_time
+
+    @property
+    def active_rtsp_url(self) -> str:
+        """Get the active RTSP URL."""
+        if self._active_camera:
+            return self._active_camera.rtsp_url
+        return ""
 
     def _ensure_output_dir(self) -> None:
         """Create output directory if it doesn't exist."""
@@ -105,19 +146,20 @@ class StreamManager:
                 if self.playlist_path.exists():
                     self.playlist_path.unlink()
 
-    def _build_ffmpeg_command(self) -> list[str]:
-        """Build the FFmpeg command for RTSP to HLS transcoding."""
-        # Mask password in URL for logging
-        safe_url = self.config.rtsp_url
-        if "@" in safe_url:
-            # Mask credentials: rtsp://user:pass@host -> rtsp://***@host
-            parts = safe_url.split("@", 1)
+    def _mask_rtsp_url(self, url: str) -> str:
+        """Mask credentials in RTSP URL for logging."""
+        if "@" in url:
+            parts = url.split("@", 1)
             protocol_and_creds = parts[0]
             host_and_path = parts[1]
             protocol = protocol_and_creds.split("://")[0]
-            safe_url = f"{protocol}://***@{host_and_path}"
+            return f"{protocol}://***@{host_and_path}"
+        return url
 
-        logger.info("Building FFmpeg command", rtsp_url=safe_url)
+    def _build_ffmpeg_command(self) -> list[str]:
+        """Build the FFmpeg command for RTSP to HLS transcoding."""
+        rtsp_url = self.active_rtsp_url
+        logger.info("Building FFmpeg command", rtsp_url=self._mask_rtsp_url(rtsp_url))
 
         return [
             "ffmpeg",
@@ -128,7 +170,7 @@ class StreamManager:
             "-rtsp_transport",
             self.config.transport,
             "-i",
-            self.config.rtsp_url,
+            rtsp_url,
             # Video: copy H.264 (no transcode)
             "-c:v",
             "copy",
@@ -153,6 +195,8 @@ class StreamManager:
 
     async def _read_stderr(self, stderr: asyncio.StreamReader) -> None:
         """Read and log FFmpeg stderr output."""
+        import re
+
         while True:
             try:
                 line = await stderr.readline()
@@ -162,9 +206,6 @@ class StreamManager:
                 if decoded:
                     # Parse resolution/fps from FFmpeg output if present
                     if "Video:" in decoded and "x" in decoded:
-                        # Try to extract resolution
-                        import re
-
                         match = re.search(r"(\d{3,4})x(\d{3,4})", decoded)
                         if match:
                             self.state.resolution = f"{match.group(1)}x{match.group(2)}"
@@ -336,24 +377,32 @@ class StreamManager:
             finally:
                 self._process = None
 
-    async def start(self) -> None:
-        """Start the stream manager."""
+    # =========================================================================
+    # Public API
+    # =========================================================================
+
+    async def start_stream(self) -> bool:
+        """Start the HLS stream.
+
+        Returns:
+            True if stream started successfully, False otherwise.
+        """
         if not self.config.enabled:
             logger.info("Baby monitor is disabled")
-            return
+            return False
 
-        if not self.config.rtsp_url:
+        if not self.active_rtsp_url:
             logger.warning("No RTSP URL configured for baby monitor")
-            return
+            return False
 
         # Check if ffmpeg is available
         if not shutil.which("ffmpeg"):
             self.state.status = StreamStatus.ERROR
             self.state.error_message = "FFmpeg not found - please install ffmpeg"
             logger.error("FFmpeg not installed")
-            return
+            return False
 
-        logger.info("Starting baby monitor stream manager")
+        logger.info("Starting baby monitor stream")
         self._shutdown_event.clear()
 
         # Start FFmpeg process
@@ -362,9 +411,11 @@ class StreamManager:
         # Start health monitor
         self._monitor_task = asyncio.create_task(self._monitor_stream())
 
-    async def stop(self) -> None:
-        """Stop the stream manager."""
-        logger.info("Stopping baby monitor stream manager")
+        return self.state.status == StreamStatus.STREAMING
+
+    async def stop_stream(self) -> None:
+        """Stop the HLS stream."""
+        logger.info("Stopping baby monitor stream")
         self._shutdown_event.set()
 
         # Cancel monitor task
@@ -381,29 +432,244 @@ class StreamManager:
         self._cleanup_segments()
 
         self.state = StreamState()
-        logger.info("Baby monitor stream manager stopped")
+        logger.info("Baby monitor stream stopped")
 
-    async def restart(self) -> None:
-        """Restart the stream."""
+    async def restart_stream(self) -> None:
+        """Restart the HLS stream."""
         logger.info("Restarting baby monitor stream")
         await self._stop_process()
         self.state.reconnect_attempts = 0
         await self._start_process()
 
-    def get_status(self) -> dict:
+    async def capture_thumbnail(self, force: bool = False) -> bytes | None:
+        """Capture a single frame thumbnail from the RTSP stream.
+
+        Args:
+            force: Force refresh even if cached thumbnail is recent
+
+        Returns:
+            JPEG image bytes or None if capture fails
+        """
+        # Return cached thumbnail if recent (less than 30 seconds old)
+        if not force and self._thumbnail_cache:
+            age = time.time() - self._thumbnail_timestamp
+            if age < 30:
+                return self._thumbnail_cache
+
+        if not self.active_rtsp_url:
+            logger.warning("No RTSP URL for thumbnail capture")
+            return None
+
+        if not shutil.which("ffmpeg"):
+            logger.error("FFmpeg not installed for thumbnail capture")
+            return None
+
+        self._ensure_output_dir()
+
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-rtsp_transport",
+            self.config.transport,
+            "-i",
+            self.active_rtsp_url,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",  # JPEG quality (2 = high quality)
+            "-y",  # Overwrite output
+            str(self.thumbnail_path),
+        ]
+
+        try:
+            logger.debug("Capturing thumbnail")
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            _, stderr = await asyncio.wait_for(process.communicate(), timeout=10.0)
+
+            if process.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="replace").strip()
+                logger.error("Thumbnail capture failed", error=error_msg)
+                return None
+
+            if self.thumbnail_path.exists():
+                self._thumbnail_cache = self.thumbnail_path.read_bytes()
+                self._thumbnail_timestamp = time.time()
+                logger.debug("Thumbnail captured", size=len(self._thumbnail_cache))
+                return self._thumbnail_cache
+
+            return None
+
+        except asyncio.TimeoutError:
+            logger.error("Thumbnail capture timed out")
+            return None
+        except Exception as e:
+            logger.error("Thumbnail capture error", error=str(e))
+            return None
+
+    async def discover_cameras(self, timeout: int = 5) -> list[CameraInfo]:
+        """Discover ONVIF cameras on the network.
+
+        Args:
+            timeout: Discovery timeout in seconds
+
+        Returns:
+            List of discovered cameras with their RTSP URLs
+        """
+        cameras: list[CameraInfo] = []
+
+        try:
+            from wsdiscovery.discovery import ThreadedWSDiscovery
+
+            logger.info("Starting ONVIF camera discovery", timeout=timeout)
+
+            wsd = ThreadedWSDiscovery()
+            wsd.start()
+
+            # Search for ONVIF network video transmitters
+            services = wsd.searchServices(
+                timeout=timeout,
+                types=[
+                    "dn:NetworkVideoTransmitter",
+                    "tds:Device",
+                ],
+            )
+
+            wsd.stop()
+
+            logger.info("WS-Discovery found services", count=len(services))
+
+            for service in services:
+                try:
+                    xaddrs = service.getXAddrs()
+                    if not xaddrs:
+                        continue
+
+                    # Get the first address (ONVIF service endpoint)
+                    onvif_url = xaddrs[0]
+                    logger.debug("Found ONVIF device", url=onvif_url)
+
+                    # Extract host from URL
+                    from urllib.parse import urlparse
+
+                    parsed = urlparse(onvif_url)
+                    host = parsed.hostname
+
+                    if not host:
+                        continue
+
+                    # Try to get RTSP URL via ONVIF
+                    rtsp_url = await self._get_rtsp_url_via_onvif(host)
+
+                    camera = CameraInfo(
+                        name=f"Camera at {host}",
+                        rtsp_url=rtsp_url or "",
+                        onvif_address=host,
+                    )
+                    cameras.append(camera)
+
+                except Exception as e:
+                    logger.debug("Error processing service", error=str(e))
+                    continue
+
+            logger.info("ONVIF discovery complete", cameras_found=len(cameras))
+
+        except ImportError:
+            logger.warning("wsdiscovery not installed, skipping discovery")
+        except Exception as e:
+            logger.error("ONVIF discovery failed", error=str(e))
+
+        return cameras
+
+    async def _get_rtsp_url_via_onvif(self, host: str, port: int = 80) -> str | None:
+        """Query ONVIF device for its RTSP stream URL.
+
+        Args:
+            host: Device IP address
+            port: ONVIF port (default 80)
+
+        Returns:
+            RTSP URL or None if query fails
+        """
+        try:
+            from onvif import ONVIFCamera
+
+            logger.debug("Querying ONVIF device", host=host, port=port)
+
+            # Try common credentials
+            credentials = [
+                ("admin", "admin"),
+                ("admin", ""),
+                ("root", "root"),
+                ("admin", "password"),
+            ]
+
+            for username, password in credentials:
+                try:
+                    camera = ONVIFCamera(
+                        host,
+                        port,
+                        username,
+                        password,
+                        no_cache=True,
+                    )
+
+                    await camera.update_xaddrs()
+                    media_service = await camera.create_media_service()
+                    profiles = await media_service.GetProfiles()
+
+                    if profiles:
+                        profile_token = profiles[0].token
+                        stream_setup = {
+                            "Stream": "RTP-Unicast",
+                            "Transport": {"Protocol": "RTSP"},
+                        }
+                        uri_response = await media_service.GetStreamUri(
+                            {"ProfileToken": profile_token, "StreamSetup": stream_setup}
+                        )
+
+                        if uri_response and hasattr(uri_response, "Uri"):
+                            rtsp_url: str = str(uri_response.Uri)
+                            logger.info("Got RTSP URL via ONVIF", host=host)
+                            return rtsp_url
+
+                except Exception:
+                    continue
+
+            logger.debug("Could not get RTSP URL via ONVIF", host=host)
+            return None
+
+        except ImportError:
+            logger.warning("onvif-zeep-async not installed")
+            return None
+        except Exception as e:
+            logger.debug("ONVIF query failed", host=host, error=str(e))
+            return None
+
+    def set_active_camera(self, camera: CameraInfo) -> None:
+        """Set the active camera for streaming.
+
+        Args:
+            camera: Camera to use for streaming
+        """
+        self._active_camera = camera
+        logger.info("Set active camera", name=camera.name)
+
+    def get_status(self) -> dict[str, Any]:
         """Get current stream status as a dictionary."""
-        # Mask password in URL for status
-        safe_url = self.config.rtsp_url
-        if "@" in safe_url:
-            parts = safe_url.split("@", 1)
-            protocol = parts[0].split("://")[0]
-            host_and_path = parts[1]
-            safe_url = f"{protocol}://***@{host_and_path}"
+        safe_url = self._mask_rtsp_url(self.active_rtsp_url) if self.active_rtsp_url else ""
 
         return {
             "status": self.state.status.value,
             "uptime_seconds": self.uptime_seconds,
             "camera": {
+                "name": self._active_camera.name if self._active_camera else None,
                 "url": safe_url,
                 "connected": self.is_streaming,
                 "resolution": self.state.resolution,
@@ -412,4 +678,11 @@ class StreamManager:
             "reconnect_attempts": self.state.reconnect_attempts,
             "error": self.state.error_message,
             "enabled": self.config.enabled,
+            "has_thumbnail": self._thumbnail_cache is not None,
         }
+
+    def get_thumbnail_age(self) -> float:
+        """Get age of cached thumbnail in seconds."""
+        if self._thumbnail_timestamp == 0:
+            return float("inf")
+        return time.time() - self._thumbnail_timestamp

@@ -111,15 +111,10 @@ def create_app(context: Optional["AppContext"] = None) -> FastAPI:
         # Initialize hardware settings
         sensehat.set_web_rotation_offset(context.config.display.web_rotation_offset)
 
-    # Include API routes
+    # Include API routes (includes baby monitor endpoints)
     from sense_pulse.web.routes import router
 
     app.include_router(router)
-
-    # Include baby monitor routes
-    from sense_pulse.web.baby_monitor_routes import router as baby_monitor_router
-
-    app.include_router(baby_monitor_router)
 
     if context:
         logger.info("FastAPI application created", mode="context")

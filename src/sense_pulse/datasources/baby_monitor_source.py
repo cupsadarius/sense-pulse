@@ -2,9 +2,9 @@
 
 from datetime import datetime
 
-from sense_pulse.baby_monitor import StreamManager, StreamStatus
 from sense_pulse.config import BabyMonitorConfig
 from sense_pulse.datasources.base import DataSource, DataSourceMetadata, SensorReading
+from sense_pulse.devices.baby_monitor import BabyMonitorDevice, StreamStatus
 from sense_pulse.web.log_handler import get_structured_logger
 
 logger = get_structured_logger(__name__, component="baby_monitor")
@@ -17,10 +17,10 @@ class BabyMonitorDataSource(DataSource):
     Reports the current status of the RTSP to HLS stream.
     """
 
-    def __init__(self, config: BabyMonitorConfig, stream_manager: StreamManager):
+    def __init__(self, config: BabyMonitorConfig, device: BabyMonitorDevice):
         """Initialize baby monitor data source."""
         self._config = config
-        self._stream_manager = stream_manager
+        self._device = device
 
     async def initialize(self) -> None:
         """Initialize baby monitor data source."""
@@ -28,7 +28,7 @@ class BabyMonitorDataSource(DataSource):
             logger.info("Baby monitor data source disabled")
             return
 
-        # Stream manager is started separately by CLI
+        # Device is started separately by CLI
         logger.info("Baby monitor data source initialized")
 
     async def fetch_readings(self) -> list[SensorReading]:
@@ -43,7 +43,7 @@ class BabyMonitorDataSource(DataSource):
 
         try:
             now = datetime.now()
-            status = self._stream_manager.get_status()
+            status = self._device.get_status()
 
             readings = [
                 SensorReading(
@@ -114,16 +114,16 @@ class BabyMonitorDataSource(DataSource):
             return True  # Disabled is considered "healthy"
 
         try:
-            return self._stream_manager.state.status == StreamStatus.STREAMING
+            return self._device.state.status == StreamStatus.STREAMING
         except Exception as e:
             logger.debug("Baby monitor health check failed", error=str(e))
             return False
 
     async def shutdown(self) -> None:
         """Clean up resources."""
-        # Stream manager shutdown is handled separately
+        # Device shutdown is handled separately
         logger.debug("Baby monitor data source shut down")
 
-    def get_stream_manager(self) -> StreamManager:
-        """Get the stream manager instance."""
-        return self._stream_manager
+    def get_device(self) -> BabyMonitorDevice:
+        """Get the baby monitor device instance."""
+        return self._device

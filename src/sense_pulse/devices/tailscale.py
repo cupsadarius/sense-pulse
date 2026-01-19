@@ -3,7 +3,7 @@
 import asyncio
 import json
 import time
-from typing import Any, Optional
+from typing import Any
 
 from tenacity import (
     retry,
@@ -27,7 +27,7 @@ class TailscaleStatus:
         Args:
             cache_duration: Seconds to cache status data
         """
-        self._cached_data: Optional[dict] = None
+        self._cached_data: dict | None = None
         self._last_fetch: float = 0
         self._cache_duration = cache_duration
         logger.info("Initialized Tailscale status checker", cache_duration=cache_duration)
@@ -38,7 +38,7 @@ class TailscaleStatus:
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    async def _fetch_status(self) -> Optional[dict]:
+    async def _fetch_status(self) -> dict | None:
         """Fetch Tailscale status data with caching (with retries)"""
         current_time = time.time()
 
