@@ -457,6 +457,10 @@ class BabyMonitorDevice:
         # Start health monitor
         self._monitor_task = asyncio.create_task(self._monitor_stream())
 
+        # Initialize PTZ if enabled for this camera
+        if self._active_camera and self._active_camera.ptz_enabled:
+            await self.ptz_initialize()
+
         return self.state.status == StreamStatus.STREAMING
 
     async def stop_stream(self) -> None:
@@ -685,6 +689,11 @@ class BabyMonitorDevice:
             return True
 
         async with self._ptz_lock:
+            # Double-check after acquiring lock (another request may have initialized)
+            if self._ptz_initialized:
+                logger.debug("PTZ already initialized (after lock)")
+                return True
+
             try:
                 # Import ONVIF library (lazy import to avoid startup overhead)
                 from onvif import ONVIFCamera
@@ -694,6 +703,7 @@ class BabyMonitorDevice:
                     "Initializing ONVIF PTZ",
                     host=camera.host,
                     onvif_port=camera.onvif_port,
+                    wsdl_dir=camera.onvif_wsdl_dir,
                 )
 
                 # Create ONVIF camera client (synchronous, run in executor)
@@ -772,11 +782,7 @@ class BabyMonitorDevice:
             logger.debug("PTZ not enabled for active camera")
             return False
 
-        # Initialize PTZ if not already done
-        if not self._ptz_initialized and not await self.ptz_initialize():
-            return False
-
-        if not self._ptz_service or not self._ptz_profile_token:
+        if not self._ptz_initialized or not self._ptz_service or not self._ptz_profile_token:
             logger.error("PTZ service not available")
             return False
 
