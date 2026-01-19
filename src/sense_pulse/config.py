@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -108,6 +107,33 @@ class WeatherConfig:
 
 
 @dataclass
+class BabyMonitorCameraConfig:
+    """Configuration for a single baby monitor camera"""
+
+    name: str = "default"
+    host: str = ""  # Camera IP address
+    port: int = 554  # RTSP port (common: 554, 8554, 10554)
+    stream_path: str = "/Streaming/Channels/101"  # RTSP stream path
+    username: str = ""  # Camera username
+    password: str = ""  # Camera password
+    enabled: bool = True
+
+
+@dataclass
+class BabyMonitorConfig:
+    """Configuration for baby monitor RTSP stream"""
+
+    enabled: bool = False
+    cameras: list = field(default_factory=list)  # List of camera configs (dicts)
+    transport: str = "tcp"  # tcp or udp
+    reconnect_delay: int = 5  # Seconds to wait before reconnecting
+    max_reconnect_attempts: int = -1  # -1 for infinite
+    hls_segment_duration: int = 2  # HLS segment duration in seconds
+    hls_playlist_size: int = 3  # Number of segments in playlist
+    output_dir: str = "/tmp/sense-pulse/hls"  # Directory for HLS segments
+
+
+@dataclass
 class Config:
     pihole: PiholeConfig = field(default_factory=PiholeConfig)
     tailscale: TailscaleConfig = field(default_factory=TailscaleConfig)
@@ -120,9 +146,10 @@ class Config:
     aranet4: Aranet4Config = field(default_factory=Aranet4Config)
     cache: CacheConfig = field(default_factory=CacheConfig)
     weather: WeatherConfig = field(default_factory=WeatherConfig)
+    baby_monitor: BabyMonitorConfig = field(default_factory=BabyMonitorConfig)
 
 
-def find_config_file() -> Optional[Path]:
+def find_config_file() -> Path | None:
     """Find config file in standard locations"""
     for path in CONFIG_PATHS:
         if path.exists():
@@ -130,7 +157,7 @@ def find_config_file() -> Optional[Path]:
     return None
 
 
-def load_config(config_path: Optional[str] = None) -> Config:
+def load_config(config_path: str | None = None) -> Config:
     """Load configuration from YAML file"""
     path = Path(config_path) if config_path else find_config_file()
 
@@ -190,4 +217,21 @@ def load_config(config_path: Optional[str] = None) -> Config:
         aranet4=aranet4_config,
         cache=CacheConfig(**data.get("cache", {})),
         weather=WeatherConfig(**data.get("weather", {})),
+        baby_monitor=_parse_baby_monitor_config(data.get("baby_monitor", {})),
+    )
+
+
+def _parse_baby_monitor_config(data: dict) -> BabyMonitorConfig:
+    """Parse baby monitor config."""
+    cameras = data.get("cameras", [])
+
+    return BabyMonitorConfig(
+        enabled=data.get("enabled", False),
+        cameras=cameras,
+        transport=data.get("transport", "tcp"),
+        reconnect_delay=data.get("reconnect_delay", 5),
+        max_reconnect_attempts=data.get("max_reconnect_attempts", -1),
+        hls_segment_duration=data.get("hls_segment_duration", 2),
+        hls_playlist_size=data.get("hls_playlist_size", 3),
+        output_dir=data.get("output_dir", "/tmp/sense-pulse/hls"),
     )

@@ -3,7 +3,7 @@ name = "sense-pulse"
 version = "0.10.0"
 description = "Display Pi-hole statistics, Tailscale status, and sensor data on Sense HAT LED matrix"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 keywords = ["raspberry-pi", "sense-hat", "pi-hole", "tailscale", "led-display"]
 
@@ -48,7 +48,7 @@ dev = [
 
 [tool.black]
 line-length = 100
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -64,7 +64,7 @@ extend-exclude = '''
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 extend-exclude = [".venv", "build", "dist", "src/sense_pulse/icons.py"]
 
 [tool.ruff.lint]
@@ -91,7 +91,7 @@ ignore = [
 "tests/**/*.py" = ["ARG", "S101"]  # test files can have unused args and use assert
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false  # Start lenient, increase strictness later

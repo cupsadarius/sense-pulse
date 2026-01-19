@@ -54,3 +54,16 @@ aranet4:
     # - label: "Office"           # Custom label for this sensor
     #   mac_address: "AA:BB:CC:DD:EE:FF"  # Bluetooth MAC address
     #   enabled: true             # Enable this sensor
+
+# Baby monitor settings (RTSP camera stream)
+# Streams RTSP video from a baby camera via HLS for web viewing
+# Requires ffmpeg to be installed: sudo apt install ffmpeg
+baby_monitor:
+  enabled: false                # Enable baby monitor streaming
+  rtsp_url: ""                  # RTSP URL (e.g., "rtsp://admin:admin@192.168.1.111:8554/Streaming/Channels/101")
+  transport: "tcp"              # RTSP transport: "tcp" or "udp"
+  reconnect_delay: 5            # Seconds to wait before reconnecting on failure
+  max_reconnect_attempts: -1    # Max reconnect attempts (-1 for infinite)
+  hls_segment_duration: 2       # HLS segment duration in seconds
+  hls_playlist_size: 3          # Number of segments in HLS playlist
+  output_dir: "/tmp/sense-pulse/hls"  # Directory for HLS segments

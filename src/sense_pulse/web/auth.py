@@ -1,7 +1,6 @@
 """Authentication for web dashboard"""
 
 import secrets
-from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -33,7 +32,7 @@ class AuthConfig:
 
 
 # Global auth config - will be set by web app initialization
-_auth_config: Optional[AuthConfig] = None
+_auth_config: AuthConfig | None = None
 
 
 def set_auth_config(config: AuthConfig) -> None:
@@ -42,7 +41,7 @@ def set_auth_config(config: AuthConfig) -> None:
     _auth_config = config
 
 
-def get_auth_config() -> Optional[AuthConfig]:
+def get_auth_config() -> AuthConfig | None:
     """Get global auth configuration"""
     return _auth_config
 
@@ -99,7 +98,7 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)) -> str:
     return credentials.username
 
 
-def optional_auth(credentials: Optional[HTTPBasicCredentials] = Depends(security)) -> Optional[str]:
+def optional_auth(credentials: HTTPBasicCredentials | None = Depends(security)) -> str | None:
     """
     Optional auth dependency - doesn't require credentials if auth is disabled.
     Returns username if authenticated, None if no credentials provided.

@@ -42,30 +42,103 @@
             {% include "partials/status_cards.html" %}
         </div>
 
-        <!-- LED Matrix Preview -->
-        <div class="bg-sense-card rounded-xl border border-sense-border p-6 mb-8 transition-opacity {% if not sense_hat_available %}opacity-50{% endif %}" id="led-matrix-section">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-semibold">LED Matrix Preview</h2>
-                <div class="flex items-center gap-2">
-                    <span class="text-sm text-gray-400">Current display:</span>
-                    <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-sm font-medium" id="matrix-mode">
-                        idle
-                    </span>
+        <!-- Live Preview Section - Two Cards Side by Side -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- LED Matrix Card (1/3 width) -->
+            <div class="bg-sense-card rounded-xl border border-sense-border p-6 hover:border-purple-500/50 transition-colors flex flex-col" id="led-matrix-section">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                            <svg class="w-7 h-7 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400">LED Matrix</h3>
+                            <p id="matrix-mode" class="text-lg font-bold text-purple-400">idle</p>
+                        </div>
+                    </div>
+                    {% if sense_hat_available %}
+                    <span class="w-3 h-3 bg-green-500 rounded-full status-glow text-green-500"></span>
+                    {% else %}
+                    <span class="w-3 h-3 bg-gray-500 rounded-full"></span>
+                    {% endif %}
+                </div>
+                <div class="pt-4 border-t border-sense-border flex-1 flex flex-col justify-center">
+                    <div class="flex justify-center {% if not sense_hat_available %}opacity-50{% endif %}">
+                        <div class="bg-gray-900 p-3 rounded-lg w-full" style="aspect-ratio: 1/1; max-width: 100%;">
+                            <div class="grid grid-cols-8 gap-[2%] w-full h-full" id="led-matrix">
+                                {% for i in range(64) %}
+                                <div class="rounded-sm bg-gray-800 transition-all duration-150" style="aspect-ratio: 1/1;" id="led-{{ i }}"></div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if not sense_hat_available %}
+                    <p class="text-center text-xs text-gray-500 mt-3">Sense HAT not available</p>
+                    {% endif %}
                 </div>
             </div>
 
-            <!-- 8x8 LED Grid -->
-            <div class="flex justify-center">
-                <div class="bg-gray-900 p-4 rounded-lg inline-block">
-                    <div class="grid grid-cols-8 gap-1" id="led-matrix">
-                        {% for i in range(64) %}
-                        <div class="w-6 h-6 rounded-sm bg-gray-800 transition-all duration-150" id="led-{{ i }}"></div>
-                        {% endfor %}
+            <!-- Baby Monitor Card (2/3 width) -->
+            {% if baby_monitor_enabled %}
+            <div class="lg:col-span-2 bg-sense-card rounded-xl border border-sense-border p-6 hover:border-cyan-500/50 transition-colors" id="baby-monitor-section">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-cyan-500/10 rounded-lg flex items-center justify-center">
+                            <svg class="w-7 h-7 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-400">Baby Monitor</h3>
+                            <p id="baby-monitor-status-text" class="text-lg font-bold text-cyan-400">Stopped</p>
+                        </div>
+                    </div>
+                    <span class="w-3 h-3 rounded-full" id="baby-monitor-status-indicator"></span>
+                </div>
+                <div class="pt-4 border-t border-sense-border">
+                    <div id="baby-monitor-preview" class="relative bg-gray-900 rounded-lg overflow-hidden w-full" style="aspect-ratio: 16/9;">
+                        <!-- Thumbnail (shown when not streaming) -->
+                        <div id="baby-monitor-thumbnail-container" class="w-full h-full cursor-pointer" onclick="startBabyMonitorStream()">
+                            <img id="baby-monitor-thumbnail"
+                                 src="/api/baby-monitor/thumbnail"
+                                 alt="Baby Monitor"
+                                 class="w-full h-full object-cover"
+                                 onerror="this.style.display='none'; document.getElementById('baby-monitor-placeholder').style.display='flex';">
+                            <!-- Placeholder when no thumbnail -->
+                            <div id="baby-monitor-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-gray-500" style="display: none;">
+                                <svg class="w-16 h-16 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                                <span class="text-sm">Click to start stream</span>
+                            </div>
+                            <!-- Play button overlay -->
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
+                                <svg class="w-20 h-20 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <!-- Video player (shown when streaming) -->
+                        <div id="baby-monitor-video-container" class="w-full h-full hidden">
+                            <video id="baby-monitor-video" class="w-full h-full object-cover" playsinline></video>
+                            <!-- Stop button overlay -->
+                            <div class="absolute top-2 right-2 flex gap-2">
+                                <button onclick="stopBabyMonitorStream()" class="p-2 bg-red-500/80 hover:bg-red-500 rounded-full transition-colors" title="Stop stream">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Loading indicator -->
+                        <div id="baby-monitor-loading" class="absolute inset-0 flex items-center justify-center bg-gray-900/80 hidden">
+                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-            {% if not sense_hat_available %}
-            <p class="text-center text-sm text-gray-500 mt-4">LED Matrix preview requires Sense HAT hardware</p>
             {% endif %}
         </div>
 
@@ -1235,5 +1308,198 @@
 
         // Initialize log level button styles
         window.setLogLevel('DEBUG');
+
+        // =====================================================================
+        // Baby Monitor Functions
+        // =====================================================================
+
+        // Baby monitor state
+        if (!window.babyMonitor) {
+            window.babyMonitor = {
+                hls: null,
+                isStreaming: false,
+                thumbnailRefreshInterval: null,
+                statusWs: null
+            };
+        }
+
+        // Start baby monitor stream
+        window.startBabyMonitorStream = async function() {
+            const loading = document.getElementById('baby-monitor-loading');
+            const thumbnailContainer = document.getElementById('baby-monitor-thumbnail-container');
+            const videoContainer = document.getElementById('baby-monitor-video-container');
+            const video = document.getElementById('baby-monitor-video');
+
+            if (!loading || !thumbnailContainer || !videoContainer || !video) return;
+
+            // Show loading
+            loading.classList.remove('hidden');
+
+            try {
+                // Request stream start from server
+                const response = await fetch('/api/baby-monitor/start', { method: 'POST' });
+                const result = await response.json();
+
+                if (!result.success) {
+                    console.error('Failed to start stream:', result.message);
+                    loading.classList.add('hidden');
+                    return;
+                }
+
+                // Wait a bit for stream to initialize
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Load HLS stream using hls.js
+                if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                    if (window.babyMonitor.hls) {
+                        window.babyMonitor.hls.destroy();
+                    }
+                    window.babyMonitor.hls = new Hls({
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                        // Retry manifest loading while FFmpeg produces the playlist
+                        manifestLoadingMaxRetry: 10,
+                        manifestLoadingRetryDelay: 1000
+                    });
+                    window.babyMonitor.hls.loadSource('/api/baby-monitor/stream/stream.m3u8');
+                    window.babyMonitor.hls.attachMedia(video);
+                    window.babyMonitor.hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                        video.play();
+                    });
+                    window.babyMonitor.hls.on(Hls.Events.ERROR, function(event, data) {
+                        if (data.fatal) {
+                            console.error('HLS fatal error:', data);
+                            stopBabyMonitorStream();
+                        }
+                    });
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Safari native HLS support
+                    video.src = '/api/baby-monitor/stream/stream.m3u8';
+                    video.play();
+                } else {
+                    console.error('HLS not supported');
+                    loading.classList.add('hidden');
+                    return;
+                }
+
+                // Show video, hide thumbnail
+                thumbnailContainer.classList.add('hidden');
+                videoContainer.classList.remove('hidden');
+                loading.classList.add('hidden');
+                window.babyMonitor.isStreaming = true;
+
+                // Stop thumbnail refresh
+                if (window.babyMonitor.thumbnailRefreshInterval) {
+                    clearInterval(window.babyMonitor.thumbnailRefreshInterval);
+                    window.babyMonitor.thumbnailRefreshInterval = null;
+                }
+
+                updateBabyMonitorStatus('streaming');
+            } catch (error) {
+                console.error('Error starting stream:', error);
+                loading.classList.add('hidden');
+            }
+        };
+
+        // Stop baby monitor stream
+        window.stopBabyMonitorStream = async function() {
+            const thumbnailContainer = document.getElementById('baby-monitor-thumbnail-container');
+            const videoContainer = document.getElementById('baby-monitor-video-container');
+            const video = document.getElementById('baby-monitor-video');
+            const thumbnail = document.getElementById('baby-monitor-thumbnail');
+
+            // Stop HLS
+            if (window.babyMonitor.hls) {
+                window.babyMonitor.hls.destroy();
+                window.babyMonitor.hls = null;
+            }
+
+            // Pause video
+            if (video) {
+                video.pause();
+                video.src = '';
+            }
+
+            // Request stream stop from server
+            try {
+                await fetch('/api/baby-monitor/stop', { method: 'POST' });
+            } catch (error) {
+                console.error('Error stopping stream:', error);
+            }
+
+            // Show thumbnail, hide video
+            if (videoContainer) videoContainer.classList.add('hidden');
+            if (thumbnailContainer) thumbnailContainer.classList.remove('hidden');
+            window.babyMonitor.isStreaming = false;
+
+            // Refresh thumbnail
+            if (thumbnail) {
+                thumbnail.src = '/api/baby-monitor/thumbnail?force=true&t=' + Date.now();
+                thumbnail.style.display = '';
+                const placeholder = document.getElementById('baby-monitor-placeholder');
+                if (placeholder) placeholder.style.display = 'none';
+            }
+
+            // Start thumbnail refresh interval
+            startThumbnailRefresh();
+
+            updateBabyMonitorStatus('stopped');
+        };
+
+        // Refresh thumbnail periodically
+        function startThumbnailRefresh() {
+            if (window.babyMonitor.thumbnailRefreshInterval) {
+                clearInterval(window.babyMonitor.thumbnailRefreshInterval);
+            }
+            window.babyMonitor.thumbnailRefreshInterval = setInterval(function() {
+                if (!window.babyMonitor.isStreaming) {
+                    const thumbnail = document.getElementById('baby-monitor-thumbnail');
+                    if (thumbnail) {
+                        thumbnail.src = '/api/baby-monitor/thumbnail?t=' + Date.now();
+                    }
+                }
+            }, 30000); // Refresh every 30 seconds
+        }
+
+        // Update baby monitor status indicator
+        function updateBabyMonitorStatus(status) {
+            const indicator = document.getElementById('baby-monitor-status-indicator');
+            const text = document.getElementById('baby-monitor-status-text');
+
+            if (!indicator || !text) return;
+
+            switch (status) {
+                case 'streaming':
+                    indicator.className = 'w-3 h-3 rounded-full bg-green-500 status-glow text-green-500';
+                    text.textContent = 'Streaming';
+                    text.className = 'text-lg font-bold text-green-400';
+                    break;
+                case 'stopped':
+                    indicator.className = 'w-3 h-3 rounded-full bg-gray-500';
+                    text.textContent = 'Stopped';
+                    text.className = 'text-lg font-bold text-cyan-400';
+                    break;
+                case 'error':
+                    indicator.className = 'w-3 h-3 rounded-full bg-red-500';
+                    text.textContent = 'Error';
+                    text.className = 'text-lg font-bold text-red-400';
+                    break;
+                default:
+                    indicator.className = 'w-3 h-3 rounded-full bg-gray-500';
+                    text.textContent = 'Stopped';
+                    text.className = 'text-lg font-bold text-cyan-400';
+            }
+        }
+
+        // Initialize baby monitor
+        if (document.getElementById('baby-monitor-preview')) {
+            startThumbnailRefresh();
+            updateBabyMonitorStatus('stopped');
+        }
     </script>
+
+    <!-- HLS.js for baby monitor streaming -->
+    {% if baby_monitor_enabled %}
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    {% endif %}
 {% endblock %}

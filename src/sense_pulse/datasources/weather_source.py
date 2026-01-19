@@ -1,7 +1,6 @@
 """Weather data source implementation using wttr.io API"""
 
 from datetime import datetime
-from typing import Optional
 
 import httpx
 
@@ -28,9 +27,9 @@ class WeatherDataSource(DataSource):
             config: Weather configuration with location
         """
         self._config = config
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
         self._last_data: dict = {}
-        self._cache_until: Optional[datetime] = None
+        self._cache_until: datetime | None = None
 
     async def initialize(self) -> None:
         """Initialize HTTP client for weather API"""
