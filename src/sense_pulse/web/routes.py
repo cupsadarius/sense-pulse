@@ -879,7 +879,9 @@ async def get_baby_monitor_hls_segment(
         segment_path,
         media_type="video/mp2t",
         headers={
-            "Cache-Control": "max-age=3600",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
         },
     )
 
