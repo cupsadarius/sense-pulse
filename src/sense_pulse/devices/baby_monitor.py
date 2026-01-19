@@ -811,26 +811,38 @@ class BabyMonitorDevice:
                 ptz_service = self._ptz_service
                 profile_token = self._ptz_profile_token
 
-                def execute_relative_move() -> None:
-                    """Execute RelativeMove in thread (ONVIF is synchronous)."""
+                def execute_continuous_move() -> None:
+                    """Execute ContinuousMove then Stop (ONVIF is synchronous)."""
+                    import time
+
                     logger.info(
-                        "PTZ RelativeMove starting",
+                        "PTZ ContinuousMove starting",
                         profile_token=profile_token,
                         pan=pan,
                         tilt=tilt,
                         zoom=zoom,
                     )
-                    request = ptz_service.create_type("RelativeMove")
+                    # Start continuous movement
+                    request = ptz_service.create_type("ContinuousMove")
                     request.ProfileToken = profile_token
-                    request.Translation = {
+                    request.Velocity = {
                         "PanTilt": {"x": pan, "y": tilt},
                         "Zoom": {"x": zoom},
                     }
-                    logger.info("PTZ request object", request=str(request))
-                    result = ptz_service.RelativeMove(request)
-                    logger.info("PTZ RelativeMove result", result=str(result))
+                    ptz_service.ContinuousMove(request)
 
-                await loop.run_in_executor(self._ptz_executor, execute_relative_move)
+                    # Move for a short duration
+                    time.sleep(0.3)
+
+                    # Stop movement
+                    stop_request = ptz_service.create_type("Stop")
+                    stop_request.ProfileToken = profile_token
+                    stop_request.PanTilt = True
+                    stop_request.Zoom = True
+                    ptz_service.Stop(stop_request)
+                    logger.info("PTZ ContinuousMove completed")
+
+                await loop.run_in_executor(self._ptz_executor, execute_continuous_move)
 
                 logger.debug(
                     "PTZ move executed",
