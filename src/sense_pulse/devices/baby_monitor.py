@@ -237,7 +237,7 @@ class BabyMonitorDevice:
             "-hls_list_size",
             str(self.config.hls_playlist_size),
             "-hls_flags",
-            "delete_segments",
+            "delete_segments+program_date_time",
             "-start_number",
             "0",
             "-hls_segment_filename",

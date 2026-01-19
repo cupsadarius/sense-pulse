@@ -1509,6 +1509,11 @@
                     window.babyMonitor.hls = new Hls({
                         enableWorker: true,
                         lowLatencyMode: true,
+                        // Stay at live edge
+                        liveSyncDurationCount: 1,
+                        liveMaxLatencyDurationCount: 3,
+                        liveBackBufferLength: 0,
+                        maxBufferLength: 5,
                         // Retry manifest loading while FFmpeg produces the playlist
                         manifestLoadingMaxRetry: 10,
                         manifestLoadingRetryDelay: 1000
