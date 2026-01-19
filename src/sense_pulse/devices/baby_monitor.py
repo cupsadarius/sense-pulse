@@ -812,8 +812,8 @@ class BabyMonitorDevice:
                 profile_token = self._ptz_profile_token
 
                 def execute_continuous_move() -> None:
-                    """Execute ContinuousMove then Stop (ONVIF is synchronous)."""
-                    import time
+                    """Execute ContinuousMove with timeout (ONVIF is synchronous)."""
+                    from datetime import timedelta
 
                     logger.info(
                         "PTZ ContinuousMove starting",
@@ -822,24 +822,14 @@ class BabyMonitorDevice:
                         tilt=tilt,
                         zoom=zoom,
                     )
-                    # Start continuous movement
                     request = ptz_service.create_type("ContinuousMove")
                     request.ProfileToken = profile_token
                     request.Velocity = {
                         "PanTilt": {"x": pan, "y": tilt},
                         "Zoom": {"x": zoom},
                     }
+                    request.Timeout = timedelta(milliseconds=100)
                     ptz_service.ContinuousMove(request)
-
-                    # Move for a short duration
-                    time.sleep(0.3)
-
-                    # Stop movement
-                    stop_request = ptz_service.create_type("Stop")
-                    stop_request.ProfileToken = profile_token
-                    stop_request.PanTilt = True
-                    stop_request.Zoom = True
-                    ptz_service.Stop(stop_request)
                     logger.info("PTZ ContinuousMove completed")
 
                 await loop.run_in_executor(self._ptz_executor, execute_continuous_move)
