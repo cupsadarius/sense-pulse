@@ -204,7 +204,7 @@ class WeatherDataSource(DataSource):
                     # Get description from hourly data (midday forecast)
                     hourly = day.get("hourly", [])
                     desc = "Unknown"
-                    if len(hourly) >= 4:  # Get midday forecast (12:00)
+                    if len(hourly) > 4:  # Get midday forecast (12:00)
                         desc = hourly[4].get("weatherDesc", [{}])[0].get("value", "Unknown")
 
                     forecast_list.append(
