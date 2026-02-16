@@ -1,72 +1,69 @@
 [project]
 name = "sense-pulse"
-version = "0.11.0"
-description = "Display Pi-hole statistics, Tailscale status, and sensor data on Sense HAT LED matrix"
+version = "0.12.0"
+description = "Pi-hole + Tailscale + Sensor monitoring microservice architecture"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
-keywords = ["raspberry-pi", "sense-hat", "pi-hole", "tailscale", "led-display"]
-
-dependencies = [
-    "requests==2.32.3",
-    "pyyaml==6.0.2",
-    "psutil==6.1.0",
-    "fastapi==0.115.6",
-    "uvicorn[standard]==0.32.1",
-    "jinja2==3.1.4",
-    "python-multipart==0.0.12",  # Required for FastAPI form parsing
-    "aranet4==2.3.0",  # Aranet4 CO2 sensor support (uses bleak internally)
-    "passlib==1.7.4",  # Password hashing for authentication
-    "bcrypt==4.2.1",  # Bcrypt backend for passlib (4.x compatible with passlib)
-    "tenacity==9.0.0",  # Retry logic for network calls
-    "onvif-zeep>=0.2.12",  # ONVIF PTZ camera control
-    # sense-hat must be installed via apt: sudo apt install python3-sense-hat
-]
-
-[project.scripts]
-sense-pulse = "sense_pulse.cli:main"
+keywords = ["raspberry-pi", "sense-hat", "pi-hole", "tailscale", "led-display", "microservices"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/sense_pulse"]
+[tool.uv.workspace]
+members = [
+    "services/common",
+    "services/web-gateway",
+    "services/orchestrator",
+    "services/source-tailscale",
+    "services/source-pihole",
+    "services/source-system",
+    "services/source-sensehat",
+    "services/source-aranet4",
+    "services/source-weather",
+    "services/source-camera",
+]
+
+[tool.uv.sources]
+sense-common = { workspace = true }
 
 [dependency-groups]
 dev = [
     "pytest==8.3.4",
     "pytest-asyncio==0.24.0",
     "pytest-cov==6.0.0",
-    "httpx==0.28.1",  # For testing async HTTP and FastAPI
+    "httpx==0.28.1",
     "ruff==0.8.4",
     "black==24.10.0",
     "mypy==1.13.0",
     "pre-commit==4.0.1",
+    "fakeredis[lua]>=2.26",
     "types-pyyaml==6.0.12.20240917",
     "types-requests==2.32.0.20241016",
+    "sense-common",
 ]
 
 [tool.black]
 line-length = 100
-target-version = ['py310']
+target-version = ['py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
   \.eggs
   | \.git
   | \.venv
   | build
   | dist
+  | legacy
+  | frontend
 )/
-| src/sense_pulse/icons\.py  # Preserve 8x8 grid formatting
 '''
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
-extend-exclude = [".venv", "build", "dist", "src/sense_pulse/icons.py"]
+target-version = "py312"
+extend-exclude = [".venv", "build", "dist", "legacy", "frontend"]
 
 [tool.ruff.lint]
 select = [
@@ -81,21 +78,22 @@ select = [
     "SIM", # flake8-simplify
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
+    "E501",   # line too long (handled by black)
+    "B008",   # do not perform function calls in argument defaults
     "ARG001", # unused function argument
     "ARG002", # unused method argument
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # imported but unused
-"tests/**/*.py" = ["ARG", "S101"]  # test files can have unused args and use assert
+"__init__.py" = ["F401"]
+"tests/**/*.py" = ["ARG", "S101"]
+"**/tests/**/*.py" = ["ARG", "S101"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = false  # Start lenient, increase strictness later
+disallow_untyped_defs = false
 check_untyped_defs = true
 no_implicit_optional = true
 warn_redundant_casts = true
@@ -110,13 +108,13 @@ module = [
     "bleak.*",
     "onvif.*",
     "zeep.*",
+    "fakeredis.*",
 ]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --cov=sense_pulse --cov-report=term-missing --cov-report=html"
-testpaths = ["tests"]
-pythonpath = ["src"]
+addopts = "-ra -q --strict-markers --import-mode=importlib"
+testpaths = ["services/*/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

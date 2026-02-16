@@ -1,0 +1,222 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ─── Default profile (always running) ────────────────────────────
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server /etc/redis/redis.conf
+    volumes:
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    mem_limit: 64m
+    restart: unless-stopped
+    logging: *default-logging
+
+  traefik:
+    image: traefik:v3
+    network_mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik:ro
+    mem_limit: 64m
+    restart: unless-stopped
+    logging: *default-logging
+
+  web-gateway:
+    build:
+      context: .
+      dockerfile: services/web-gateway/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - hls-data:/hls:ro
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 96m
+    restart: unless-stopped
+    logging: *default-logging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.api.priority=10"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+      - "traefik.http.routers.ws.rule=PathPrefix(`/ws`)"
+      - "traefik.http.routers.ws.priority=10"
+      - "traefik.http.routers.ws.entrypoints=web"
+      - "traefik.http.services.ws.loadbalancer.server.port=8080"
+      - "traefik.http.routers.health.rule=Path(`/health`)"
+      - "traefik.http.routers.health.priority=10"
+      - "traefik.http.routers.health.entrypoints=web"
+      - "traefik.http.services.health.loadbalancer.server.port=8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    networks:
+      - internal
+    mem_limit: 48m
+    restart: unless-stopped
+    logging: *default-logging
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 32m
+    restart: unless-stopped
+    logging: *default-logging
+
+  source-sensehat:
+    build:
+      context: .
+      dockerfile: services/source-sensehat/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    privileged: true
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 64m
+    restart: unless-stopped
+    logging: *default-logging
+
+  # ─── Poll profile (ephemeral, triggered by orchestrator) ─────────
+
+  source-tailscale:
+    build:
+      context: .
+      dockerfile: services/source-tailscale/Dockerfile
+    profiles: [poll]
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock:ro
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 48m
+    restart: "no"
+    logging: *default-logging
+
+  source-pihole:
+    build:
+      context: .
+      dockerfile: services/source-pihole/Dockerfile
+    profiles: [poll]
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 48m
+    restart: "no"
+    logging: *default-logging
+
+  source-system:
+    build:
+      context: .
+      dockerfile: services/source-system/Dockerfile
+    profiles: [poll]
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 48m
+    restart: "no"
+    logging: *default-logging
+
+  source-aranet4:
+    build:
+      context: .
+      dockerfile: services/source-aranet4/Dockerfile
+    profiles: [poll]
+    depends_on:
+      redis:
+        condition: service_healthy
+    privileged: true
+    volumes:
+      - /var/run/dbus:/var/run/dbus:ro
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 48m
+    restart: "no"
+    logging: *default-logging
+
+  source-weather:
+    build:
+      context: .
+      dockerfile: services/source-weather/Dockerfile
+    profiles: [poll]
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 48m
+    restart: "no"
+    logging: *default-logging
+
+  # ─── Camera profile (demand-started) ─────────────────────────────
+
+  source-camera:
+    build:
+      context: .
+      dockerfile: services/source-camera/Dockerfile
+    profiles: [camera]
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - hls-data:/hls
+    networks:
+      - internal
+    env_file: .env
+    mem_limit: 128m
+    restart: "no"
+    logging: *default-logging
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  hls-data:
