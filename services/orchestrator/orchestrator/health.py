@@ -6,10 +6,10 @@ import asyncio
 import logging
 import time
 
-import redis.asyncio as aioredis
-
 from sense_common.models import SourceStatus
 from sense_common.redis_client import read_all_statuses, read_config, write_status
+
+import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class HealthMonitor:
                         timeout=CHECK_INTERVAL,
                     )
                     break  # shutdown was set
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass  # normal tick
         except asyncio.CancelledError:
             logger.info("Health monitor cancelled")

@@ -1,9 +1,5 @@
 """Tests for sense_common.config helpers."""
 
-import os
-
-import pytest
-
 from sense_common.config import (
     get_config_value,
     get_env,

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 
-import redis.asyncio as aioredis
-
 from sense_common.redis_client import read_all_sources
+
+import redis.asyncio as aioredis
 from sensehat.display import SenseHatDisplay
 from sensehat.schedule import is_sleep_time
 

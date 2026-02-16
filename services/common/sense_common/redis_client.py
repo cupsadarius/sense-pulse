@@ -10,7 +10,6 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import redis.asyncio as aioredis
-
 from sense_common.models import (
     Command,
     CommandResponse,
@@ -34,7 +33,7 @@ async def create_redis(url: str, max_retries: int = 3, retry_delay: float = 1.0)
             client = aioredis.from_url(url, decode_responses=True)
             await client.ping()
             logger.info("Connected to Redis at %s", url)
-            return client
+            return client  # type: ignore[no-any-return]
         except (aioredis.ConnectionError, OSError) as e:
             last_error = e
             if attempt < max_retries - 1:
@@ -79,7 +78,7 @@ async def read_source(redis: aioredis.Redis, source_id: str) -> dict[str, Any]:
         cursor, keys = await redis.scan(cursor=cursor, match=pattern, count=100)
         if keys:
             values = await redis.mget(keys)
-            for key, val in zip(keys, values):
+            for key, val in zip(keys, values, strict=False):
                 if val is not None:
                     sensor_id = key[len(prefix) :]
                     readings[sensor_id] = json.loads(val)
@@ -98,7 +97,7 @@ async def read_all_sources(redis: aioredis.Redis) -> dict[str, dict[str, Any]]:
         cursor, keys = await redis.scan(cursor=cursor, match="source:*", count=100)
         if keys:
             values = await redis.mget(keys)
-            for key, val in zip(keys, values):
+            for key, val in zip(keys, values, strict=False):
                 if val is not None:
                     # key format: source:{source_id}:{sensor_id}
                     parts = key.split(":", 2)
@@ -250,7 +249,7 @@ async def read_config(redis: aioredis.Redis, section: str) -> dict[str, Any] | N
     val = await redis.get(f"config:{section}")
     if val is None:
         return None
-    return json.loads(val)
+    return dict(json.loads(val))
 
 
 async def write_config(redis: aioredis.Redis, section: str, data: dict[str, Any]) -> None:

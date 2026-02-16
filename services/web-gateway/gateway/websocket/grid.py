@@ -35,7 +35,7 @@ async def grid_ws(websocket: WebSocket) -> None:
                 if message and message["type"] == "message":
                     data = json.loads(message["data"])
                     await websocket.send_json(data)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     except WebSocketDisconnect:

@@ -6,7 +6,6 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from orchestrator.runner import DockerRunner
 
 
@@ -80,13 +79,11 @@ async def test_run_ephemeral_timeout(runner):
     proc.wait = AsyncMock()
 
     with patch("asyncio.create_subprocess_exec", return_value=proc):
-        # Use asyncio.wait_for patch to simulate timeout
-        original_wait_for = asyncio.wait_for
 
         async def mock_wait_for(coro, timeout):
             # Consume the coroutine
             try:
-                raise asyncio.TimeoutError
+                raise TimeoutError
             finally:
                 coro.close()
 

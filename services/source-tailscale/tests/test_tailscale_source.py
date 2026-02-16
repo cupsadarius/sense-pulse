@@ -7,8 +7,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from sense_common.models import SensorReading
 from tailscale.source import TailscaleSource
 
 SAMPLE_TS_CONNECTED = {
@@ -120,9 +118,11 @@ class TestTailscalePoll:
         proc = MagicMock()
         proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError)
 
-        with patch("tailscale.source.asyncio.create_subprocess_exec", return_value=proc):
-            with patch("tailscale.source.asyncio.wait_for", side_effect=asyncio.TimeoutError):
-                readings = await source.poll(redis_mock)
+        with (
+            patch("tailscale.source.asyncio.create_subprocess_exec", return_value=proc),
+            patch("tailscale.source.asyncio.wait_for", side_effect=asyncio.TimeoutError),
+        ):
+            readings = await source.poll(redis_mock)
 
         assert readings == []
 

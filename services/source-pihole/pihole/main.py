@@ -2,8 +2,9 @@
 
 import asyncio
 
-from pihole.source import PiHoleSource
 from sense_common.config import get_redis_url
+
+from pihole.source import PiHoleSource
 
 
 def main() -> None:

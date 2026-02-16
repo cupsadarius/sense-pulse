@@ -5,7 +5,6 @@ import json
 
 import fakeredis.aioredis
 import pytest
-
 from sense_common.models import (
     Command,
     CommandResponse,

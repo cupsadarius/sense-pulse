@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-
 from sense_common.models import SensorReading
 from weather.source import WeatherSource
 

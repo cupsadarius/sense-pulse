@@ -24,8 +24,9 @@ async def test_health_no_auth(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_health_redis_down(app):
     """Health returns 503 when Redis ping fails."""
-    from httpx import ASGITransport, AsyncClient
     from unittest.mock import AsyncMock
+
+    from httpx import ASGITransport, AsyncClient
 
     # Replace redis with a mock that raises on ping
     mock_redis = AsyncMock()

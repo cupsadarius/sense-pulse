@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-
 from sense_common.redis_client import read_all_sources, read_all_statuses, read_source, read_status
 
 from gateway.deps import Auth, Redis

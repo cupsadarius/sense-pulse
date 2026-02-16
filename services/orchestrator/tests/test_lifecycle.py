@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from unittest.mock import AsyncMock
 
 import fakeredis.aioredis
 import pytest
-
 from orchestrator.lifecycle import LifecycleListener
 from orchestrator.runner import DockerRunner
 
@@ -55,10 +55,8 @@ async def test_stream_ended_triggers_cleanup(redis, runner, listener):
     # Cancel listener
     listener.stop()
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     # Verify stop was called
     runner.stop_service.assert_awaited_once_with("source-camera")
@@ -89,10 +87,8 @@ async def test_stream_ended_with_error_reason(redis, runner, listener):
 
     listener.stop()
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     runner.stop_service.assert_awaited_once_with("source-camera")
     status_raw = await redis.get("status:network_camera")
@@ -111,7 +107,5 @@ async def test_lifecycle_stop(redis, runner, listener):
 
     # Should not hang -- cancel to be safe
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass

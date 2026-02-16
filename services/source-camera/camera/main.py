@@ -14,8 +14,14 @@ import signal
 import sys
 import time
 
-from sense_common.config import get_config_value, get_env, get_env_json, get_redis_url
-from sense_common.models import Command, CommandResponse, SensorReading
+from sense_common.config import get_config_value, get_env, get_redis_url
+from sense_common.models import (
+    Command,
+    CommandResponse,
+    SensorReading,
+    SourceMetadata,
+    SourceStatus,
+)
 from sense_common.redis_client import (
     create_redis,
     publish_data,
@@ -26,11 +32,10 @@ from sense_common.redis_client import (
     write_readings,
     write_status,
 )
-from sense_common.models import SourceMetadata, SourceStatus
 
 from camera.discovery import discover_cameras
 from camera.ptz import PTZController
-from camera.stream import StreamManager, StreamStatus
+from camera.stream import StreamManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -289,7 +294,7 @@ async def _status_writer(
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=STATUS_INTERVAL)
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 

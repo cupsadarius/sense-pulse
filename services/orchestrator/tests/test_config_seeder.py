@@ -8,7 +8,6 @@ from unittest.mock import patch
 
 import fakeredis.aioredis
 import pytest
-
 from orchestrator.config_seeder import seed_all_config
 
 

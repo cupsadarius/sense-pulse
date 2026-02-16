@@ -6,11 +6,10 @@ import asyncio
 import json
 import logging
 
-import redis.asyncio as aioredis
-
 from sense_common.models import SourceStatus
 from sense_common.redis_client import write_status
 
+import redis.asyncio as aioredis
 from orchestrator.runner import DockerRunner
 
 logger = logging.getLogger(__name__)

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 
-import redis.asyncio as aioredis
-
 from sense_common.models import Command, CommandResponse
 from sense_common.redis_client import publish_response, subscribe_commands
+
+import redis.asyncio as aioredis
 from sensehat.display import SenseHatDisplay
 
 logger = logging.getLogger(__name__)

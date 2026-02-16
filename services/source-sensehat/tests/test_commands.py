@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from sense_common.models import Command, CommandResponse
 from sensehat.commands import CommandHandler
 from sensehat.display import SenseHatDisplay

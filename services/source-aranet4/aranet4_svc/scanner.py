@@ -101,8 +101,8 @@ class Aranet4Scanner:
             async with self._lock:
                 await aranet4.client._find_nearby(on_detect, duration=timeout)
 
-            found_labels = [l for l, r in results.items() if r is not None]
-            missing_labels = [l for l, r in results.items() if r is None]
+            found_labels = [label for label, r in results.items() if r is not None]
+            missing_labels = [label for label, r in results.items() if r is None]
             logger.info(
                 "Aranet4 scan complete: found=%s missing=%s",
                 found_labels,

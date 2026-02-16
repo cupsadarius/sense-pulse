@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import signal
 import time
 
-import redis.asyncio as aioredis
-
 from sense_common.config import get_env_float, get_env_int, get_redis_url
-from sense_common.models import SensorReading, SourceMetadata, SourceStatus
+from sense_common.models import SourceMetadata, SourceStatus
 from sense_common.redis_client import (
     create_redis,
     publish_data,
@@ -21,10 +20,11 @@ from sense_common.redis_client import (
     write_readings,
     write_status,
 )
+
+import redis.asyncio as aioredis
 from sensehat.commands import CommandHandler
 from sensehat.controller import DisplayController
 from sensehat.display import SenseHatDisplay
-from sensehat.pi_leds import disable_leds, restore_leds
 from sensehat.source import SenseHatSensorSource
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s %(message)s")
@@ -73,7 +73,7 @@ async def sensor_poll_loop(
         except Exception as e:
             error_count += 1
             logger.exception("Sensor poll error: %s", e)
-            try:
+            with contextlib.suppress(Exception):
                 await write_status(
                     redis,
                     SOURCE_ID,
@@ -85,13 +85,11 @@ async def sensor_poll_loop(
                         error_count=error_count,
                     ),
                 )
-            except Exception:
-                pass
 
         try:
             await asyncio.wait_for(shutdown.wait(), timeout=POLL_INTERVAL)
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 
@@ -174,7 +172,7 @@ async def matrix_state_publisher(
         try:
             await asyncio.wait_for(shutdown.wait(), timeout=0.5)
             break
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 

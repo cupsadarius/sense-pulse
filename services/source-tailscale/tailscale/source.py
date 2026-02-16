@@ -6,10 +6,10 @@ import asyncio
 import json
 import logging
 
-import redis.asyncio as aioredis
-
 from sense_common.ephemeral import EphemeralSource
 from sense_common.models import SensorReading, SourceMetadata
+
+import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class TailscaleSource(EphemeralSource):
         except FileNotFoundError:
             logger.error("Tailscale CLI not found")
             return []
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Tailscale status command timed out")
             return []
         except Exception as e:

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-
 from sense_common.redis_client import read_all_sources, read_all_statuses
 
 logger = logging.getLogger(__name__)
@@ -82,21 +80,18 @@ async def sources_ws(websocket: WebSocket) -> None:
                 )
                 if message and message["type"] in ("message", "pmessage"):
                     pending_update = True
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
             now = asyncio.get_event_loop().time()
             time_since_push = now - last_push
 
             # Push if we have pending updates and batch interval elapsed
-            if pending_update and time_since_push >= BATCH_INTERVAL:
-                snapshot = await _build_snapshot(redis)
-                await websocket.send_json(snapshot)
-                last_push = now
-                pending_update = False
-
-            # Fallback poll if no updates for POLL_FALLBACK seconds
-            elif time_since_push >= POLL_FALLBACK:
+            if (
+                pending_update
+                and time_since_push >= BATCH_INTERVAL
+                or time_since_push >= POLL_FALLBACK
+            ):
                 snapshot = await _build_snapshot(redis)
                 await websocket.send_json(snapshot)
                 last_push = now

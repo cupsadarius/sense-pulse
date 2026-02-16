@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Request
-
 from sense_common.redis_client import publish_config_changed, read_config, write_config
 
 from gateway.deps import Auth, Redis

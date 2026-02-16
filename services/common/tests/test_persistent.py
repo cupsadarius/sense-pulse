@@ -1,21 +1,14 @@
 """Tests for sense_common.persistent base class."""
 
-import asyncio
-import json
-
 import fakeredis.aioredis
 import pytest
-
 from sense_common.models import (
     Command,
     CommandResponse,
     SensorReading,
     SourceMetadata,
-    SourceStatus,
 )
 from sense_common.redis_client import (
-    publish_command,
-    publish_config_changed,
     read_source,
     write_readings,
 )

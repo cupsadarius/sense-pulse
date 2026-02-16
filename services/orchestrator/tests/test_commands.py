@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import fakeredis.aioredis
 import pytest
-
-from sense_common.models import Command, CommandResponse
-
 from orchestrator.commands import CommandListener
 from orchestrator.runner import DockerRunner
+from sense_common.models import Command
 
 
 @pytest.fixture

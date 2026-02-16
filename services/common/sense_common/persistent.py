@@ -9,7 +9,6 @@ import time
 from abc import ABC, abstractmethod
 
 import redis.asyncio as aioredis
-
 from sense_common.models import (
     Command,
     CommandResponse,
@@ -57,7 +56,7 @@ class PersistentSource(ABC):
     async def handle_command(self, command: Command) -> CommandResponse:
         """Handle a command from Redis pub/sub."""
 
-    async def on_config_changed(self, redis: aioredis.Redis, section: str) -> None:
+    async def on_config_changed(self, redis: aioredis.Redis, section: str) -> None:  # noqa: B027
         """Called when a config section changes. Override for hot-reload."""
 
     async def run(self, redis_url: str, poll_interval: int = 30) -> None:
@@ -137,7 +136,7 @@ class PersistentSource(ABC):
                     timeout=interval,
                 )
                 break  # shutdown requested
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # time to poll again
 
     async def _command_listener(self, redis: aioredis.Redis) -> None:

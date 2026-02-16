@@ -6,10 +6,9 @@ import json
 from base64 import b64encode
 
 import pytest
+from gateway.app import create_app
 from httpx import ASGITransport, AsyncClient
 from passlib.context import CryptContext
-
-from gateway.app import create_app
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

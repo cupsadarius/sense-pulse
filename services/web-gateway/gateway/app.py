@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from sense_common.config import get_redis_url
 from sense_common.redis_client import create_redis
 

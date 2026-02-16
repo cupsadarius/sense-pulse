@@ -4,7 +4,6 @@ import json
 
 import fakeredis.aioredis
 import pytest
-
 from sense_common.ephemeral import EphemeralSource
 from sense_common.models import SensorReading, SourceMetadata
 
@@ -69,6 +68,7 @@ class TestEphemeralSource:
         assert len(readings) == 2
 
         # Write readings manually (testing the poll output)
+        from sense_common.models import SourceStatus
         from sense_common.redis_client import (
             publish_data,
             read_source,
@@ -76,7 +76,6 @@ class TestEphemeralSource:
             write_readings,
             write_status,
         )
-        from sense_common.models import SourceStatus
 
         await write_readings(redis, source.source_id, readings)
         await write_metadata(redis, source.source_id, source.metadata)
@@ -115,8 +114,8 @@ class TestEphemeralSource:
         source = FailingSource()
         redis = fakeredis.aioredis.FakeRedis(server=fake_redis_server, decode_responses=True)
 
-        from sense_common.redis_client import write_status
         from sense_common.models import SourceStatus
+        from sense_common.redis_client import write_status
 
         # Simulate what run() does on failure
         try:

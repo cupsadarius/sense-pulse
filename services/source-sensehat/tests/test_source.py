@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from sense_common.models import SensorReading
 from sensehat.source import SenseHatSensorSource
 
@@ -15,14 +13,16 @@ class TestSenseHatSensorSourceInit:
         """Should set available=True when sense_hat module is importable."""
         mock_sense = MagicMock()
 
-        with patch.dict(
-            "sys.modules", {"sense_hat": MagicMock(SenseHat=MagicMock(return_value=mock_sense))}
-        ):
-            with patch(
+        with (
+            patch.dict(
+                "sys.modules", {"sense_hat": MagicMock(SenseHat=MagicMock(return_value=mock_sense))}
+            ),
+            patch(
                 "sensehat.source.asyncio.to_thread", new_callable=AsyncMock, return_value=mock_sense
-            ):
-                source = SenseHatSensorSource()
-                await source.initialize()
+            ),
+        ):
+            source = SenseHatSensorSource()
+            await source.initialize()
 
         assert source.is_available is True
         assert source.sense_hat is mock_sense
@@ -37,8 +37,6 @@ class TestSenseHatSensorSourceInit:
             pass
 
         # Direct test: simulate ImportError on the import inside initialize()
-        original_init = source.initialize
-
         async def patched_init():
             source._available = False
             source._sense_hat = None

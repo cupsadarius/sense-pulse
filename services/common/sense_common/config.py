@@ -103,7 +103,7 @@ def get_config_value(
     env_val = os.environ.get(env_key)
     if env_val is not None:
         # Try to parse as JSON for complex types
-        if isinstance(default, (list, dict)):
+        if isinstance(default, list | dict):
             try:
                 return json.loads(env_val)
             except (json.JSONDecodeError, TypeError):

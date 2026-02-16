@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import json
+import contextlib
 import logging
 import signal
-import sys
 
 from sense_common.config import get_env, get_env_int, get_redis_url
 from sense_common.redis_client import create_redis, read_config, subscribe_config_changes
@@ -147,10 +146,8 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s [%(name)s] %(message)s",
     )
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run())
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

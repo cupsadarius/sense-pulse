@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import time
-from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from orchestrator.runner import DockerRunner
 from orchestrator.schedule import Scheduler
 
@@ -31,8 +28,6 @@ async def test_immediate_trigger_on_startup(runner):
     """All services should be triggered immediately on startup."""
     scheduler = make_scheduler(runner)
     triggered = []
-
-    original_run = runner.run_ephemeral
 
     async def mock_run(service, **kwargs):
         triggered.append(service)

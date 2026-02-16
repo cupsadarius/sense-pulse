@@ -7,11 +7,10 @@ import json
 import logging
 from typing import Any
 
-import redis.asyncio as aioredis
-
 from sense_common.models import Command, CommandResponse
 from sense_common.redis_client import publish_command, publish_response, subscribe_commands
 
+import redis.asyncio as aioredis
 from orchestrator.runner import DockerRunner
 
 logger = logging.getLogger(__name__)

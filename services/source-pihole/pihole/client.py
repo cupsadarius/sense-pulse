@@ -66,9 +66,8 @@ class PiHoleClient:
     async def fetch_stats(self, client: httpx.AsyncClient) -> dict | None:
         """Fetch Pi-hole summary stats. Returns None on failure."""
         # Authenticate if needed
-        if self.password and not self._session_id:
-            if not await self.authenticate(client):
-                return None
+        if self.password and not self._session_id and not await self.authenticate(client):
+            return None
 
         headers: dict[str, str] = {}
         if self._session_id:

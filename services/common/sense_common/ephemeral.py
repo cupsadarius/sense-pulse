@@ -7,7 +7,6 @@ import time
 from abc import ABC, abstractmethod
 
 import redis.asyncio as aioredis
-
 from sense_common.models import SensorReading, SourceMetadata, SourceStatus
 from sense_common.redis_client import (
     create_redis,

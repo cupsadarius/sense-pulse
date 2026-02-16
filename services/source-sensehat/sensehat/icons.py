@@ -1,7 +1,5 @@
 """8x8 LED matrix icon definitions for Sense HAT"""
 
-from typing import Optional
-
 # Color constants
 O = [0, 0, 0]  # Off/Black  # noqa: E741 (O is clear in icon context)
 R = [255, 0, 0]  # Red
@@ -1495,7 +1493,7 @@ ICONS = {
 }
 
 
-def get_icon(name: str) -> Optional[list[list[int]]]:
+def get_icon(name: str) -> list[list[int]] | None:
     """
     Get icon pixels by name.
 

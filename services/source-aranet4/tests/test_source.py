@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import fakeredis.aioredis
 import pytest
-
 from aranet4_svc.scanner import Aranet4Reading
 from aranet4_svc.source import Aranet4Source
 

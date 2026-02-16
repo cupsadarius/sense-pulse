@@ -53,15 +53,17 @@ class Scheduler:
             while not self._shutdown.is_set():
                 now = time.time()
                 for service, interval in list(self.schedules.items()):
-                    if now - self.last_run[service] >= interval:
-                        if service not in self.runner.running:
-                            self.last_run[service] = now
-                            task = asyncio.create_task(
-                                self.runner.run_ephemeral(service),
-                                name=f"poll-{service}",
-                            )
-                            self._tasks.add(task)
-                            task.add_done_callback(self._tasks.discard)
+                    if (
+                        now - self.last_run[service] >= interval
+                        and service not in self.runner.running
+                    ):
+                        self.last_run[service] = now
+                        task = asyncio.create_task(
+                            self.runner.run_ephemeral(service),
+                            name=f"poll-{service}",
+                        )
+                        self._tasks.add(task)
+                        task.add_done_callback(self._tasks.discard)
 
                 try:
                     await asyncio.wait_for(
@@ -69,7 +71,7 @@ class Scheduler:
                         timeout=TICK_INTERVAL,
                     )
                     break  # shutdown was set
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass  # normal tick
         finally:
             # Wait for any running tasks to finish

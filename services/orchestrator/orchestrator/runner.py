@@ -64,7 +64,7 @@ class DockerRunner:
 
             try:
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error("Service %s timed out after %.0fs", service, timeout)
                 proc.kill()
                 await proc.wait()

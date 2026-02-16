@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import fakeredis.aioredis
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from gateway.app import create_app
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture

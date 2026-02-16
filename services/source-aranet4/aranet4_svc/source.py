@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import logging
 
-import redis.asyncio as aioredis
-
 from sense_common.config import get_config_value
 from sense_common.ephemeral import EphemeralSource
 from sense_common.models import SensorReading, SourceMetadata
 from sense_common.redis_client import read_config
 
+import redis.asyncio as aioredis
 from aranet4_svc.scanner import Aranet4Scanner
 
 logger = logging.getLogger(__name__)

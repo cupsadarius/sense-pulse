@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from sensehat.controller import DisplayController
 from sensehat.display import SenseHatDisplay
 
@@ -259,7 +257,7 @@ class TestDisplayControllerCycle:
             "_show_weather": controller._show_weather,
         }
 
-        for name, handler in original_handlers.items():
+        for _name, _handler in original_handlers.items():
 
             async def make_wrapper(n, h):
                 async def wrapper(data):

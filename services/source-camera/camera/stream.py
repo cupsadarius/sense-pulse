@@ -246,7 +246,7 @@ class StreamManager:
                     self._process.terminate()
                     try:
                         await asyncio.wait_for(self._process.wait(), timeout=5.0)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.warning("FFmpeg didn't terminate, killing")
                         self._process.kill()
                         await self._process.wait()
@@ -352,7 +352,7 @@ class StreamManager:
                     self._process.terminate()
                     try:
                         await asyncio.wait_for(self._process.wait(), timeout=5.0)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         self._process.kill()
                         await self._process.wait()
                 except ProcessLookupError:

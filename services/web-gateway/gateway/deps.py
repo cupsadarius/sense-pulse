@@ -6,12 +6,11 @@ import logging
 import os
 from typing import Annotated
 
-import redis.asyncio as aioredis
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-
 from sense_common.redis_client import read_config
 
+import redis.asyncio as aioredis
 from gateway.auth import authenticate
 
 logger = logging.getLogger(__name__)

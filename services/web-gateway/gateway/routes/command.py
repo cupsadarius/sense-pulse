@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-
 from sense_common.models import Command
 from sense_common.redis_client import publish_command, wait_response
 

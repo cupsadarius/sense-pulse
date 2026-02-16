@@ -3,6 +3,7 @@
 import asyncio
 
 from sense_common.config import get_redis_url
+
 from system.source import SystemSource
 
 

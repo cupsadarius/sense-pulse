@@ -7,10 +7,10 @@ import logging
 import os
 
 import psutil  # type: ignore[import-untyped]
-import redis.asyncio as aioredis
-
 from sense_common.ephemeral import EphemeralSource
 from sense_common.models import SensorReading, SourceMetadata
+
+import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 

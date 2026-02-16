@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from camera.stream import StreamManager, StreamStatus
 
 
@@ -82,9 +82,11 @@ class TestStreamStartStop:
         mock_process.pid = 12345
         mock_process.stderr = None
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                result = await stream_manager.start()
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=mock_process),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            result = await stream_manager.start()
 
         assert result is True
         assert stream_manager.get_status()["status"] == "streaming"
@@ -93,10 +95,8 @@ class TestStreamStartStop:
         # Clean up monitor task
         if stream_manager._monitor_task:
             stream_manager._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await stream_manager._monitor_task
-            except asyncio.CancelledError:
-                pass
 
     async def test_start_ffmpeg_not_found(self, stream_manager: StreamManager) -> None:
         with patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError):
@@ -111,9 +111,11 @@ class TestStreamStartStop:
         mock_process.returncode = 1
         mock_process.stderr = None
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                result = await stream_manager.start()
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=mock_process),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            result = await stream_manager.start()
 
         assert result is False
         assert stream_manager.get_status()["status"] == "error"
@@ -127,17 +129,17 @@ class TestStreamStartStop:
         mock_process.kill = MagicMock()
         mock_process.wait = AsyncMock(return_value=0)
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                await stream_manager.start()
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=mock_process),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await stream_manager.start()
 
         # Cancel monitor before stopping
         if stream_manager._monitor_task:
             stream_manager._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await stream_manager._monitor_task
-            except asyncio.CancelledError:
-                pass
             stream_manager._monitor_task = None
 
         await stream_manager.stop()
@@ -235,9 +237,7 @@ class TestMonitorDetectsStaleStream:
         stream_manager._status = StreamStatus.STREAMING
 
         # Mock _handle_reconnect to prevent actual reconnection
-        with patch.object(
-            stream_manager, "_handle_reconnect", new_callable=AsyncMock
-        ) as mock_reconnect:
+        with patch.object(stream_manager, "_handle_reconnect", new_callable=AsyncMock):
             # Run monitor briefly
             stream_manager._shutdown_event.clear()
 
@@ -254,14 +254,10 @@ class TestMonitorDetectsStaleStream:
 
             monitor_task.cancel()
             stop_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await monitor_task
-            except asyncio.CancelledError:
-                pass
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await stop_task
-            except asyncio.CancelledError:
-                pass
 
 
 class TestReconnectLogic:

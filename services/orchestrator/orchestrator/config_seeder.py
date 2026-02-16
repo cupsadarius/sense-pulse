@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import redis.asyncio as aioredis
-
 from sense_common.config import (
     get_env,
     get_env_bool,
@@ -15,6 +13,8 @@ from sense_common.config import (
     get_env_json,
 )
 from sense_common.redis_client import seed_config_from_env
+
+import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 

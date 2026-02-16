@@ -7,7 +7,6 @@ from collections import namedtuple
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from sense_common.models import SensorReading
 from system.source import SystemSource
 
