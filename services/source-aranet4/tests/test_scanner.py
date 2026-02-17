@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from aranet4_svc.scanner import Aranet4Scanner
 
 
