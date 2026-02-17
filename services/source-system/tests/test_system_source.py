@@ -43,6 +43,7 @@ class TestSystemPoll:
             patch(
                 "system.source.psutil.sensors_temperatures",
                 return_value={"cpu_thermal": [STemp("", 52.3, 80.0, 90.0)]},
+                create=True,
             ),
         ):
             readings = await source.poll(redis_mock)
@@ -63,6 +64,7 @@ class TestSystemPoll:
             patch(
                 "system.source.psutil.sensors_temperatures",
                 return_value={"cpu_thermal": [STemp("", 52.3, 80.0, 90.0)]},
+                create=True,
             ),
         ):
             readings = await source.poll(redis_mock)
@@ -83,6 +85,7 @@ class TestSystemPoll:
             patch(
                 "system.source.psutil.sensors_temperatures",
                 return_value={"cpu_thermal": [STemp("", 52.3, 80.0, 90.0)]},
+                create=True,
             ),
         ):
             readings = await source.poll(redis_mock)
@@ -111,6 +114,7 @@ class TestSystemPoll:
             patch(
                 "system.source.psutil.sensors_temperatures",
                 return_value={"coretemp": [STemp("Core 0", 45.0, 80.0, 90.0)]},
+                create=True,
             ),
         ):
             readings = await source.poll(redis_mock)
@@ -128,7 +132,7 @@ class TestSystemPoll:
             patch("system.source.psutil.cpu_percent", return_value=10.0),
             patch("system.source.psutil.virtual_memory", return_value=vmem),
             patch("system.source.os.getloadavg", return_value=(0.5, 0.4, 0.3)),
-            patch("system.source.psutil.sensors_temperatures", return_value={}),
+            patch("system.source.psutil.sensors_temperatures", return_value={}, create=True),
         ):
             readings = await source.poll(redis_mock)
 
@@ -148,6 +152,7 @@ class TestSystemPoll:
             patch(
                 "system.source.psutil.sensors_temperatures",
                 side_effect=AttributeError("not supported"),
+                create=True,
             ),
         ):
             readings = await source.poll(redis_mock)
@@ -167,7 +172,7 @@ class TestSystemPoll:
             patch("system.source.psutil.cpu_percent", return_value=10.0),
             patch("system.source.psutil.virtual_memory", return_value=vmem),
             patch("system.source.os.getloadavg", return_value=(0.5, 0.4, 0.3)),
-            patch("system.source.psutil.sensors_temperatures", return_value={}),
+            patch("system.source.psutil.sensors_temperatures", return_value={}, create=True),
         ):
             await source.poll(redis_mock)
             assert env.get("HOST_PROC") == "/host/proc"
@@ -188,6 +193,7 @@ class TestSystemFullRun:
             patch(
                 "system.source.psutil.sensors_temperatures",
                 return_value={"cpu_thermal": [STemp("", 52.3, 80.0, 90.0)]},
+                create=True,
             ),
             patch("sense_common.ephemeral.create_redis", return_value=fake),
         ):

@@ -225,16 +225,15 @@ async def wait_response(
     await pubsub.subscribe(channel)
     try:
         deadline = time.time() + timeout
-        async for message in pubsub.listen():
-            if message["type"] == "message":
+        while time.time() < deadline:
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message is not None and message["type"] == "message":
                 try:
                     return CommandResponse.model_validate_json(message["data"])
                 except Exception:
                     logger.exception("Failed to parse response: %s", message["data"])
                     return None
-            if time.time() > deadline:
-                logger.warning("Timeout waiting for response on %s", channel)
-                return None
+        logger.warning("Timeout waiting for response on %s", channel)
         return None
     finally:
         await pubsub.unsubscribe(channel)

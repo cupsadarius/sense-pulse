@@ -38,6 +38,12 @@ async def grid_ws(websocket: WebSocket) -> None:
             except TimeoutError:
                 pass
 
+            # Periodic keep-alive ping to detect disconnected clients
+            try:
+                await websocket.send_bytes(b"")
+            except Exception:
+                break
+
     except WebSocketDisconnect:
         logger.debug("WebSocket /ws/grid disconnected")
     except Exception:

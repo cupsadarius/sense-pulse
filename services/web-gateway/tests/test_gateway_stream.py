@@ -34,9 +34,14 @@ async def test_stream_unsupported_file(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_stream_path_traversal(client: AsyncClient):
-    """GET /api/stream/../etc/passwd is sanitized to just 'passwd'."""
-    # The path will be sanitized to "passwd" which is not .m3u8 or .ts
-    resp = await client.get("/api/stream/../etc/passwd")
+    """Nested path is sanitized to just the filename (unsupported ext → 400).
+
+    Note: ``../`` in URLs is normalised by HTTP clients before sending, so we
+    use a nested sub-path instead (``subdir/passwd``).  The route handler calls
+    ``Path(path).name`` which strips directory components, yielding ``passwd``
+    — an unsupported file type.
+    """
+    resp = await client.get("/api/stream/subdir/passwd")
     assert resp.status_code == 400
 
 

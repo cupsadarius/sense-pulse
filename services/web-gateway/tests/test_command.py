@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
@@ -28,12 +29,9 @@ async def test_command_missing_action(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_command_timeout(client: AsyncClient, fake_redis):
     """POST /api/command/sensors times out if no response published."""
-    # The command will be published but no responder is listening
-    # Reduce timeout by mocking. Since wait_response uses 5s default,
-    # we just let it time out (the test will pass quickly since fakeredis
-    # pubsub will not receive a response).
-    # We need a small trick: send the request, it will wait and timeout.
-    resp = await client.post("/api/command/sensors", json={"action": "clear"})
+    # Reduce the default timeout so the test doesn't wait 5s
+    with patch("gateway.routes.command.DEFAULT_TIMEOUT", 0.5):
+        resp = await client.post("/api/command/sensors", json={"action": "clear"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is False
@@ -50,7 +48,7 @@ async def test_command_with_response(client: AsyncClient, fake_redis):
     async def respond():
         """Wait for command and publish response."""
         # Wait for the command message
-        for _ in range(50):
+        for _ in range(100):
             msg = await pubsub.get_message(ignore_subscribe_messages=True)
             if msg and msg["type"] == "message":
                 command = json.loads(msg["data"])
@@ -66,7 +64,7 @@ async def test_command_with_response(client: AsyncClient, fake_redis):
                 )
                 await fake_redis.publish(response_channel, response_payload)
                 return
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.02)
 
     # Launch responder and request concurrently
     resp_task = asyncio.create_task(respond())

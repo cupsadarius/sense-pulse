@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+
 from aranet4_svc.scanner import Aranet4Scanner
 
 
@@ -34,6 +35,13 @@ def _make_advertisement(
     return SimpleNamespace(device=device, readings=readings, rssi=rssi)
 
 
+def _make_mock_aranet4(fake_find_nearby):
+    """Create a mock aranet4 module with client._find_nearby set to the given coroutine."""
+    mock_module = MagicMock()
+    mock_module.client._find_nearby = fake_find_nearby
+    return mock_module
+
+
 class TestAranet4ScannerScan:
     """Tests for Aranet4Scanner.scan()."""
 
@@ -52,8 +60,8 @@ class TestAranet4ScannerScan:
         async def fake_find_nearby(callback, duration=10):  # noqa: ARG001
             callback(adv)
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             result = await scanner.scan(sensors, timeout=5)
 
         assert "office" in result
@@ -76,8 +84,8 @@ class TestAranet4ScannerScan:
         async def fake_find_nearby(callback, duration=10):  # noqa: ARG001
             callback(adv)
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             result = await scanner.scan(sensors, timeout=5)
 
         assert result["office"] is not None
@@ -95,8 +103,8 @@ class TestAranet4ScannerScan:
             callback(adv1)
             callback(adv2)
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             result = await scanner.scan(sensors, timeout=5)
 
         assert result["office"] is not None
@@ -113,8 +121,8 @@ class TestAranet4ScannerScan:
             callback(adv1)
             callback(adv2)  # duplicate, should be ignored
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             result = await scanner.scan(sensors, timeout=5)
 
         assert result["office"] is not None
@@ -123,11 +131,6 @@ class TestAranet4ScannerScan:
     async def test_scan_handles_import_error(self, scanner: Aranet4Scanner) -> None:
         sensors = [{"label": "office", "mac": "AA:BB:CC:DD:EE:01"}]
 
-        with patch("aranet4_svc.scanner.aranet4", side_effect=ImportError("no aranet4")):
-            # The import happens inside the method, need to patch differently
-            pass
-
-        # Simulate ImportError by patching builtins
         import builtins
 
         real_import = builtins.__import__
@@ -148,8 +151,8 @@ class TestAranet4ScannerScan:
         async def failing_find_nearby(callback, duration=10):  # noqa: ARG001
             raise RuntimeError("BLE adapter not found")
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = failing_find_nearby
+        mock_aranet4 = _make_mock_aranet4(failing_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             result = await scanner.scan(sensors, timeout=5)
 
         assert result["office"] is None
@@ -162,8 +165,8 @@ class TestAranet4ScannerScan:
         async def fake_find_nearby(callback, duration=10):  # noqa: ARG001
             callback(adv)
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             result = await scanner.scan(sensors, timeout=5)
 
         assert result["office"] is not None
@@ -185,8 +188,8 @@ class TestAranet4ScannerDiscover:
             callback(adv1)
             callback(adv2)
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             devices = await scanner.discover(timeout=5)
 
         assert len(devices) == 2
@@ -203,8 +206,8 @@ class TestAranet4ScannerDiscover:
             callback(adv)
             callback(adv)  # duplicate
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             devices = await scanner.discover(timeout=5)
 
         assert len(devices) == 1
@@ -213,8 +216,8 @@ class TestAranet4ScannerDiscover:
         async def fake_find_nearby(callback, duration=10):  # noqa: ARG001
             pass  # no devices found
 
-        with patch("aranet4_svc.scanner.aranet4") as mock_aranet4:
-            mock_aranet4.client._find_nearby = fake_find_nearby
+        mock_aranet4 = _make_mock_aranet4(fake_find_nearby)
+        with patch.dict("sys.modules", {"aranet4": mock_aranet4}):
             devices = await scanner.discover(timeout=5)
 
         assert devices == []
