@@ -1,9 +1,10 @@
 FROM python:3.12-slim-bookworm
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install sense-hat system package (provides C bindings)
+# System deps for Pillow (required by sense-hat) and I2C tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-sense-hat \
+    libopenjp2-7 \
+    i2c-tools \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
