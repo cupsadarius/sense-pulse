@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake git python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN pip install --no-cache-dir setuptools
+
 RUN git clone --depth 1 https://github.com/RPi-Distro/RTIMULib.git /tmp/RTIMULib \
     && cd /tmp/RTIMULib/Linux/python \
     && python setup.py build_ext \
