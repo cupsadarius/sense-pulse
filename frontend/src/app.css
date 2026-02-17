@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-pulse-bg: #0f172a;
+	--color-pulse-card: #1e293b;
+	--color-pulse-border: #334155;
+	--color-pulse-accent: #38bdf8;
+	--color-status-green: #22c55e;
+	--color-status-yellow: #eab308;
+	--color-status-red: #ef4444;
+	--color-status-gray: #6b7280;
+}
+
+html {
+	background-color: var(--color-pulse-bg);
+	color: #e2e8f0;
+}
+
+body {
+	font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+	min-height: 100vh;
+}

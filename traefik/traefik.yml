@@ -1,0 +1,16 @@
+providers:
+  docker:
+    exposedByDefault: false
+    # Host network mode: Traefik connects to containers via Docker network
+    # but listens on host interfaces (sees Tailscale)
+    network: sense-pulse_internal
+
+entryPoints:
+  web:
+    address: ":8080"
+
+api:
+  dashboard: false
+
+log:
+  level: WARN

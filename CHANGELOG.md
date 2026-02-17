@@ -1,5 +1,87 @@
 # Changelog
 
+## Version 0.12.0 - Microservice Architecture (Breaking Changes)
+
+Complete rewrite from a single-process monolith to a Docker-based microservice architecture targeting a Raspberry Pi 3B (1 GB RAM).
+
+### Architecture
+
+- **10 independent services** communicating via Redis pub/sub and key-value storage
+- **UV workspace** with a single lock file and shared `sense-common` library
+- **Ephemeral containers** for polling sources (orchestrator starts them on schedule, they write to Redis and exit)
+- **Persistent containers** for always-on services (Sense HAT LED display, web gateway, orchestrator)
+- **Demand-started camera** container (FFmpeg RTSP-to-HLS only runs when requested)
+- **Traefik v3** reverse proxy on host network for path-based routing
+- **SvelteKit 5** frontend replaces Jinja2 server-rendered templates
+
+### Services
+
+| Service | Type | Description |
+|---------|------|-------------|
+| `source-weather` | Ephemeral | Polls wttr.in for current conditions and 3-day forecast |
+| `source-pihole` | Ephemeral | Polls Pi-hole API for DNS query stats |
+| `source-tailscale` | Ephemeral | Polls Tailscale daemon socket for connection status |
+| `source-system` | Ephemeral | Reads CPU, memory, load, and temperature from `/proc` and `/sys` |
+| `source-aranet4` | Ephemeral | Reads Aranet4 CO2 sensors via BLE; supports scan mode for discovery |
+| `source-sensehat` | Persistent | Reads onboard sensors, drives the 8x8 LED matrix, publishes matrix state at 500ms |
+| `source-camera` | Demand | RTSP-to-HLS streaming via FFmpeg with ONVIF PTZ control and network discovery |
+| `orchestrator` | Persistent | Schedules ephemeral polls, dispatches commands, seeds config from `.env` into Redis |
+| `web-gateway` | Persistent | FastAPI REST + WebSocket gateway; reads from Redis, proxies HLS segments |
+| `frontend` | Persistent | SvelteKit 5 dashboard with Tailwind CSS 4, served via Node adapter |
+
+### Common Library (`sense-common`)
+
+Shared across all Python services:
+
+- `SensorReading`, `SourceMetadata`, `SourceStatus`, `Command`, `CommandResponse` models
+- `EphemeralSource` and `PersistentSource` abstract base classes
+- Redis client helpers: `write_readings`, `read_source`, `publish_data`, `subscribe_commands`, `wait_response`, `seed_config_from_env`, etc.
+- Config helpers: `get_env`, `get_env_int`, `get_env_float`, `get_env_bool`, `get_env_json`, `get_redis_url`
+
+### Data Flow
+
+- **Redis key schema:** `source:{id}:{sensor}` (60s TTL), `status:{id}` (120s TTL), `meta:{id}` (no TTL), `config:{section}` (no TTL)
+- **Pub/sub channels:** `data:{id}` (new data notification), `cmd:{id}` (commands), `cmd:{id}:response:{request_id}` (responses), `config:changed` (hot-reload), `matrix:state` (LED preview)
+- **Config hot-reload:** dashboard writes to `config:{section}`, publishes `config:changed`; persistent services reload immediately, ephemeral sources pick up on next poll
+
+### Frontend
+
+- SvelteKit 5 with Svelte 5 runes, Tailwind CSS 4, TypeScript
+- Components: Aranet4Card, LedMatrix, NetworkCamera, PTZControls, PiholeCard, SenseHatCard, SourceCard, SourceStatusBar, SystemCard, TailscaleCard, WeatherCard, ConnectionStatus
+- WebSocket-driven real-time updates for source data and LED matrix preview
+- HLS video player via hls.js for camera streams
+
+### Docker & Deployment
+
+- `docker-compose.yml` with three profiles: default (always-on), `poll` (ephemeral), `camera` (demand)
+- Traefik v3 routes `/api`, `/ws`, `/health` to web-gateway; `/` to frontend
+- Memory-limited containers (32-128 MB each), ~130 MB idle RAM
+- JSON file logging (10 MB x 3 rotation)
+- Health checks on Redis with dependent service startup ordering
+
+### CI/CD
+
+- GitHub Actions: lint (ruff + mypy), test-common, test-services (9-service matrix), build-frontend (svelte-check + build)
+- Triggered on push to `main`/`feature/*` and PRs to `main`
+
+### Breaking Changes
+
+- The entire monolith (`src/sense_pulse/`) has been removed
+- Old `config.yaml` replaced by `.env` environment variables seeded into Redis
+- Old `tests/` directory replaced by per-service `services/*/tests/`
+- Old systemd service file removed in favor of Docker Compose
+- All previous Python APIs (`AppContext`, `DataCache`, `DataSource`, etc.) no longer exist
+
+### Migration
+
+This is a full rewrite. To migrate:
+
+1. Back up your `config.yaml` values
+2. Copy `.env.example` to `.env` and fill in your settings
+3. Run `make build && make up`
+
+---
+
 ## Version 0.11.0 - Network Camera & Logging
 
 ### Features

@@ -1,47 +1,62 @@
 # Sense Pulse - Development Guide
 
 ## Overview
-Pi-hole + Tailscale + Sensor monitoring with Raspberry Pi Sense HAT LED display and web dashboard.
 
-**Stack:** Python 3.9+ | FastAPI | AsyncIO | UV package manager
+Microservice architecture for Pi-hole, Tailscale, and sensor monitoring with a SvelteKit web dashboard. Each data source runs as an independent service communicating via Redis pub/sub and hash storage.
 
-## Package Management (UV)
+**Stack:** Python 3.12+ | FastAPI | Redis | UV workspace | SvelteKit | Docker
+
+## Package Management (UV Workspace)
+
+The project uses a UV workspace with all services under `services/`.
 
 ```bash
-uv sync --all-extras --dev    # Install all dependencies
+uv sync --dev                  # Install all workspace packages + dev deps
 uv run <command>               # Run commands in managed env
 ```
 
+Workspace members are defined in the root `pyproject.toml` under `[tool.uv.workspace]`.
 Lock file: `uv.lock` ensures reproducible builds.
 
 ## Architecture
 
 ### Data Flow Pattern
 ```
-Data Sources (truth) → DataCache (60s TTL, 30s polling) → API/Display (read-only)
+Data Sources → Redis (hash + pub/sub) → Web Gateway → Frontend
+                  ↑                         ↓
+            Orchestrator              Commands / Config
 ```
 
-**Key Principle:** Data sources hold the truth. Cache polls sources in background. All consumers read from cache (never direct).
+**Key Principle:** Each source service independently polls its data source and writes to Redis. The web gateway reads from Redis and serves the frontend. The orchestrator manages service lifecycle and health.
 
-### Components
-- **AppContext** - Dependency injection container
-- **DataCache** - Centralized caching with background polling
-- **DataSources** - 6 sources (Pi-hole, Tailscale, System, SenseHat, Aranet4, Weather)
-- **StatsDisplay** - LED matrix controller
-- **Web App** - FastAPI dashboard with WebSocket updates
+### Services (`services/`)
+| Service | Description |
+|---------|-------------|
+| **common** | Shared library (`sense-common`): Redis client, base service, models, config |
+| **source-weather** | OpenWeatherMap polling |
+| **source-pihole** | Pi-hole API polling |
+| **source-tailscale** | Tailscale API polling |
+| **source-system** | System metrics (CPU, memory, disk, temp) |
+| **source-sensehat** | Raspberry Pi Sense HAT sensors + LED display |
+| **source-aranet4** | Aranet4 CO2 sensor via BLE |
+| **source-camera** | ONVIF camera snapshots |
+| **orchestrator** | Service health monitoring, command dispatch |
+| **web-gateway** | FastAPI REST/WebSocket gateway for the frontend |
 
-### Data Sources Interface
-All implement: `fetch_readings()`, `initialize()`, `health_check()`, `shutdown()`
+### Frontend (`frontend/`)
+SvelteKit dashboard served by the web gateway.
+
+### Legacy (`legacy/`)
+Original monolith code preserved for reference. Not used in production.
 
 ## Pre-Commit Workflow
 
 **Before every commit, run:**
 ```bash
-uv run ruff check --fix src/ tests/   # Lint + autofix
-uv run ruff format src/ tests/        # Format
-uv run black src/ tests/              # Format (black)
-uv run mypy src/                      # Type check
-uv run pytest                         # All tests
+uv run ruff check --fix services/   # Lint + autofix
+uv run ruff format services/        # Format
+uv run mypy services/common/sense_common/  # Type check common library
+uv run pytest                        # All tests
 ```
 
 **Or use pre-commit hooks:**
@@ -71,44 +86,58 @@ git diff origin/main <file>           # Detailed diff per file
 ## Testing
 
 ```bash
-uv run pytest                     # Run all tests
-uv run pytest --cov=sense_pulse   # With coverage
+# Test all services
+uv run pytest
+
+# Test individual services
+uv run pytest services/common/tests/ -v
+uv run pytest services/source-weather/tests/ -v
+uv run pytest services/source-pihole/tests/ -v
+uv run pytest services/source-tailscale/tests/ -v
+uv run pytest services/source-system/tests/ -v
+uv run pytest services/source-sensehat/tests/ -v
+uv run pytest services/source-aranet4/tests/ -v
+uv run pytest services/source-camera/tests/ -v
+uv run pytest services/orchestrator/tests/ -v
+uv run pytest services/web-gateway/tests/ -v
 ```
 
-**Config:** `pyproject.toml` - pytest-asyncio, coverage reporting
-**Tests:** Cache, DataSources, API, Auth, CLI integration
+**Config:** `pyproject.toml` - pytest-asyncio, test paths set to `services/*/tests`
 
 ## Code Quality Tools
 
-- **Ruff** - Fast linter (E, W, F, I, B, C4, UP, ARG, SIM)
-- **Black** - Code formatter (line-length: 100)
-- **Mypy** - Type checker (lenient, check untyped defs)
-- **Pre-commit** - Automated hooks
+- **Ruff** - Fast linter + formatter (E, W, F, I, B, C4, UP, ARG, SIM)
+- **Mypy** - Type checker (common library)
+- **Pre-commit** - Automated hooks (ruff, trailing whitespace, YAML/JSON/TOML checks)
 
 ## CI/CD
 
-GitHub Actions on push/PR:
-1. **Lint & Type Check** - Ruff + Black + Mypy
-2. **Test Matrix** - Python 3.9-3.12 with coverage
-3. **Security Scan** - Bandit
+GitHub Actions on push to `main`/`feature/*` and PRs to `main`:
+1. **Lint & Type Check** - Ruff check + format + Mypy on `services/`
+2. **Test Common** - `services/common/tests/`
+3. **Test Services** - Matrix of all 9 services (depends on common passing)
+4. **Build Frontend** - `npm ci && npm run build` in `frontend/`
 
 ## Development Commands
 
 ```bash
 # Setup
-uv sync --all-extras --dev
+uv sync --dev
 uv run pre-commit install
 
-# Run
-uv run sense-pulse                # Display + web
-uv run sense-pulse --web-only     # Web only
-uv run sense-pulse --once -v      # Single cycle debug
+# Lint
+uv run ruff check services/
+uv run ruff check --fix services/
+uv run ruff format services/
+uv run mypy services/common/sense_common/
 
-# Quality checks
-uv run ruff check --fix src/ tests/
-uv run black src/ tests/
-uv run mypy src/
-uv run pytest
+# Test
+uv run pytest                                    # All tests
+uv run pytest services/common/tests/ -v          # Common library
+uv run pytest services/source-weather/tests/ -v  # Single service
+
+# Frontend
+cd frontend && npm ci && npm run build
 
 # Pre-commit
 uv run pre-commit run --all-files
@@ -116,11 +145,12 @@ uv run pre-commit run --all-files
 
 ## Configuration
 
-`config.yaml` - YAML-based config for all components (Pi-hole, Tailscale, display, web, auth, sensors, cache)
+Each service reads configuration from environment variables. Redis connection details are shared across all services. See individual service `pyproject.toml` files for dependencies.
 
 ## Key Architecture Decisions
 
-- **Dependency Injection** - AppContext provides all dependencies, no globals
-- **Cache-First Reads** - Background polling prevents blocking, instant API responses
-- **AsyncIO** - Non-blocking I/O for all operations
-- **Separation of Concerns** - DataSource (unified interface) vs Device (low-level wrappers)
+- **Microservices** - Each data source is an independent service with its own process
+- **Redis Data Bus** - Pub/sub for events, hashes for current state, decouples all services
+- **UV Workspace** - Single lock file, shared dev dependencies, per-service packages
+- **Cache-Free Reads** - Gateway reads directly from Redis (Redis is the cache)
+- **Independent Deployment** - Each service can be built/deployed separately via Docker
